@@ -207,8 +207,8 @@ export function groupScope(ms: Match[], g: string): { ids: Set<string>; matches:
 }
 
 /**
- * Rodízio dividido em 2 grupos: quando os jogos de grupo da divisão acabam,
- * 1º e 2º do Grupo A jogam juntos contra 1º e 2º do Grupo B. Quem vence é campeão.
+ * Rodízio dividido em 2 grupos: quando os jogos de grupo da divisão acabam, a final é cruzada:
+ * 1º do A + 2º do B contra 2º do A + 1º do B. Quem vence é campeão.
  */
 export function groupFinals(players: Player[], config: Config, matches: Match[]): NewMatch[] {
   const out: NewMatch[] = [];
@@ -218,14 +218,14 @@ export function groupFinals(players: Player[], config: Config, matches: Match[])
     if (grps.length !== 2) continue;
     if (matches.some((m) => m.division === div.id && m.stage === 'mata')) continue;
     if (ms.some((m) => !evaluate(m.sets, config.scoring).done)) continue;
-    const top = grps.map((g) => {
+    const [ta, tb] = grps.map((g) => {
       const { ids, matches: gm } = groupScope(ms, g);
       return standings(playerEntities(div.players.filter((p) => ids.has(p.id))), gm, config, individualSides).slice(0, 2).map((r) => r.key);
     });
-    if (top.some((t) => t.length < 2)) continue;
+    if (ta.length < 2 || tb.length < 2) continue;
     // Final na primeira quadra que a divisão já usava (feminino e masculino não caem na mesma quadra).
     const court = Math.min(...ms.map((m) => m.court));
-    out.push({ stage: 'mata', round: 1, division: div.id, grp: null, slot: 0, court, label: 'Final', a: top[0], b: top[1], teamA: null, teamB: null, sets: [] });
+    out.push({ stage: 'mata', round: 1, division: div.id, grp: null, slot: 0, court, label: 'Final', a: [ta[0], tb[1]], b: [ta[1], tb[0]], teamA: null, teamB: null, sets: [] });
   }
   return out;
 }

@@ -316,7 +316,7 @@ describe('ranking', () => {
     expect(secs.map((s) => s.title)).toEqual(['Grupo A', 'Grupo B']);
     expect(secs[0].rows.map((r) => r.key).sort()).toEqual(['h0', 'h1', 'h2', 'h3']);
   });
-  it('rodízio em 2 grupos termina na final: 1º e 2º do A contra 1º e 2º do B', () => {
+  it('rodízio em 2 grupos termina na final cruzada: 1º A + 2º B contra 2º A + 1º B', () => {
     const players = mkPlayers(8, 0);
     const c = cfg({ modality: 'mesmo_genero', format: 'rodizio' });
     const mk = (a: string[], b: string[], grp: string, id: string, s: [number, number]): Match => ({ ...m(a, b, s, id), division: 'H', grp });
@@ -325,8 +325,12 @@ describe('ranking', () => {
     const step = nextStep(players, [], c, all, 1)!;
     expect(step.title).toBe('Gerar final');
     const f = step.matches[0];
-    expect(new Set(f.a)).toEqual(new Set(['h0', 'h1']));
-    expect(new Set(f.b)).toEqual(new Set(['h6', 'h7']));
+    const topA = rankingSections(players, [], c, all)[0].rows.slice(0, 2).map((r) => r.key);
+    const topB = rankingSections(players, [], c, all)[1].rows.slice(0, 2).map((r) => r.key);
+    expect(new Set(topA)).toEqual(new Set(['h0', 'h1']));
+    expect(new Set(topB)).toEqual(new Set(['h6', 'h7']));
+    expect(f.a).toEqual([topA[0], topB[1]]);
+    expect(f.b).toEqual([topA[1], topB[0]]);
     all = [...all, { ...f, id: 'f', version: 0, sets: [[2, 2]] }];
     expect(finalWinners('H', c, all)).toBeNull(); // 2x2 na final vai para o game de desempate
     all = all.map((x) => (x.id === 'f' ? { ...x, sets: [[2, 3]] as [number, number][] } : x));
@@ -353,8 +357,8 @@ describe('ranking', () => {
     expect(gb.rows.find((r) => r.key === 'h4')).toMatchObject({ j: 2, v: 0, d: 2 });
     const f = nextStep(players, [], c, all, 1)!.matches[0];
     expect(f.label).toBe('Final');
-    expect(f.a.every((id) => ['h0', 'h1', 'h2', 'h3'].includes(id))).toBe(true);
-    expect(f.b.every((id) => ['h4', 'h5', 'h6', 'h7'].includes(id))).toBe(true);
+    expect(f.a).toEqual([ga.rows[0].key, gb.rows[1].key]);
+    expect(f.b).toEqual([ga.rows[1].key, gb.rows[0].key]);
   });
   it('Rei e Rainha: ranking separado por gênero no rodízio misto', () => {
     const c = cfg({ modality: 'mista', format: 'rodizio' });

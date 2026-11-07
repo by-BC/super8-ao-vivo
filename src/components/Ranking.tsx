@@ -80,6 +80,11 @@ export function RankingSections({ sections, players, config, finished }: {
           </section>
         );
       })}
+      {individual && sections.some((s) => s.kind === 'grupo' && s.qualify === 2) && (
+        <p className="m-0 rounded-lg bg-surface px-3 py-2.5 text-sm font-semibold shadow-card">
+          Final cruzada: <b>1º do A + 2º do B</b> contra <b>2º do A + 1º do B</b>.
+        </p>
+      )}
       <p className="m-0 text-[13px] text-muted">
         {config.ranking.base === 'games' ? 'Pontos = games feitos nas partidas encerradas.' : 'Vitória 3 · Empate 1 · Derrota 0.'}
         {config.ranking.media && ' Média por partida, porque nem todo mundo joga o mesmo número de jogos.'}
