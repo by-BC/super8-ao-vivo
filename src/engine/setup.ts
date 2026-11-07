@@ -213,7 +213,9 @@ export function groupFinals(players: Player[], config: Config, matches: Match[])
       return standings(playerEntities(div.players.filter((p) => ids.has(p.id))), gm, config, individualSides).slice(0, 2).map((r) => r.key);
     });
     if (top.some((t) => t.length < 2)) continue;
-    out.push({ stage: 'mata', round: 1, division: div.id, grp: null, slot: 0, court: 1, label: 'Final', a: top[0], b: top[1], teamA: null, teamB: null, sets: [] });
+    // Final na primeira quadra que a divisão já usava (feminino e masculino não caem na mesma quadra).
+    const court = Math.min(...ms.map((m) => m.court));
+    out.push({ stage: 'mata', round: 1, division: div.id, grp: null, slot: 0, court, label: 'Final', a: top[0], b: top[1], teamA: null, teamB: null, sets: [] });
   }
   return out;
 }
