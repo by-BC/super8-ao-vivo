@@ -67,6 +67,7 @@ export function standings(entities: Entity[], matches: Match[], config: Pick<Con
       const own = side === 'a' ? r.gamesA : r.gamesB;
       const opp = side === 'a' ? r.gamesB : r.gamesA;
       for (const k of sides(m, side)) {
+        if (m.counts?.length && sides === individualSides && !m.counts.includes(k)) continue;
         const row = rows.get(k);
         if (!row) continue;
         row.j++;

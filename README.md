@@ -17,6 +17,9 @@ quem tem o **PIN de árbitro** lança placar. Sem login e sem instalar nada.
 | Ranking | Games feitos · Vitória 3, empate 1, derrota 0 · Média por partida · Rei e Rainha da areia · ordem de desempate escolhida (vitórias, saldo, confronto direto, games) |
 | Logística | Número de quadras, número de rodadas (com sugestão), grupos e classificados por grupo |
 
+Também dá para montar o rodízio **dividido em grupos** (ranking por grupo) e marcar **jogo extra que vale só para alguns jogadores**, quando o grupo tem número ímpar de gente.
+O organizador pode trocar o critério do ranking depois de criado e entrar como organizador em outro aparelho com a chave.
+
 Também tem: **nomes em qualquer formato** (vírgula, um por linha, lista numerada, "Mulheres:" e "Homens:", com ou sem emoji,
 "Bruno homem", "Ana (F)"; ignora título, recado com horário e lista de espera; dá para marcar o lote inteiro como mulheres ou homens),
 mensagem pronta do ranking e da tabela para o grupo, link com QR code e **modo telão** para TV na beira da quadra.

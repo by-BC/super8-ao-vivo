@@ -88,6 +88,8 @@ export interface NewMatch {
   teamA: string | null;
   teamB: string | null;
   sets: SetScore[];
+  /** Jogo extra que só conta para estes jogadores (os outros completam a quadra). */
+  counts?: string[] | null;
 }
 
 export interface Match extends NewMatch {

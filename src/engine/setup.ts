@@ -255,6 +255,19 @@ export function rankingSections(players: Player[], teams: Team[], config: Config
     const prefix = divs.length > 1 ? div.label : '';
     if (isIndividual(config.format)) {
       const ms = matches.filter((m) => m.division === div.id && m.stage === 'rodada');
+      const grps = [...new Set(ms.map((m) => m.grp).filter((g): g is string => !!g))].sort();
+      if (grps.length > 1) {
+        // rodízio dividido em grupos: cada grupo tem o seu ranking
+        for (const g of grps) {
+          const gm = ms.filter((m) => m.grp === g);
+          const ids = new Set(gm.flatMap((m) => [...m.a, ...m.b]));
+          out.push({
+            id: `${div.id}-${g}`, title: `${prefix ? prefix + ' · ' : ''}Grupo ${g}`, kind: 'geral', division: div.id,
+            rows: standings(playerEntities(div.players.filter((p) => ids.has(p.id))), gm, config, individualSides),
+          });
+        }
+        continue;
+      }
       out.push({ id: `${div.id}-geral`, title: prefix || 'Geral', kind: 'geral', division: div.id, rows: standings(playerEntities(div.players), ms, config, individualSides) });
       const hasBoth = countG(div.players, 'H') > 0 && countG(div.players, 'M') > 0;
       if (config.ranking.separarGenero && config.modality !== 'mesmo_genero' && hasBoth) {

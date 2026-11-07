@@ -78,6 +78,11 @@ export const api = {
   adminReset: (code: string, adminKey: string, config: Config, data: TournamentData, matches: NewMatch[]) =>
     call<object>('s8_admin_reset', { p_code: code, p_admin_key: adminKey, p_config: config, p_data: data, p_matches: strip(matches) }),
 
+  adminCheck: (code: string, adminKey: string) => call<object>('s8_admin_check', { p_code: code, p_admin_key: adminKey }),
+
+  adminRanking: (code: string, adminKey: string, ranking: Config['ranking']) =>
+    call<object>('s8_admin_ranking', { p_code: code, p_admin_key: adminKey, p_ranking: ranking }),
+
   adminPin: (code: string, adminKey: string, pin: string) =>
     call<object>('s8_admin_pin', { p_code: code, p_admin_key: adminKey, p_pin: pin }),
 };

@@ -184,6 +184,7 @@ export function TournamentPage({ code }: { code: string }) {
             onShare={() => setShareOpen(true)} onCopySchedule={() => share(scheduleMessage(ctx))}
             onPin={() => setPinOpen(true)}
             onLeave={() => { setSaved(upsertSaved({ code, token: undefined })); toast('Você saiu do modo árbitro neste aparelho.'); }}
+            onAdmin={(key) => { setSaved(upsertSaved({ code, adminKey: key })); toast('Pronto: este aparelho agora é organizador.'); }}
             reload={async () => { const ok = await t.reload(); t.notify(); return ok; }} anyScore={t.matches.some((m) => m.sets.length > 0)}
           />
         )}
@@ -262,6 +263,11 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
   const numbers = new Map(matches.map((m, i) => [m.id, i + 1]));
   const divs = divisionsOf(plist, config.modality);
   const individual = isIndividual(config.format);
+  const groupOf = useMemo(() => {
+    const g = new Map<string, string>();
+    for (const m of matches) if (m.grp && m.stage === 'rodada') for (const id of [...m.a, ...m.b]) g.set(id, `${m.division}|${m.grp}`);
+    return g;
+  }, [matches]);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggle = (k: string) => setOpen((o) => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
@@ -296,7 +302,11 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
           const first = b.ms[0];
           const allDone = b.ms.every(isDone);
           const playing = new Set(b.ms.flatMap((m) => [...m.a, ...m.b]));
-          const rest = individual ? plist.filter((p) => !playing.has(p.id) && divs.some((d) => d.players.some((x) => x.id === p.id))) : [];
+          // com grupos, folga só de quem é de um grupo que joga nesta rodada
+          const rest = individual
+            ? plist.filter((p) => !playing.has(p.id) && divs.some((d) => d.players.some((x) => x.id === p.id))
+              && (!groupOf.size || b.ms.some((m) => `${m.division}|${m.grp}` === groupOf.get(p.id))))
+            : [];
           const collapsed = allDone && i !== current && !open.has(b.key);
           const title = first.stage === 'mata' ? (first.label?.replace(/ \d+$/, '') ?? 'Mata-mata') : `Rodada ${first.round}`;
           if (collapsed) {
@@ -340,15 +350,17 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
   );
 }
 
-function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySchedule, onPin, onLeave, reload, anyScore }: {
+function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySchedule, onPin, onLeave, onAdmin, reload, anyScore }: {
   code: string; tour: NonNullable<ReturnType<typeof useTournament>['tournament']>; isAdmin: boolean; canScore: boolean; adminKey?: string;
-  onShare: () => void; onCopySchedule: () => void; onPin: () => void; onLeave: () => void; reload: () => Promise<boolean>; anyScore: boolean;
+  onShare: () => void; onCopySchedule: () => void; onPin: () => void; onLeave: () => void; onAdmin: (key: string) => void; reload: () => Promise<boolean>; anyScore: boolean;
 }) {
   const toast = useToast();
   const { config } = tour;
   const [names, setNames] = useState<Player[] | null>(null);
   const [newPin, setNewPin] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
+  const [keyInput, setKeyInput] = useState('');
+  const [keyOpen, setKeyOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const rows: [string, string][] = [
@@ -391,11 +403,50 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
         </p>
         {!canScore && <Button block onClick={onPin}>Entrar com o PIN de árbitro</Button>}
         {canScore && !isAdmin && <Button block onClick={onLeave}>Sair do modo árbitro</Button>}
+        {!isAdmin && (
+          !keyOpen ? (
+            <Button kind="quiet" className="mt-2" onClick={() => setKeyOpen(true)}>Tenho a chave do organizador</Button>
+          ) : (
+            <form className="mt-3 flex flex-col gap-2" onSubmit={async (e) => {
+              e.preventDefault();
+              const key = keyInput.trim();
+              if (!key || busy) return;
+              setBusy(true);
+              try { await api.adminCheck(code, key); onAdmin(key); setKeyInput(''); setKeyOpen(false); }
+              catch (x) { toast(x instanceof ApiFail && x.code === 'SEM_PERMISSAO' ? 'Chave errada. Confira se copiou inteira.' : errorText[x instanceof ApiFail ? x.code : 'SERVIDOR']); }
+              finally { setBusy(false); }
+            }}>
+              <input id="chave-org" aria-label="Chave do organizador" autoComplete="off" autoCapitalize="none" spellCheck={false} value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)} placeholder="Cole a chave aqui"
+                className="min-h-[48px] w-full rounded-[10px] border-[1.5px] border-hair bg-bg px-3 font-mono text-base text-ink" />
+              <Button kind="primary" type="submit" className="!text-xl" disabled={busy || keyInput.trim().length < 16}>Entrar como organizador</Button>
+            </form>
+          )
+        )}
       </Panel>
 
       {isAdmin && adminKey && (
         <Panel title="Organizador">
           <div className="flex flex-col gap-4">
+            <div>
+              <b>Critério do ranking</b>
+              <p className="m-0 text-[13px] text-muted">Pode trocar quando quiser: o ranking é recalculado com os placares que já foram lançados.</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {([['games', 'Games feitos'], ['resultado', 'Vitória 3 · Empate 1']] as const).map(([v, label]) => (
+                  <button key={v} type="button" aria-pressed={config.ranking.base === v} disabled={busy}
+                    onClick={() => { if (config.ranking.base !== v) void run(() => api.adminRanking(code, adminKey, { ...config.ranking, base: v }), 'Critério do ranking trocado.'); }}
+                    className={cx('min-h-[52px] rounded-[10px] border-[1.5px] px-2 font-bold', config.ranking.base === v ? 'border-ink bg-ink text-bg' : 'border-hair')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <label className="mt-2 flex min-h-[44px] items-center gap-3 text-[15px]">
+                <input type="checkbox" className="h-6 w-6 accent-[var(--sea)]" checked={config.ranking.media} disabled={busy}
+                  onChange={(e) => void run(() => api.adminRanking(code, adminKey, { ...config.ranking, media: e.target.checked }), e.target.checked ? 'Ranking por média por partida.' : 'Ranking pelo total.')} />
+                Usar média por partida
+              </label>
+            </div>
+
             <div>
               <b>Corrigir nomes</b>
               {names === null ? (

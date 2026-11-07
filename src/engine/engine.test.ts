@@ -299,6 +299,23 @@ describe('ranking', () => {
     expect(r1).toEqual(r2);
     expect(standings(ents, [], c1, individualSides).every((r) => r.pos === 1)).toBe(true);
   });
+  it('jogo extra só conta para quem está em "vale só para"', () => {
+    const c = cfg();
+    const extra = { ...m(['h0', 'm0'], ['h1', 'm1'], [3, 1], 'x'), counts: ['h0', 'm1'] };
+    const rows = standings(playerEntities(ps), [extra], c, individualSides);
+    expect(rows.find((r) => r.key === 'h0')).toMatchObject({ j: 1, v: 1, gf: 3 });
+    expect(rows.find((r) => r.key === 'm1')).toMatchObject({ j: 1, d: 1, gf: 1 });
+    expect(rows.find((r) => r.key === 'm0')).toMatchObject({ j: 0, gf: 0 });
+    expect(rows.find((r) => r.key === 'h1')).toMatchObject({ j: 0, gf: 0 });
+  });
+  it('rodízio dividido em grupos: um ranking por grupo', () => {
+    const players = mkPlayers(8, 0);
+    const c = cfg({ modality: 'mesmo_genero', format: 'rodizio' });
+    const mk = (a: string[], b: string[], grp: string, id: string): Match => ({ ...m(a, b, [3, 1], id), division: 'H', grp });
+    const secs = rankingSections(players, [], c, [mk(['h0', 'h1'], ['h2', 'h3'], 'A', '1'), mk(['h4', 'h5'], ['h6', 'h7'], 'B', '2')]);
+    expect(secs.map((s) => s.title)).toEqual(['Grupo A', 'Grupo B']);
+    expect(secs[0].rows.map((r) => r.key).sort()).toEqual(['h0', 'h1', 'h2', 'h3']);
+  });
   it('Rei e Rainha: ranking separado por gênero no rodízio misto', () => {
     const c = cfg({ modality: 'mista', format: 'rodizio' });
     const secs = rankingSections(mkPlayers(4, 4), [], c, []);

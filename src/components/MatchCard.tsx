@@ -29,7 +29,7 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
     wasDone.current = r.done;
   }, [r.done]);
 
-  const head = [m.label ?? `Jogo ${number}`, m.grp ? `Grupo ${m.grp}` : null, `Quadra ${m.court}`].filter(Boolean).join(' · ');
+  const head = [m.label ?? `Jogo ${number}`, m.grp ? `Grupo ${m.grp}` : `Quadra ${m.court}`].join(' · ');
 
   if (bye) {
     return (
@@ -94,6 +94,11 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
         <span className="min-w-0 truncate">{head}</span>
         <span className={cx('ml-auto whitespace-nowrap rounded-full px-2 py-0.5 tracking-[.08em]', status[1])}>{status[0]}</span>
       </header>
+      {m.counts?.length ? (
+        <p className="relative m-0 rounded-md bg-surface px-2 py-1 text-[13px] font-semibold text-sun">
+          Vale só para {m.counts.map((id) => players.get(id)?.name ?? '?').join(' e ')}
+        </p>
+      ) : null}
       {side('a')}
       <div className="net" aria-hidden><span /></div>
       {side('b')}
