@@ -56,11 +56,11 @@ export interface Choice<T extends string> {
 }
 
 /** Cartões de escolha única (radio). */
-export function Choices<T extends string>({ name, value, options, onChange, cols = 2, disabled }: {
-  name: string; value: T; options: Choice<T>[]; onChange: (v: T) => void; cols?: 1 | 2 | 3; disabled?: boolean;
+export function Choices<T extends string>({ name, value, options, onChange, cols = 2, disabled, compact }: {
+  name: string; value: T; options: Choice<T>[]; onChange: (v: T) => void; cols?: 1 | 2 | 3; disabled?: boolean; compact?: boolean;
 }) {
   return (
-    <div role="radiogroup" aria-label={name} className={cx('grid gap-2', cols === 1 ? 'grid-cols-1' : cols === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 min-[420px]:grid-cols-2')}>
+    <div role="radiogroup" aria-label={name} className={cx('grid', compact ? 'gap-1.5' : 'gap-2', cols === 1 ? 'grid-cols-1' : cols === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 min-[420px]:grid-cols-2')}>
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -72,12 +72,18 @@ export function Choices<T extends string>({ name, value, options, onChange, cols
             disabled={disabled}
             onClick={() => onChange(o.value)}
             className={cx(
-              'flex flex-col gap-0.5 rounded-[10px] border-[1.5px] p-3 text-left disabled:opacity-50',
+              'flex min-h-[52px] items-center gap-3 rounded-[10px] border-[1.5px] text-left disabled:opacity-50',
+              compact ? 'px-3 py-2' : 'p-3',
               on ? 'border-ink bg-surface shadow-[inset_0_0_0_1px_var(--ink)]' : 'border-hair bg-bg',
             )}
           >
-            <b className="text-base leading-tight">{o.title}</b>
-            {o.hint && <small className="text-[13px] leading-snug text-muted">{o.hint}</small>}
+            <span aria-hidden className={cx('grid h-5 w-5 flex-none place-items-center rounded-full border-2', on ? 'border-ink' : 'border-hair')}>
+              {on && <i className="block h-2.5 w-2.5 rounded-full bg-ink" />}
+            </span>
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <b className="text-base leading-tight">{o.title}</b>
+              {o.hint && <small className="text-[13px] leading-snug text-muted">{o.hint}</small>}
+            </span>
           </button>
         );
       })}
@@ -190,7 +196,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 flex flex-col items-center gap-2 px-4">
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-40 flex flex-col items-center gap-2 px-4">
         {items.map((t) => (
           <div key={t.id} className="max-w-[min(520px,100%)] rounded-xl bg-ink px-4 py-3 font-semibold text-bg shadow-card">{t.text}</div>
         ))}
@@ -216,7 +222,7 @@ export function CopySheet({ text, onClose }: { text: string | null; onClose: () 
         readOnly
         value={text ?? ''}
         onFocus={(e) => e.currentTarget.select()}
-        className="min-h-[260px] w-full rounded-[9px] border-[1.5px] border-hair bg-bg p-2.5 text-sm text-ink"
+        className="min-h-[260px] w-full rounded-[9px] border-[1.5px] border-hair bg-bg p-2.5 text-base text-ink"
       />
     </Sheet>
   );

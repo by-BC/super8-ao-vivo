@@ -27,6 +27,13 @@ export function TournamentPage({ code }: { code: string }) {
   const [welcome, setWelcome] = useState<{ code: string; pin: string } | null>(null);
   const [saved, setSaved] = useState(() => getSaved(code));
   const [generating, setGenerating] = useState(false);
+  const [divF, setDivFState] = useState<string>(() => {
+    try { return localStorage.getItem(`s8:div:${code}`) ?? 'todos'; } catch { return 'todos'; }
+  });
+  const setDivF = (v: string) => {
+    setDivFState(v);
+    try { localStorage.setItem(`s8:div:${code}`, v); } catch { /* ok */ }
+  };
 
   const tour = t.tournament;
   const credential = saved?.token ?? saved?.adminKey ?? null;
@@ -88,6 +95,11 @@ export function TournamentPage({ code }: { code: string }) {
   const step = canScore ? nextStep(plist, teams, config, t.serverMatches, 1) : null;
   const sections = rankingSections(plist, teams, config, t.matches);
   const ctx = { name: tour.name, link: shareLink(code), code, players: plist, teams, config, matches: t.matches };
+  const divs = divisionsOf(plist, config.modality);
+  const division = divs.length > 1 && divs.some((d) => d.id === divF) ? divF : 'todos';
+  const shownMatches = division === 'todos' ? t.matches : t.matches.filter((m) => m.division === division);
+  const shownPlayers = division === 'todos' ? plist : divs.find((d) => d.id === division)!.players;
+  const shownSections = division === 'todos' ? sections : sections.filter((s) => s.division === division);
 
   async function share(text: string) {
     if (await copyText(text)) toast('Copiado. É só colar no grupo.');
@@ -116,36 +128,33 @@ export function TournamentPage({ code }: { code: string }) {
   return (
     <>
       <header className="band-lines bg-band text-bandink">
-        <div className="gutter relative z-[1] mx-auto flex max-w-[760px] items-center gap-3 py-5">
-          <a href="#/" aria-label="Início" className="ball h-11 w-11" />
+        <div className="gutter relative z-[1] mx-auto flex max-w-[760px] items-center gap-3 py-4">
+          <a href="#/" aria-label="Início" className="ball h-10 w-10" />
           <div className="min-w-0 flex-1">
-            <h1 className="m-0 font-display text-[34px] font-black uppercase leading-[.9] [overflow-wrap:anywhere]">{tour.name}</h1>
-            <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 text-sm opacity-90">
+            <h1 className="m-0 font-display text-[clamp(24px,7.5vw,32px)] font-black uppercase leading-[.92] [overflow-wrap:break-word]">{tour.name}</h1>
+            <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 text-[13px] leading-snug opacity-90">
               <LiveBadge live={t.live} reachable={t.reachable} pending={t.pending} />
               <span>· {FORMAT_LABEL[config.format]}</span>
             </p>
           </div>
-          <button type="button" onClick={() => setShareOpen(true)} className="flex flex-col items-center rounded-[10px] border-[1.5px] border-current px-2.5 py-1.5" aria-label={`Compartilhar código ${code}`}>
-            <span className="text-[10px] font-bold uppercase tracking-[.14em] opacity-80">Código</span>
-            <span className="font-display text-2xl font-black tracking-[.12em]">{code}</span>
+          <button type="button" onClick={() => setShareOpen(true)} className="flex flex-none flex-col items-center rounded-[10px] border-[1.5px] border-current px-2 py-1" aria-label={`Compartilhar código ${code}`}>
+            <span className="text-[9px] font-bold uppercase tracking-[.14em] opacity-80">Código</span>
+            <span className="font-display text-xl font-black tracking-[.1em]">{code}</span>
           </button>
         </div>
       </header>
 
-      <nav className="sticky top-0 z-[5] border-b border-hair bg-bg" aria-label="Seções">
-        <div className="gutter mx-auto flex max-w-[760px] gap-1 py-2" role="tablist">
-          {(['jogos', 'ranking', 'info'] as Tab[]).map((k) => (
-            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-              className={cx('flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-[9px] px-1.5 font-bold', tab === k ? 'bg-ink text-bg' : 'text-muted')}>
-              {k === 'jogos' ? 'Jogos' : k === 'ranking' ? 'Ranking' : 'Info'}
-              {k === 'jogos' && <span className={cx('rounded-full px-2 text-xs tabnum', tab === k ? 'bg-ball text-ballink' : 'bg-hair')}>{done}/{real.length}</span>}
-            </button>
-          ))}
-        </div>
-        <div className="h-[3px] bg-hair" aria-hidden><i className="block h-full bg-ball transition-[width]" style={{ width: real.length ? `${(done / real.length) * 100}%` : '0%' }} /></div>
-      </nav>
-
-      <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-16 pt-4">
+      <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-4">
+        {divs.length > 1 && tab !== 'info' && (
+          <div role="group" aria-label="Mostrar" className="grid grid-cols-3 gap-1 rounded-xl bg-surface p-1 shadow-card">
+            {[{ id: 'todos', label: 'Todos' }, ...divs.map((d) => ({ id: d.id, label: d.label }))].map((o) => (
+              <button key={o.id} type="button" aria-pressed={division === o.id} onClick={() => setDivF(o.id)}
+                className={cx('min-h-[44px] rounded-lg font-bold', division === o.id ? (o.id === 'M' ? 'bg-sun text-surface' : o.id === 'H' ? 'bg-sea text-surface' : 'bg-ink text-bg') : 'text-muted')}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
         {!canScore && tab === 'jogos' && !finished && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface px-4 py-3 shadow-card">
             <span className="text-[15px]">Você está assistindo. Para lançar placar, entre com o PIN.</span>
@@ -155,7 +164,7 @@ export function TournamentPage({ code }: { code: string }) {
 
         {tab === 'jogos' && (
           <GamesView
-            matches={t.matches} players={players} plist={plist} config={config} canScore={canScore}
+            matches={shownMatches} players={players} plist={shownPlayers} config={config} canScore={canScore}
             onPoint={(id, side, delta) => t.point(id, side, delta)}
             step={step} generating={generating} onGenerate={generate} finished={finished} onRanking={() => setTab('ranking')}
           />
@@ -163,8 +172,8 @@ export function TournamentPage({ code }: { code: string }) {
 
         {tab === 'ranking' && (
           <>
-            {config.format === 'grupos' && <Bracket matches={t.matches} teams={teams} players={players} config={config} divisionLabel={(id) => divisionsOf(plist, config.modality).find((d) => d.id === id)?.label ?? id} />}
-            <RankingSections sections={sections} players={players} config={config} finished={finished} />
+            {config.format === 'grupos' && <Bracket matches={shownMatches} teams={teams} players={players} config={config} divisionLabel={(id) => divisionsOf(plist, config.modality).find((d) => d.id === id)?.label ?? id} />}
+            <RankingSections sections={shownSections} players={players} config={config} finished={finished} />
             <Button block onClick={() => share(rankingMessage(ctx))}>Copiar ranking para o grupo</Button>
           </>
         )}
@@ -179,6 +188,19 @@ export function TournamentPage({ code }: { code: string }) {
           />
         )}
       </main>
+
+      <nav aria-label="Seções" className="gutter fixed inset-x-0 bottom-0 z-20 border-t border-hair bg-surface pb-[max(8px,env(safe-area-inset-bottom,0px))] pt-0 shadow-[0_-8px_24px_-16px_rgba(0,0,0,.5)]">
+        <div className="-mx-4 h-[3px] bg-hair sm:mx-0" aria-hidden><i className="block h-full bg-ball transition-[width]" style={{ width: real.length ? `${(done / real.length) * 100}%` : '0%' }} /></div>
+        <div className="mx-auto flex max-w-[760px] gap-1 pt-2" role="tablist">
+          {(['jogos', 'ranking', 'info'] as Tab[]).map((k) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => { setTab(k); window.scrollTo(0, 0); }}
+              className={cx('flex min-h-[52px] flex-1 flex-col items-center justify-center rounded-[10px] px-1 text-[15px] font-bold leading-tight', tab === k ? 'bg-ink text-bg' : 'text-muted')}>
+              {k === 'jogos' ? 'Jogos' : k === 'ranking' ? 'Ranking' : 'Info'}
+              {k === 'jogos' && <span className={cx('mt-0.5 rounded-full px-2 text-[11px] tabnum', tab === k ? 'bg-ball text-ballink' : 'bg-hair')}>{done}/{real.length}</span>}
+            </button>
+          ))}
+        </div>
+      </nav>
 
       <PinSheet open={pinOpen} code={code} onClose={() => setPinOpen(false)} onUnlocked={(token) => { setSaved(upsertSaved({ code, token })); setPinOpen(false); toast('Pronto: você pode lançar placar.'); }} />
       <ShareSheet open={shareOpen} code={code} name={tour.name} onClose={() => setShareOpen(false)} onCopy={share} />
@@ -240,6 +262,8 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
   const numbers = new Map(matches.map((m, i) => [m.id, i + 1]));
   const divs = divisionsOf(plist, config.modality);
   const individual = isIndividual(config.format);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const toggle = (k: string) => setOpen((o) => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   return (
     <>
@@ -273,14 +297,28 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
           const allDone = b.ms.every(isDone);
           const playing = new Set(b.ms.flatMap((m) => [...m.a, ...m.b]));
           const rest = individual ? plist.filter((p) => !playing.has(p.id) && divs.some((d) => d.players.some((x) => x.id === p.id))) : [];
+          const collapsed = allDone && i !== current && !open.has(b.key);
+          const title = first.stage === 'mata' ? (first.label?.replace(/ \d+$/, '') ?? 'Mata-mata') : `Rodada ${first.round}`;
+          if (collapsed) {
+            return (
+              <section key={b.key} id={`bloco-${i}`} className="scroll-mt-4">
+                <button type="button" onClick={() => toggle(b.key)} aria-expanded={false}
+                  className="flex min-h-[52px] w-full items-center gap-2.5 rounded-xl bg-surface px-4 text-left shadow-card">
+                  <span className="font-display text-2xl font-black uppercase text-muted">{title}</span>
+                  <Pill className="border-[1.5px] border-hair text-muted">Encerrada</Pill>
+                  <span className="ml-auto text-sm font-bold text-muted">Ver {b.ms.length} jogo{b.ms.length > 1 ? 's' : ''} ▾</span>
+                </button>
+              </section>
+            );
+          }
           return (
-            <section key={b.key} id={`bloco-${i}`} className="flex scroll-mt-[76px] flex-col gap-2.5">
+            <section key={b.key} id={`bloco-${i}`} className="flex scroll-mt-4 flex-col gap-2.5">
               <header className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
                 <h3 className={cx('m-0 font-display text-[28px] font-black uppercase leading-none', allDone && 'text-muted')}>
                   {first.stage === 'mata' ? (first.label?.replace(/ \d+$/, '') ?? 'Mata-mata') : `Rodada ${first.round}`}
                 </h3>
                 {i === current && <Pill className="bg-ball text-ballink">Agora</Pill>}
-                {allDone && <Pill className="border-[1.5px] border-hair text-muted">Encerrada</Pill>}
+                {allDone && <button type="button" onClick={() => toggle(b.key)} aria-expanded className="rounded-full border-[1.5px] border-hair px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-muted">Encerrada · recolher ▴</button>}
                 {rest.length > 0 && (
                   <p className="m-0 ml-auto flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                     <span className="text-[11px] font-extrabold uppercase tracking-[.12em]">Folga</span>

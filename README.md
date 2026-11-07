@@ -10,14 +10,15 @@ quem tem o **PIN de árbitro** lança placar. Sem login e sem instalar nada.
 
 | Grupo | Opções |
 |---|---|
-| Modalidade | **Mista** (H+M) · **Mesmo gênero** (masculino x masculino, feminino x feminino, ranking separado) · **Livre** |
+| Tipo | **Misto** (H+M) · **Feminino e masculino** (cada um com sua chave e seu ranking, no mesmo código, com filtro na tela) · **Só feminino** · **Só masculino** · **Livre** |
 | Formato | **Rodízio / Super 8** (parceiro novo a cada rodada, ranking individual) · **Duplas fixas** todos contra todos · **Grupos + mata-mata** · **Mexicano** (cada rodada montada pelo ranking: 1º e 4º contra 2º e 3º) |
 | Formação das duplas | Sorteio · Equilibrado por nível (forte com mais fraco) · Manual |
 | Partida | Total fixo de games, com empate (ex.: 4 → 3x1 acaba, 2x2 empata) · Primeiro a X games · Set de 4 ou 6 com tie-break · Melhor de 3 com match tie-break de 10 |
 | Ranking | Games feitos · Vitória 3, empate 1, derrota 0 · Média por partida · Rei e Rainha da areia · ordem de desempate escolhida (vitórias, saldo, confronto direto, games) |
 | Logística | Número de quadras, número de rodadas (com sugestão), grupos e classificados por grupo |
 
-Também tem: **colar a lista do WhatsApp** (entende "👩 Mulheres / 👨 Homens", numeração e "Bruno homem"),
+Também tem: **nomes em qualquer formato** (vírgula, um por linha, lista numerada, "Mulheres:" e "Homens:", com ou sem emoji,
+"Bruno homem", "Ana (F)"; ignora título, recado com horário e lista de espera; dá para marcar o lote inteiro como mulheres ou homens),
 mensagem pronta do ranking e da tabela para o grupo, link com QR code e **modo telão** para TV na beira da quadra.
 
 Dentro do game a contagem segue a regra (15, 30, 40 e ponto decisivo no 40 a 40). O app conta só os games.

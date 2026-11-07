@@ -6,47 +6,52 @@ import { evaluate } from './scoring';
 import { individualSides, playerEntities, standings, teamEntities, teamSides, type Row } from './standings';
 import { isIndividual, MAX_PLAYERS, type Config, type Match, type NewMatch, type Player, type Team } from './types';
 
+export type SetupArea = 'jogadores' | 'formato' | 'regras';
+
 export interface SetupCheck {
   ok: boolean;
   errors: string[];
   warnings: string[];
+  /** cada erro com a etapa da tela onde ele se resolve */
+  issues: { text: string; area: SetupArea }[];
 }
 
 const countG = (ps: Player[], g: 'H' | 'M') => ps.filter((p) => p.gender === g).length;
 
 export function validateSetup(players: Player[], config: Config, manual?: [string, string][]): SetupCheck {
-  const errors: string[] = [];
+  const issues: { text: string; area: SetupArea }[] = [];
   const warnings: string[] = [];
+  const fail = (area: SetupArea, text: string) => issues.push({ text, area });
   const names = players.map((p) => p.name.trim());
 
-  if (players.length < 4) errors.push('Precisa de pelo menos 4 jogadores.');
-  if (players.length > MAX_PLAYERS) errors.push(`O máximo é ${MAX_PLAYERS} jogadores.`);
-  if (names.some((n) => !n)) errors.push('Tem nome em branco. Preencha ou remova a linha.');
-  if (names.some((n) => n.length > 40)) errors.push('Nome muito longo: use até 40 letras.');
+  if (players.length < 4) fail('jogadores', 'Precisa de pelo menos 4 jogadores.');
+  if (players.length > MAX_PLAYERS) fail('jogadores', `O máximo é ${MAX_PLAYERS} jogadores.`);
+  if (names.some((n) => !n)) fail('jogadores', 'Tem nome em branco. Preencha ou remova a linha.');
+  if (names.some((n) => n.length > 40)) fail('jogadores', 'Nome muito longo: use até 40 letras.');
   const lower = names.map((n) => n.toLocaleLowerCase('pt-BR'));
   const dup = lower.filter((n, i) => n && lower.indexOf(n) !== i);
-  if (dup.length) errors.push(`Nome repetido: ${[...new Set(dup)].join(', ')}. Use apelido ou sobrenome para diferenciar.`);
+  if (dup.length) fail('jogadores', `Nome repetido: ${[...new Set(dup)].join(', ')}. Use apelido ou sobrenome para diferenciar.`);
 
   const noGender = players.filter((p) => !p.gender).map((p) => p.name || 'sem nome');
-  if (noGender.length && config.modality !== 'livre') errors.push(`Marque H ou M para: ${noGender.slice(0, 6).join(', ')}${noGender.length > 6 ? '…' : ''}.`);
+  if (noGender.length && config.modality !== 'livre') fail('jogadores', `Marque H ou M para: ${noGender.slice(0, 6).join(', ')}${noGender.length > 6 ? '…' : ''}.`);
   if (noGender.length && config.modality === 'livre' && config.ranking.separarGenero && isIndividual(config.format)) {
     warnings.push('O ranking por gênero deixa de fora quem está sem H ou M.');
   }
 
-  if (config.courts < 1 || config.courts > 30) errors.push('Número de quadras inválido.');
+  if (config.courts < 1 || config.courts > 30) fail('formato', 'Número de quadras inválido.');
   const s = config.scoring;
-  if (s.games < 1 || s.games > 30) errors.push('Número de games inválido.');
-  if ((s.type === 'set' || s.type === 'melhor3') && (s.games < 3 || s.games > 9)) errors.push('O set precisa ter entre 3 e 9 games.');
+  if (s.games < 1 || s.games > 30) fail('regras', 'Número de games inválido.');
+  if ((s.type === 'set' || s.type === 'melhor3') && (s.games < 3 || s.games > 9)) fail('regras', 'O set precisa ter entre 3 e 9 games.');
 
   const divs = divisionsOf(players, config.modality);
   const mixed = config.modality === 'mista';
 
   if (isIndividual(config.format)) {
-    if (config.rounds < 1 || config.rounds > 60) errors.push('Escolha entre 1 e 60 rodadas.');
+    if (config.rounds < 1 || config.rounds > 60) fail('formato', 'Escolha entre 1 e 60 rodadas.');
     for (const d of divs) {
       const where = divs.length > 1 ? ` no ${d.label}` : '';
-      if (mixed && (countG(d.players, 'H') < 2 || countG(d.players, 'M') < 2)) errors.push('O misto precisa de pelo menos 2 homens e 2 mulheres.');
-      else if (!mixed && d.players.length < 4) errors.push(`Precisa de pelo menos 4 jogadores${where}.`);
+      if (mixed && (countG(d.players, 'H') < 2 || countG(d.players, 'M') < 2)) fail('jogadores', 'O misto precisa de pelo menos 2 homens e 2 mulheres.');
+      else if (!mixed && d.players.length < 4) fail('jogadores', `Precisa de pelo menos 4 jogadores${where}.`);
     }
     if (mixed) {
       const h = countG(players, 'H');
@@ -59,18 +64,18 @@ export function validateSetup(players: Player[], config: Config, manual?: [strin
       if (mixed) {
         const h = countG(d.players, 'H');
         const m = countG(d.players, 'M');
-        if (h !== m) errors.push(`Duplas fixas mistas precisam do mesmo número de homens e mulheres (agora ${h} H e ${m} M). Use rodízio ou mexicano, ou ajuste a lista.`);
-      } else if (d.players.length % 2) errors.push(`Número ímpar de jogadores${where}: sobra um sem dupla.`);
+        if (h !== m) fail('formato', `Duplas fixas mistas precisam do mesmo número de homens e mulheres (agora ${h} H e ${m} M). Use rodízio ou mexicano, ou ajuste a lista.`);
+      } else if (d.players.length % 2) fail('formato', `Número ímpar de jogadores${where}: sobra um sem dupla.`);
       const teams = Math.floor(d.players.length / 2);
-      if (config.format === 'duplas' && teams < 2) errors.push(`Precisa de pelo menos 2 duplas${where}.`);
+      if (config.format === 'duplas' && teams < 2) fail('formato', `Precisa de pelo menos 2 duplas${where}.`);
       if (config.format === 'grupos') {
         const g = Math.min(config.groups, Math.floor(teams / 2));
-        if (teams < 3) errors.push(`Grupos + mata-mata precisa de pelo menos 3 duplas${where}.`);
-        else if (config.groups < 1) errors.push('Escolha pelo menos 1 grupo.');
+        if (teams < 3) fail('formato', `Grupos + mata-mata precisa de pelo menos 3 duplas${where}.`);
+        else if (config.groups < 1) fail('formato', 'Escolha pelo menos 1 grupo.');
         else {
           const smallest = Math.floor(teams / g);
-          if (config.qualify < 1 || config.qualify > smallest) errors.push(`Classificados por grupo deve ficar entre 1 e ${smallest}${where}.`);
-          else if (config.qualify * g < 2) errors.push(`Precisa de pelo menos 2 classificados para o mata-mata${where}.`);
+          if (config.qualify < 1 || config.qualify > smallest) fail('formato', `Classificados por grupo deve ficar entre 1 e ${smallest}${where}.`);
+          else if (config.qualify * g < 2) fail('formato', `Precisa de pelo menos 2 classificados para o mata-mata${where}.`);
           if (g < config.groups) warnings.push(`Com ${teams} duplas${where}, cabem no máximo ${g} grupos.`);
         }
       }
@@ -87,11 +92,11 @@ export function validateSetup(players: Player[], config: Config, manual?: [strin
         used.add(x);
         used.add(y);
       }
-      if (bad) errors.push('Tem dupla montada errada: confira se cada pessoa está em uma dupla só e se as duplas seguem a modalidade.');
-      else if (used.size !== players.length) errors.push(`Faltam ${players.length - used.size} jogadores sem dupla na montagem manual.`);
+      if (bad) fail('formato', 'Tem dupla montada errada: confira se cada pessoa está em uma dupla só e se as duplas seguem a modalidade.');
+      else if (used.size !== players.length) fail('formato', `Faltam ${players.length - used.size} jogadores sem dupla na montagem manual.`);
     }
   }
-  return { ok: errors.length === 0, errors, warnings };
+  return { ok: issues.length === 0, errors: issues.map((i) => i.text), warnings, issues };
 }
 
 /** Sugestão de rodadas para o rodízio: cada um joga ~ com todos os parceiros possíveis, até 7 partidas. */

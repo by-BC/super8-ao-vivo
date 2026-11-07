@@ -110,10 +110,36 @@ describe('importar lista do WhatsApp', () => {
     expect(duplicates).toEqual([]);
   });
   it('entende "Nome homem" e "Nome mulher"', () => {
-    const { players } = parsePlayerList('Bruno homem\nRafa mulher\nRuan H\nSophia (M)');
+    const { players } = parsePlayerList('Bruno homem\nRafa mulher\nRuan H\nSophia (M)\nAna (F)\nLeo - h');
     expect(players).toEqual([
       { name: 'Bruno', gender: 'H' }, { name: 'Rafa', gender: 'M' }, { name: 'Ruan', gender: 'H' }, { name: 'Sophia', gender: 'M' },
+      { name: 'Ana', gender: 'M' }, { name: 'Leo', gender: 'H' },
     ]);
+  });
+  const names = (t: string, f?: 'H' | 'M') => parsePlayerList(t, f).players;
+  it('cabeçalho sem emoji, um nome por linha', () => {
+    const ps = names('Mulheres\nAna\nBia\n\nHOMENS:\nCaio\nDiego');
+    expect(ps).toEqual([
+      { name: 'Ana', gender: 'M' }, { name: 'Bia', gender: 'M' }, { name: 'Caio', gender: 'H' }, { name: 'Diego', gender: 'H' },
+    ]);
+  });
+  it('nomes separados por vírgula, ponto e vírgula, barra e "e"', () => {
+    expect(names('Ana, Bia, Carla e Duda').map((p) => p.name)).toEqual(['Ana', 'Bia', 'Carla', 'Duda']);
+    expect(names('Ana; Bia / Carla').map((p) => p.name)).toEqual(['Ana', 'Bia', 'Carla']);
+    expect(names('Ana, Bia').every((p) => p.gender === null)).toBe(true);
+  });
+  it('cabeçalho com nomes na mesma linha e numeração corrida', () => {
+    const ps = names('Mulheres: Ana Luiza, Bia e Carla\nHomens (3): 1. Caio 2. Diego 3. Edu');
+    expect(ps.map((p) => `${p.name}:${p.gender}`)).toEqual(['Ana Luiza:M', 'Bia:M', 'Carla:M', 'Caio:H', 'Diego:H', 'Edu:H']);
+  });
+  it('ignora título, recado com horário e lista de espera', () => {
+    const r = parsePlayerList('Play de domingo 19h\nConfirmados: Ana, Bia\nCaio\nLista de espera\nZeca\nTião');
+    expect(r.players.map((p) => p.name)).toEqual(['Ana', 'Bia', 'Caio']);
+    expect(r.ignored.join(' ')).toMatch(/Zeca/);
+  });
+  it('marca todos com um gênero quando a pessoa escolhe', () => {
+    expect(names('Ana\nBia', 'M').every((p) => p.gender === 'M')).toBe(true);
+    expect(names('1- Caio\n2- Diego', 'H').map((p) => `${p.name}:${p.gender}`)).toEqual(['Caio:H', 'Diego:H']);
   });
 });
 
