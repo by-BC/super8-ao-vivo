@@ -1,0 +1,223 @@
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+
+const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
+export { cx };
+
+type BtnKind = 'primary' | 'line' | 'ghost' | 'danger' | 'quiet';
+const btnKind: Record<BtnKind, string> = {
+  primary: 'bg-ball text-ballink font-display font-extrabold uppercase tracking-wide text-[22px] shadow-[0_3px_0_rgba(0,0,0,.2)] active:translate-y-0.5 active:shadow-[0_1px_0_rgba(0,0,0,.2)]',
+  line: 'border-[1.5px] border-ink text-ink font-bold',
+  ghost: 'border-[1.5px] border-dashed border-hair text-ink font-bold',
+  danger: 'bg-danger text-surface font-bold',
+  quiet: 'text-ink font-semibold underline underline-offset-4 decoration-hair',
+};
+
+export function Button({ kind = 'line', block, className, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement> & { kind?: BtnKind; block?: boolean }) {
+  return (
+    <button
+      type="button"
+      {...p}
+      className={cx('min-h-[48px] rounded-[10px] px-4 py-2.5 text-base disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0', btnKind[kind], block && 'w-full', className)}
+    />
+  );
+}
+
+export function Panel({ title, aside, children, className }: { title?: ReactNode; aside?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section className={cx('rounded-xl bg-surface p-4 shadow-card', className)}>
+      {(title || aside) && (
+        <div className="mb-3 flex items-center justify-between gap-3">
+          {title && <h2 className="m-0 font-display text-[26px] font-extrabold uppercase leading-none tracking-wide">{title}</h2>}
+          {aside}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+export function Pill({ children, className }: { children: ReactNode; className?: string }) {
+  return <span className={cx('whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider tabnum', className ?? 'bg-hair')}>{children}</span>;
+}
+
+export function GenderDot({ g }: { g: 'H' | 'M' | null | undefined }) {
+  if (!g) return null;
+  return (
+    <i aria-hidden className={cx('inline-grid h-[18px] w-[18px] flex-none place-items-center rounded-full text-[10px] font-extrabold not-italic text-surface', g === 'H' ? 'bg-sea' : 'bg-sun')}>
+      {g}
+    </i>
+  );
+}
+
+export interface Choice<T extends string> {
+  value: T;
+  title: string;
+  hint?: string;
+}
+
+/** Cartões de escolha única (radio). */
+export function Choices<T extends string>({ name, value, options, onChange, cols = 2, disabled }: {
+  name: string; value: T; options: Choice<T>[]; onChange: (v: T) => void; cols?: 1 | 2 | 3; disabled?: boolean;
+}) {
+  return (
+    <div role="radiogroup" aria-label={name} className={cx('grid gap-2', cols === 1 ? 'grid-cols-1' : cols === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 min-[420px]:grid-cols-2')}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            disabled={disabled}
+            onClick={() => onChange(o.value)}
+            className={cx(
+              'flex flex-col gap-0.5 rounded-[10px] border-[1.5px] p-3 text-left disabled:opacity-50',
+              on ? 'border-ink bg-surface shadow-[inset_0_0_0_1px_var(--ink)]' : 'border-hair bg-bg',
+            )}
+          >
+            <b className="text-base leading-tight">{o.title}</b>
+            {o.hint && <small className="text-[13px] leading-snug text-muted">{o.hint}</small>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function Segmented<T extends string>({ value, options, onChange, label }: {
+  value: T | null; options: { value: T; label: string; className?: string }[]; onChange: (v: T) => void; label: string;
+}) {
+  return (
+    <div role="group" aria-label={label} className="flex overflow-hidden rounded-[9px] border-[1.5px] border-hair">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={cx('min-h-[42px] min-w-[42px] px-2 font-extrabold', value === o.value ? (o.className ?? 'bg-ink text-bg') : 'text-muted')}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function Stepper({ id, value, min, max, onChange, label }: { id: string; value: number; min: number; max: number; onChange: (n: number) => void; label: string }) {
+  return (
+    <div className="flex items-center overflow-hidden rounded-[10px] border-[1.5px] border-hair bg-bg">
+      <button type="button" aria-label={`Diminuir ${label}`} className="h-11 w-11 text-2xl disabled:opacity-30" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))}>−</button>
+      <input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        aria-label={label}
+        className="w-14 border-0 bg-transparent text-center font-display text-[28px] font-black text-ink"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(e) => {
+          const n = parseInt(e.target.value, 10);
+          if (!Number.isNaN(n)) onChange(Math.max(min, Math.min(max, n)));
+        }}
+      />
+      <button type="button" aria-label={`Aumentar ${label}`} className="h-11 w-11 text-2xl disabled:opacity-30" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))}>+</button>
+    </div>
+  );
+}
+
+export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col">
+        <b>{label}</b>
+        {hint && <small className="text-[13px] text-muted">{hint}</small>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function Note({ kind, children }: { kind: 'warn' | 'ok'; children: ReactNode }) {
+  return <div className={cx('rounded-[10px] px-3.5 py-3 text-[15px] leading-snug', kind === 'warn' ? 'bg-tintwarn' : 'bg-tintok')}>{children}</div>;
+}
+
+export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    ref.current?.querySelector<HTMLElement>('input,textarea,button')?.focus();
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-30 grid place-items-end bg-black/50 sm:place-items-center" onClick={onClose}>
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="gutter max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-surface pb-[max(16px,env(safe-area-inset-bottom,0px))] pt-4 sm:max-w-[520px] sm:rounded-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="m-0 font-display text-2xl font-extrabold uppercase">{title}</h2>
+          <button type="button" aria-label="Fechar" className="h-10 w-10 text-2xl text-muted" onClick={onClose}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- avisos rápidos ---------------- */
+
+interface ToastItem { id: number; text: string }
+const ToastCtx = createContext<(text: string) => void>(() => {});
+export const useToast = () => useContext(ToastCtx);
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<ToastItem[]>([]);
+  const push = useCallback((text: string) => {
+    const id = Date.now() + Math.random();
+    setItems((xs) => [...xs.slice(-2), { id, text }]);
+    window.setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), 3200);
+  }, []);
+  return (
+    <ToastCtx.Provider value={push}>
+      {children}
+      <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 flex flex-col items-center gap-2 px-4">
+        {items.map((t) => (
+          <div key={t.id} className="max-w-[min(520px,100%)] rounded-xl bg-ink px-4 py-3 font-semibold text-bg shadow-card">{t.text}</div>
+        ))}
+      </div>
+    </ToastCtx.Provider>
+  );
+}
+
+/** Copia texto; se o navegador recusar, devolve false para a tela mostrar o texto selecionável. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function CopySheet({ text, onClose }: { text: string | null; onClose: () => void }) {
+  return (
+    <Sheet open={text !== null} onClose={onClose} title="Copie o texto">
+      <textarea
+        readOnly
+        value={text ?? ''}
+        onFocus={(e) => e.currentTarget.select()}
+        className="min-h-[260px] w-full rounded-[9px] border-[1.5px] border-hair bg-bg p-2.5 text-sm text-ink"
+      />
+    </Sheet>
+  );
+}
