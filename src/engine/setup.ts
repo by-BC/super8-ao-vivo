@@ -195,6 +195,45 @@ export function buildInitial(players: Player[], config: Config, seed: number, ma
   }
 }
 
+/**
+ * Rodízio dividido em 2 grupos: quando os jogos de grupo da divisão acabam,
+ * 1º e 2º do Grupo A jogam juntos contra 1º e 2º do Grupo B. Quem vence é campeão.
+ */
+export function groupFinals(players: Player[], config: Config, matches: Match[]): NewMatch[] {
+  const out: NewMatch[] = [];
+  for (const div of divisionsOf(players, config.modality)) {
+    const ms = matches.filter((m) => m.division === div.id && m.stage === 'rodada');
+    const grps = [...new Set(ms.map((m) => m.grp).filter((g): g is string => !!g))].sort();
+    if (grps.length !== 2) continue;
+    if (matches.some((m) => m.division === div.id && m.stage === 'mata')) continue;
+    if (ms.some((m) => !evaluate(m.sets, config.scoring).done)) continue;
+    const top = grps.map((g) => {
+      const gm = ms.filter((m) => m.grp === g);
+      const ids = new Set(gm.flatMap((m) => [...m.a, ...m.b]));
+      return standings(playerEntities(div.players.filter((p) => ids.has(p.id))), gm, config, individualSides).slice(0, 2).map((r) => r.key);
+    });
+    if (top.some((t) => t.length < 2)) continue;
+    out.push({ stage: 'mata', round: 1, division: div.id, grp: null, slot: 0, court: 1, label: 'Final', a: top[0], b: top[1], teamA: null, teamB: null, sets: [] });
+  }
+  return out;
+}
+
+/** Divisões do rodízio que estão em 2 grupos e, por isso, terminam numa final. */
+export function divisionsWithFinal(players: Player[], config: Config, matches: Match[]): string[] {
+  if (!isIndividual(config.format)) return [];
+  return divisionsOf(players, config.modality)
+    .filter((d) => new Set(matches.filter((m) => m.division === d.id && m.stage === 'rodada' && m.grp).map((m) => m.grp)).size === 2)
+    .map((d) => d.id);
+}
+
+/** Jogadores campeões da final da divisão (rodízio em grupos), se a final já acabou. */
+export function finalWinners(division: string, config: Config, matches: Match[]): string[] | null {
+  const f = matches.find((m) => m.division === division && m.stage === 'mata' && m.label === 'Final' && !m.teamA);
+  if (!f) return null;
+  const r = evaluate(f.sets, config.scoring, true);
+  return r.done ? (r.winner === 'a' ? f.a : f.b) : null;
+}
+
 export interface NextStep {
   title: string;
   matches: NewMatch[];
@@ -203,6 +242,10 @@ export interface NextStep {
 /** O que dá para gerar agora: próxima rodada do mexicano ou próxima fase do mata-mata. */
 export function nextStep(players: Player[], teams: Team[], config: Config, matches: Match[], seed: number): NextStep | null {
   const rng = mulberry32(seed);
+  if (isIndividual(config.format)) {
+    const finals = groupFinals(players, config, matches);
+    if (finals.length) return { title: 'Gerar final', matches: finals };
+  }
   if (config.format === 'mexicano') {
     const ms = nextMexicano(players, config, matches, rng);
     if (!ms || !ms.length) return null;
@@ -234,6 +277,7 @@ export function tournamentStatus(players: Player[], config: Config, matches: Mat
   if (config.format === 'grupos') {
     return divisionsOf(players, config.modality).every((d) => knockoutChampion(d.id, matches, config)) ? 'encerrado' : 'andamento';
   }
+  if (divisionsWithFinal(players, config, matches).some((d) => !finalWinners(d, config, matches))) return 'andamento';
   return 'encerrado';
 }
 
@@ -262,8 +306,9 @@ export function rankingSections(players: Player[], teams: Team[], config: Config
           const gm = ms.filter((m) => m.grp === g);
           const ids = new Set(gm.flatMap((m) => [...m.a, ...m.b]));
           out.push({
-            id: `${div.id}-${g}`, title: `${prefix ? prefix + ' · ' : ''}Grupo ${g}`, kind: 'geral', division: div.id,
+            id: `${div.id}-${g}`, title: `${prefix ? prefix + ' · ' : ''}Grupo ${g}`, kind: 'grupo', division: div.id,
             rows: standings(playerEntities(div.players.filter((p) => ids.has(p.id))), gm, config, individualSides),
+            qualify: grps.length === 2 ? 2 : undefined,
           });
         }
         continue;

@@ -1,7 +1,7 @@
 import QRCode from 'qrcode';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
-  buildInitial, divisionsOf, evaluate, isIndividual, nextStep, randomSeed, rankingMessage, rankingSections, scheduleMessage,
+  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, randomSeed, rankingMessage, rankingSections, scheduleMessage,
   scoringLabel, tournamentStatus, type Match, type Player,
 } from '../engine';
 import { MatchCard, Name } from '../components/MatchCard';
@@ -33,6 +33,13 @@ export function TournamentPage({ code }: { code: string }) {
   const setDivF = (v: string) => {
     setDivFState(v);
     try { localStorage.setItem(`s8:div:${code}`, v); } catch { /* ok */ }
+  };
+  const [grpF, setGrpFState] = useState<string>(() => {
+    try { return localStorage.getItem(`s8:grp:${code}`) ?? 'todos'; } catch { return 'todos'; }
+  });
+  const setGrpF = (v: string) => {
+    setGrpFState(v);
+    try { localStorage.setItem(`s8:grp:${code}`, v); } catch { /* ok */ }
   };
 
   const tour = t.tournament;
@@ -97,9 +104,13 @@ export function TournamentPage({ code }: { code: string }) {
   const ctx = { name: tour.name, link: shareLink(code), code, players: plist, teams, config, matches: t.matches };
   const divs = divisionsOf(plist, config.modality);
   const division = divs.length > 1 && divs.some((d) => d.id === divF) ? divF : 'todos';
-  const shownMatches = division === 'todos' ? t.matches : t.matches.filter((m) => m.division === division);
+  const byDivision = division === 'todos' ? t.matches : t.matches.filter((m) => m.division === division);
+  const groupIds = [...new Set(byDivision.map((m) => m.grp).filter((g): g is string => !!g))].sort();
+  const group = groupIds.length > 1 && groupIds.includes(grpF) ? grpF : 'todos';
+  // a final junta os grupos, então aparece em qualquer filtro de grupo
+  const shownMatches = group === 'todos' ? byDivision : byDivision.filter((m) => m.grp === group || m.stage === 'mata');
   const shownPlayers = division === 'todos' ? plist : divs.find((d) => d.id === division)!.players;
-  const shownSections = division === 'todos' ? sections : sections.filter((s) => s.division === division);
+  const shownSections = sections.filter((s) => (division === 'todos' || s.division === division) && (group === 'todos' || s.kind !== 'grupo' || s.id.endsWith(`-${group}`)));
 
   async function share(text: string) {
     if (await copyText(text)) toast('Copiado. É só colar no grupo.');
@@ -155,6 +166,16 @@ export function TournamentPage({ code }: { code: string }) {
             ))}
           </div>
         )}
+        {groupIds.length > 1 && tab !== 'info' && (
+          <div role="group" aria-label="Grupo" className="flex gap-1 rounded-xl bg-surface p-1 shadow-card">
+            {['todos', ...groupIds].map((g) => (
+              <button key={g} type="button" aria-pressed={group === g} onClick={() => setGrpF(g)}
+                className={cx('min-h-[44px] flex-1 rounded-lg font-bold', group === g ? 'bg-ink text-bg' : 'text-muted')}>
+                {g === 'todos' ? 'Todos' : `Grupo ${g}`}
+              </button>
+            ))}
+          </div>
+        )}
         {!canScore && tab === 'jogos' && !finished && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface px-4 py-3 shadow-card">
             <span className="text-[15px]">Você está assistindo. Para lançar placar, entre com o PIN.</span>
@@ -173,6 +194,25 @@ export function TournamentPage({ code }: { code: string }) {
         {tab === 'ranking' && (
           <>
             {config.format === 'grupos' && <Bracket matches={shownMatches} teams={teams} players={players} config={config} divisionLabel={(id) => divisionsOf(plist, config.modality).find((d) => d.id === id)?.label ?? id} />}
+            {divisionsWithFinal(plist, config, t.matches).filter((d) => division === 'todos' || d === division).map((d) => {
+              const f = t.matches.find((m) => m.division === d && m.stage === 'mata' && m.label === 'Final');
+              const w = finalWinners(d, config, t.matches);
+              const nm = (ids: string[]) => ids.map((id) => players.get(id)?.name ?? '?').join(' & ');
+              const label = divs.find((x) => x.id === d)?.label ?? '';
+              return (
+                <section key={`final-${d}`} className={cx('rounded-xl p-4 shadow-card', w ? 'bg-ball text-ballink' : 'bg-surface')}>
+                  <span className="text-[11px] font-extrabold uppercase tracking-[.14em]">{w ? 'Campeões' : 'Final'}{divs.length > 1 ? ` · ${label}` : ''}</span>
+                  {w ? (
+                    <div className="font-display text-[28px] font-black uppercase leading-tight">{nm(w)}</div>
+                  ) : f ? (
+                    <p className="m-0 mt-1 text-[15px]"><b>{nm(f.a)}</b> x <b>{nm(f.b)}</b>{f.sets.length ? ` · ${formatScore(f.sets, config.scoring)}` : ''}</p>
+                  ) : (
+                    <p className="m-0 mt-1 text-[15px] text-muted">1º e 2º do Grupo A contra 1º e 2º do Grupo B, quando os jogos de grupo acabarem.</p>
+                  )}
+                  {w && f && <p className="m-0 mt-1 text-sm font-semibold">Final: {nm(f.a)} {formatScore(f.sets, config.scoring)} {nm(f.b)}</p>}
+                </section>
+              );
+            })}
             <RankingSections sections={shownSections} players={players} config={config} finished={finished} />
             <Button block onClick={() => share(rankingMessage(ctx))}>Copiar ranking para o grupo</Button>
           </>
@@ -303,7 +343,7 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
           const allDone = b.ms.every(isDone);
           const playing = new Set(b.ms.flatMap((m) => [...m.a, ...m.b]));
           // com grupos, folga só de quem é de um grupo que joga nesta rodada
-          const rest = individual
+          const rest = individual && first.stage !== 'mata'
             ? plist.filter((p) => !playing.has(p.id) && divs.some((d) => d.players.some((x) => x.id === p.id))
               && (!groupOf.size || b.ms.some((m) => `${m.division}|${m.grp}` === groupOf.get(p.id))))
             : [];

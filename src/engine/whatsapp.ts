@@ -1,5 +1,5 @@
 import { knockoutChampion } from './knockout';
-import { divisionsOf, rankingSections, tournamentStatus } from './setup';
+import { divisionsOf, divisionsWithFinal, finalWinners, rankingSections, tournamentStatus } from './setup';
 import { evaluate, formatScore } from './scoring';
 import type { Row } from './standings';
 import type { Config, Match, Player, Team } from './types';
@@ -45,6 +45,14 @@ export function rankingMessage(ctx: Ctx): string {
     }
     if (L[L.length - 1] !== '') L.push('');
   }
+
+  const withFinal = divisionsWithFinal(ctx.players, config, matches);
+  for (const d of withFinal) {
+    const w = finalWinners(d, config, matches);
+    const label = divisionsOf(ctx.players, config.modality).find((x) => x.id === d)?.label ?? '';
+    if (w) L.push(`🏆 Campeões${d === 'all' ? '' : ` ${label.toLowerCase()}`}: *${nm(w)}*`);
+  }
+  if (withFinal.some((d) => finalWinners(d, config, matches))) L.push('');
 
   const sections = rankingSections(ctx.players, ctx.teams, config, matches);
   const many = sections.length > 1;

@@ -17,7 +17,7 @@ function RowItem({ r, players, showGender, media, played, qualifies, compact }: 
         {!compact && (
           <span className="text-[13px] font-semibold text-muted tabnum">
             {r.v}V · {r.e}E · {r.d}D · {r.j} {r.j === 1 ? 'jogo' : 'jogos'} · saldo {r.sg > 0 ? '+' : ''}{r.sg}
-            {qualifies && <b className="ml-1.5 text-sea">· classifica</b>}
+            {qualifies && <b className="ml-1.5 text-sea">· {r.ids.length === 1 ? 'vai pra final' : 'classifica'}</b>}
           </span>
         )}
       </div>
@@ -62,7 +62,7 @@ export function RankingSections({ sections, players, config, finished }: {
           <section key={s.id} className="rounded-xl bg-surface p-4 shadow-card">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="m-0 font-display text-[26px] font-extrabold uppercase leading-none">{title}</h2>
-              {s.kind === 'grupo' && <Pill>{s.qualify} classifica{(s.qualify ?? 1) > 1 ? 'm' : ''}</Pill>}
+              {s.kind === 'grupo' && s.qualify ? <Pill>{s.qualify} {individual ? 'vão pra final' : `classifica${s.qualify > 1 ? 'm' : ''}`}</Pill> : null}
             </div>
             {finished && s.kind === 'geral' && played && individual && <Podium rows={s.rows} />}
             <div className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-2.5 border-b-[1.5px] border-hair px-2.5 pb-2 text-[11px] font-extrabold uppercase tracking-[.1em] text-muted" aria-hidden>

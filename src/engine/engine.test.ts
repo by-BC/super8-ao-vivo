@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyGame, buildInitial, DEFAULT_CONFIG, evaluate, individualSides, knockoutChampion, mulberry32, nextStep,
   parsePlayerList, playerEntities, rankingMessage, rankingSections, rodizioPlans, scheduleQuality, standings,
-  suggestRounds, tournamentStatus, validateSetup, matchesPerRound,
+  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners,
   type Config, type Match, type NewMatch, type Player, type Scoring,
 } from './index';
 
@@ -315,6 +315,23 @@ describe('ranking', () => {
     const secs = rankingSections(players, [], c, [mk(['h0', 'h1'], ['h2', 'h3'], 'A', '1'), mk(['h4', 'h5'], ['h6', 'h7'], 'B', '2')]);
     expect(secs.map((s) => s.title)).toEqual(['Grupo A', 'Grupo B']);
     expect(secs[0].rows.map((r) => r.key).sort()).toEqual(['h0', 'h1', 'h2', 'h3']);
+  });
+  it('rodízio em 2 grupos termina na final: 1º e 2º do A contra 1º e 2º do B', () => {
+    const players = mkPlayers(8, 0);
+    const c = cfg({ modality: 'mesmo_genero', format: 'rodizio' });
+    const mk = (a: string[], b: string[], grp: string, id: string, s: [number, number]): Match => ({ ...m(a, b, s, id), division: 'H', grp });
+    let all: Match[] = [mk(['h0', 'h1'], ['h2', 'h3'], 'A', '1', [3, 1]), mk(['h4', 'h5'], ['h6', 'h7'], 'B', '2', [1, 3])];
+    expect(tournamentStatus(players, c, all)).toBe('andamento');
+    const step = nextStep(players, [], c, all, 1)!;
+    expect(step.title).toBe('Gerar final');
+    const f = step.matches[0];
+    expect(new Set(f.a)).toEqual(new Set(['h0', 'h1']));
+    expect(new Set(f.b)).toEqual(new Set(['h6', 'h7']));
+    all = [...all, { ...f, id: 'f', version: 0, sets: [[2, 2]] }];
+    expect(finalWinners('H', c, all)).toBeNull(); // 2x2 na final vai para o game de desempate
+    all = all.map((x) => (x.id === 'f' ? { ...x, sets: [[2, 3]] as [number, number][] } : x));
+    expect(finalWinners('H', c, all)).toEqual(f.b);
+    expect(tournamentStatus(players, c, all)).toBe('encerrado');
   });
   it('Rei e Rainha: ranking separado por gênero no rodízio misto', () => {
     const c = cfg({ modality: 'mista', format: 'rodizio' });
