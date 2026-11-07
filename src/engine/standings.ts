@@ -91,6 +91,7 @@ export function standings(entities: Entity[], matches: Match[], config: Pick<Con
   const headToHead = (key: string, block: Set<string>): number => {
     let diff = 0;
     for (const { m, ga, gb } of finished) {
+      if (m.counts?.length && sides === individualSides && !m.counts.includes(key)) continue;
       const ka = sides(m, 'a');
       const kb = sides(m, 'b');
       if (ka.includes(key) && kb.some((k) => k !== key && block.has(k))) diff += ga - gb;

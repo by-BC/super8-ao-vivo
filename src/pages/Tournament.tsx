@@ -108,7 +108,7 @@ export function TournamentPage({ code }: { code: string }) {
   const groupIds = [...new Set(byDivision.map((m) => m.grp).filter((g): g is string => !!g))].sort();
   const group = groupIds.length > 1 && groupIds.includes(grpF) ? grpF : 'todos';
   // a final junta os grupos, então aparece em qualquer filtro de grupo
-  const shownMatches = group === 'todos' ? byDivision : byDivision.filter((m) => m.grp === group || m.stage === 'mata');
+  const shownMatches = group === 'todos' ? byDivision : byDivision.filter((m) => m.grp === group || !m.grp);
   const shownPlayers = division === 'todos' ? plist : divs.find((d) => d.id === division)!.players;
   const shownSections = sections.filter((s) => (division === 'todos' || s.division === division) && (group === 'todos' || s.kind !== 'grupo' || s.id.endsWith(`-${group}`)));
 

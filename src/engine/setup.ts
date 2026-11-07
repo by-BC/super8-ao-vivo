@@ -196,6 +196,17 @@ export function buildInitial(players: Player[], config: Config, seed: number, ma
 }
 
 /**
+ * Jogos que contam para um grupo do rodízio: os do próprio grupo e os jogos entre grupos (sem grupo marcado)
+ * em que alguém do grupo joga. No jogo entre grupos, cada jogador pontua só no ranking do seu grupo.
+ */
+export function groupScope(ms: Match[], g: string): { ids: Set<string>; matches: Match[] } {
+  const own = ms.filter((m) => m.grp === g);
+  const ids = new Set(own.flatMap((m) => [...m.a, ...m.b]));
+  const cross = ms.filter((m) => !m.grp && [...m.a, ...m.b].some((id) => ids.has(id)));
+  return { ids, matches: [...own, ...cross] };
+}
+
+/**
  * Rodízio dividido em 2 grupos: quando os jogos de grupo da divisão acabam,
  * 1º e 2º do Grupo A jogam juntos contra 1º e 2º do Grupo B. Quem vence é campeão.
  */
@@ -208,8 +219,7 @@ export function groupFinals(players: Player[], config: Config, matches: Match[])
     if (matches.some((m) => m.division === div.id && m.stage === 'mata')) continue;
     if (ms.some((m) => !evaluate(m.sets, config.scoring).done)) continue;
     const top = grps.map((g) => {
-      const gm = ms.filter((m) => m.grp === g);
-      const ids = new Set(gm.flatMap((m) => [...m.a, ...m.b]));
+      const { ids, matches: gm } = groupScope(ms, g);
       return standings(playerEntities(div.players.filter((p) => ids.has(p.id))), gm, config, individualSides).slice(0, 2).map((r) => r.key);
     });
     if (top.some((t) => t.length < 2)) continue;
@@ -305,8 +315,7 @@ export function rankingSections(players: Player[], teams: Team[], config: Config
       if (grps.length > 1) {
         // rodízio dividido em grupos: cada grupo tem o seu ranking
         for (const g of grps) {
-          const gm = ms.filter((m) => m.grp === g);
-          const ids = new Set(gm.flatMap((m) => [...m.a, ...m.b]));
+          const { ids, matches: gm } = groupScope(ms, g);
           out.push({
             id: `${div.id}-${g}`, title: `${prefix ? prefix + ' · ' : ''}Grupo ${g}`, kind: 'grupo', division: div.id,
             rows: standings(playerEntities(div.players.filter((p) => ids.has(p.id))), gm, config, individualSides),

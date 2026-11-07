@@ -333,6 +333,29 @@ describe('ranking', () => {
     expect(finalWinners('H', c, all)).toEqual(f.b);
     expect(tournamentStatus(players, c, all)).toBe('encerrado');
   });
+  it('jogo extra entre grupos vale para os 4, cada um no ranking do seu grupo', () => {
+    const players = mkPlayers(8, 0);
+    const c = cfg({ modality: 'mesmo_genero', format: 'rodizio' });
+    const mk = (a: string[], b: string[], grp: string | null, id: string, s: [number, number] | null): Match =>
+      ({ ...m(a, b, s ?? [0, 0], id), sets: s ? [s] : [], division: 'H', grp });
+    let all: Match[] = [
+      mk(['h0', 'h1'], ['h2', 'h3'], 'A', '1', [4, 2]),
+      mk(['h4', 'h5'], ['h6', 'h7'], 'B', '2', [2, 4]),
+      mk(['h2', 'h3'], ['h4', 'h5'], null, 'x', null), // extra A x B
+    ];
+    expect(rankingSections(players, [], c, all).map((s) => s.title)).toEqual(['Grupo A', 'Grupo B']);
+    expect(nextStep(players, [], c, all, 1)).toBeNull(); // final espera o extra
+    all = all.map((x) => (x.id === 'x' ? { ...x, sets: [[5, 1]] as [number, number][] } : x));
+    const [ga, gb] = rankingSections(players, [], c, all);
+    expect(ga.rows.map((r) => r.key).sort()).toEqual(['h0', 'h1', 'h2', 'h3']);
+    expect(gb.rows.map((r) => r.key).sort()).toEqual(['h4', 'h5', 'h6', 'h7']);
+    expect(ga.rows.find((r) => r.key === 'h2')).toMatchObject({ j: 2, v: 1, d: 1 });
+    expect(gb.rows.find((r) => r.key === 'h4')).toMatchObject({ j: 2, v: 0, d: 2 });
+    const f = nextStep(players, [], c, all, 1)!.matches[0];
+    expect(f.label).toBe('Final');
+    expect(f.a.every((id) => ['h0', 'h1', 'h2', 'h3'].includes(id))).toBe(true);
+    expect(f.b.every((id) => ['h4', 'h5', 'h6', 'h7'].includes(id))).toBe(true);
+  });
   it('Rei e Rainha: ranking separado por gênero no rodízio misto', () => {
     const c = cfg({ modality: 'mista', format: 'rodizio' });
     const secs = rankingSections(mkPlayers(4, 4), [], c, []);
