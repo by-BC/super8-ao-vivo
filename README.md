@@ -77,9 +77,9 @@ Ela cria o schema `super8`, as tabelas e as funções `s8_*`. Nada fora do schem
 
 ### Publicação
 
-O workflow `.github/workflows/deploy.yml` roda os testes, gera o build e publica no GitHub Pages a cada push na `main`.
-Ele lê duas variáveis do repositório (Settings → Secrets and variables → Actions → Variables):
-`VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
+O workflow `.github/workflows/deploy.yml` roda os testes, gera o build e publica na branch `gh-pages` a cada push na `main`.
+A URL e a chave anon do Supabase ficam em `.env.production`. Elas são públicas de qualquer jeito (vão no JavaScript do site);
+o que protege o banco são as funções `s8_*` e o RLS fechado no schema `super8`.
 
 ## Estrutura
 
