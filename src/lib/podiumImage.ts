@@ -297,6 +297,7 @@ export async function renderPodium(p: Podium, info: PodiumInfo, format: ImgForma
     const cy = L.top - 40 + rnd() * (base - L.top - 20);
     const color = CONFETTI[Math.floor(rnd() * CONFETTI.length)];
     const kind = rnd();
+    if (cy > L.top - 30 && cy < nameY + 16) continue; // deixa a marca, a data e o nome limpos
     ctx.save();
     ctx.globalAlpha = 0.55 + rnd() * 0.4;
     ctx.translate(x, cy);
