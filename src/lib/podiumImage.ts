@@ -9,7 +9,7 @@ export interface PodiumInfo {
   code: string;
 }
 
-const C = {
+export const C = {
   glow: '#22729a',
   mid: '#123a55',
   deep: '#06141f',
@@ -24,8 +24,8 @@ const C = {
   bronze: '#d8914f',
 };
 const CONFETTI = ['#f2b705', '#ff8f5a', '#62b9de', '#ffffff', '#f2e8d3', '#ffd54a'];
-const DISPLAY = '"Big Shoulders Display", "Arial Narrow", Impact, sans-serif';
-const BODY = 'Barlow, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+export const DISPLAY = '"Big Shoulders Display", "Arial Narrow", Impact, sans-serif';
+export const BODY = 'Barlow, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 const LAYOUT = {
   feed: { w: 1080, h: 1350, top: 70, floor: 130, steps: [330, 235, 175], stepW: [400, 320, 290], head: 190, trophy: 240, nameMax: [68, 50], ball: 50, confetti: 70 },
@@ -34,7 +34,7 @@ const LAYOUT = {
 
 type Ctx = CanvasRenderingContext2D;
 
-async function fontsReady() {
+export async function fontsReady() {
   try {
     await Promise.all([
       document.fonts.load('900 120px "Big Shoulders Display"'),
@@ -48,11 +48,11 @@ async function fontsReady() {
   }
 }
 
-function spacing(ctx: Ctx, px: number) {
+export function spacing(ctx: Ctx, px: number) {
   if ('letterSpacing' in ctx) (ctx as Ctx & { letterSpacing: string }).letterSpacing = `${px}px`;
 }
 
-function fit(ctx: Ctx, texts: string[], weight: number, family: string, max: number, maxW: number, min = 22): number {
+export function fit(ctx: Ctx, texts: string[], weight: number, family: string, max: number, maxW: number, min = 22): number {
   let size = max;
   for (; size > min; size -= 2) {
     ctx.font = `${weight} ${size}px ${family}`;
@@ -62,13 +62,13 @@ function fit(ctx: Ctx, texts: string[], weight: number, family: string, max: num
   return size;
 }
 
-function hash(s: string): number {
+export function hash(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
   return h >>> 0;
 }
 
-function topRounded(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
+export function topRounded(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
   ctx.beginPath();
   ctx.moveTo(x, y + h);
   ctx.lineTo(x, y + r);
@@ -79,7 +79,7 @@ function topRounded(ctx: Ctx, x: number, y: number, w: number, h: number, r: num
   ctx.closePath();
 }
 
-function pill(ctx: Ctx, cx: number, y: number, w: number, h: number) {
+export function pill(ctx: Ctx, cx: number, y: number, w: number, h: number) {
   const x = cx - w / 2;
   const r = h / 2;
   ctx.beginPath();
@@ -91,7 +91,7 @@ function pill(ctx: Ctx, cx: number, y: number, w: number, h: number) {
   ctx.closePath();
 }
 
-function ball(ctx: Ctx, cx: number, cy: number, r: number) {
+export function ball(ctx: Ctx, cx: number, cy: number, r: number) {
   ctx.save();
   const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
   g.addColorStop(0, '#ffe066');
@@ -112,7 +112,7 @@ function ball(ctx: Ctx, cx: number, cy: number, r: number) {
   ctx.restore();
 }
 
-function sparkle(ctx: Ctx, x: number, y: number, s: number) {
+export function sparkle(ctx: Ctx, x: number, y: number, s: number) {
   ctx.save();
   ctx.fillStyle = 'rgba(255,255,255,.95)';
   ctx.beginPath();

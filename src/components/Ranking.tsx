@@ -4,11 +4,14 @@ import { cx, Pill } from './ui';
 
 const fmt = (n: number, media: boolean) => (media ? n.toFixed(1).replace('.', ',') : String(n));
 
-function RowItem({ r, players, showGender, media, played, qualifies, compact }: {
-  r: Row; players: Map<string, Player>; showGender: boolean; media: boolean; played: boolean; qualifies: boolean; compact?: boolean;
+function RowItem({ r, players, showGender, media, played, qualifies, compact, onPlayer }: {
+  r: Row; players: Map<string, Player>; showGender: boolean; media: boolean; played: boolean; qualifies: boolean; compact?: boolean; onPlayer?: (id: string) => void;
 }) {
+  const tap = onPlayer && r.ids.length === 1 && r.j > 0 ? () => onPlayer(r.ids[0]) : undefined;
   return (
-    <li className={cx('grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-hair px-2.5 py-3', played && r.pos === 1 && 'rounded-[10px] border-transparent bg-win')}>
+    <li className={cx('grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-hair px-2.5 py-3', played && r.pos === 1 && 'rounded-[10px] border-transparent bg-win', tap && 'cursor-pointer active:bg-hair')}
+      onClick={tap} role={tap ? 'button' : undefined} tabIndex={tap ? 0 : undefined} aria-label={tap ? `Cartinha de ${r.label}` : undefined}
+      onKeyDown={tap ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(); } } : undefined}>
       <span className="font-display text-[26px] font-extrabold leading-none tabnum">{played ? `${r.pos}º` : '–'}</span>
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -47,8 +50,8 @@ function Podium({ rows }: { rows: Row[] }) {
   );
 }
 
-export function RankingSections({ sections, players, config, finished }: {
-  sections: RankingSection[]; players: Map<string, Player>; config: Config; finished: boolean;
+export function RankingSections({ sections, players, config, finished, onPlayer }: {
+  sections: RankingSection[]; players: Map<string, Player>; config: Config; finished: boolean; onPlayer?: (id: string) => void;
 }) {
   const showGender = config.modality !== 'mesmo_genero';
   const individual = config.format === 'rodizio' || config.format === 'mexicano';
@@ -71,7 +74,7 @@ export function RankingSections({ sections, players, config, finished }: {
             <ol className="m-0 flex list-none flex-col p-0">
               {rows.map((r, i) => (
                 <RowItem key={r.key} r={r} players={players} showGender={showGender && s.kind !== 'genero'} media={config.ranking.media} played={played}
-                  qualifies={s.kind === 'grupo' && played && i < (s.qualify ?? 0)} compact={s.kind === 'genero'} />
+                  qualifies={s.kind === 'grupo' && played && i < (s.qualify ?? 0)} compact={s.kind === 'genero'} onPlayer={s.kind === 'genero' ? undefined : onPlayer} />
               ))}
             </ol>
             {s.kind === 'grupo' && played && s.qualify && rows[s.qualify] && rows[s.qualify - 1].pos === rows[s.qualify].pos && (

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyGame, buildInitial, DEFAULT_CONFIG, evaluate, individualSides, knockoutChampion, mulberry32, nextStep,
   parsePlayerList, playerEntities, rankingMessage, rankingSections, rodizioPlans, scheduleQuality, standings,
-  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners, podiums,
+  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners, podiums, playerCard,
   type Config, type Match, type NewMatch, type Player, type Scoring,
 } from './index';
 
@@ -340,6 +340,13 @@ describe('ranking', () => {
     expect(pod).toMatchObject({ division: 'H', headline: 'Campeões', final: '3 x 2' });
     expect(pod.places.map((x) => x.pos)).toEqual([1, 2]);
     expect(pod.places[0].names).toEqual(f.b.map((id) => players.find((p) => p.id === id)!.name));
+    const champ = playerCard(players, [], c, all, f.b[0])!;
+    expect(champ).toMatchObject({ tier: 'ouro', tag: 'CAMPEÃO', j: 2, v: 2 });
+    expect(champ.rating).toBeGreaterThanOrEqual(60);
+    expect(champ.rating).toBeLessThanOrEqual(99);
+    expect(playerCard(players, [], c, all, f.a[0])).toMatchObject({ tier: 'prata', tag: 'VICE' });
+    const other = ['h0', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7'].find((id) => !f.a.includes(id) && !f.b.includes(id))!;
+    expect(playerCard(players, [], c, all, other)?.tier).toBe('azul');
   });
   it('jogo extra entre grupos vale para os 4, cada um no ranking do seu grupo', () => {
     const players = mkPlayers(8, 0);

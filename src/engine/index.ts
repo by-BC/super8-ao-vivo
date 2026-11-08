@@ -9,3 +9,4 @@ export * from './setup';
 export * from './importer';
 export * from './whatsapp';
 export * from './podium';
+export * from './card';

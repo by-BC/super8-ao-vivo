@@ -1,11 +1,12 @@
 import QRCode from 'qrcode';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
-  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, podiums, randomSeed, rankingMessage, rankingSections, scheduleMessage,
+  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, scheduleMessage,
   scoringLabel, tournamentStatus, type Match, type Player,
 } from '../engine';
 import { MatchCard, Name } from '../components/MatchCard';
 import { PodiumSheet } from '../components/PodiumSheet';
+import { CardSheet } from '../components/CardSheet';
 import { Bracket, RankingSections } from '../components/Ranking';
 import { Button, copyText, CopySheet, cx, Note, Panel, Pill, Sheet, useToast } from '../components/ui';
 import { api, ApiFail, errorText } from '../lib/api';
@@ -25,6 +26,8 @@ export function TournamentPage({ code }: { code: string }) {
   const [pinOpen, setPinOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [podiumOpen, setPodiumOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
+  const [cardId, setCardId] = useState<string | null>(null);
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
   const [welcome, setWelcome] = useState<{ code: string; pin: string } | null>(null);
   const [saved, setSaved] = useState(() => getSaved(code));
@@ -113,6 +116,8 @@ export function TournamentPage({ code }: { code: string }) {
   const shownMatches = group === 'todos' ? byDivision : byDivision.filter((m) => m.grp === group || !m.grp);
   const shownPlayers = division === 'todos' ? plist : divs.find((d) => d.id === division)!.players;
   const pods = podiums(plist, teams, config, t.matches).filter((p) => division === 'todos' || p.division === division);
+  const artInfo = { name: tour.name, date: new Date(tour.createdAt).toLocaleDateString('pt-BR'), site: `${location.host}${location.pathname.replace(/\/$/, '')}` || 'super8 ao vivo', code };
+  const openCard = (id: string | null) => { setCardId(id); setCardOpen(true); };
   const shownSections = sections.filter((s) => (division === 'todos' || s.division === division) && (group === 'todos' || s.kind !== 'grupo' || s.id.endsWith(`-${group}`)));
 
   async function share(text: string) {
@@ -202,9 +207,20 @@ export function TournamentPage({ code }: { code: string }) {
                 <span className="ball h-11 w-11 flex-none" aria-hidden />
                 <span className="min-w-0 flex-1">
                   <b className="block font-display text-[22px] font-black uppercase leading-none">Arte dos campeões</b>
-                  <span className="text-sm opacity-85">Pódio pronto pro Story e pro Feed. Baixe ou compartilhe.</span>
+                  <span className="text-sm opacity-85">Põe a foto do pódio e vira capa de revista. Story ou Feed.</span>
                 </span>
                 <span className="flex-none rounded-full bg-ball px-3 py-1.5 text-sm font-extrabold text-ballink">Abrir</span>
+              </button>
+            )}
+            {done > 0 && (
+              <button type="button" onClick={() => openCard(null)}
+                className="flex items-center gap-3 rounded-xl bg-surface px-4 py-3.5 text-left shadow-card">
+                <span aria-hidden className="grid h-12 w-10 flex-none place-items-center rounded-md bg-ball font-display text-xl font-black text-ballink [clip-path:polygon(18%_0,82%_0,100%_14%,100%_80%,50%_100%,0_80%,0_14%)]">87</span>
+                <span className="min-w-0 flex-1">
+                  <b className="block font-display text-[22px] font-black uppercase leading-none">Minha cartinha</b>
+                  <span className="text-sm text-muted">Sua carta com nota e números do torneio. Ou toque no seu nome no ranking.</span>
+                </span>
+                <span className="flex-none rounded-full border-[1.5px] border-ink px-3 py-1.5 text-sm font-extrabold">Gerar</span>
               </button>
             )}
             {config.format === 'grupos' && <Bracket matches={shownMatches} teams={teams} players={players} config={config} divisionLabel={(id) => divisionsOf(plist, config.modality).find((d) => d.id === id)?.label ?? id} />}
@@ -227,7 +243,7 @@ export function TournamentPage({ code }: { code: string }) {
                 </section>
               );
             })}
-            <RankingSections sections={shownSections} players={players} config={config} finished={finished} />
+            <RankingSections sections={shownSections} players={players} config={config} finished={finished} onPlayer={isIndividual(config.format) ? (id) => openCard(id) : undefined} />
             <Button block onClick={() => share(rankingMessage(ctx))}>Copiar ranking para o grupo</Button>
           </>
         )}
@@ -260,8 +276,10 @@ export function TournamentPage({ code }: { code: string }) {
       <PinSheet open={pinOpen} code={code} onClose={() => setPinOpen(false)} onUnlocked={(token) => { setSaved(upsertSaved({ code, token })); setPinOpen(false); toast('Pronto: você pode lançar placar.'); }} />
       <ShareSheet open={shareOpen} code={code} name={tour.name} onClose={() => setShareOpen(false)} onCopy={share} />
       <CopySheet text={copyFallback} onClose={() => setCopyFallback(null)} />
-      <PodiumSheet open={podiumOpen} onClose={() => setPodiumOpen(false)} podiums={pods}
-        info={{ name: tour.name, date: new Date(tour.createdAt).toLocaleDateString('pt-BR'), site: `${location.host}${location.pathname.replace(/\/$/, '')}` || 'super8 ao vivo', code }} />
+      <PodiumSheet open={podiumOpen} onClose={() => setPodiumOpen(false)} podiums={pods} info={artInfo} />
+      <CardSheet open={cardOpen} onClose={() => setCardOpen(false)} info={artInfo} initialId={cardId}
+        groups={divs.map((d) => ({ label: divs.length > 1 ? d.label : 'Jogadores', players: d.players }))}
+        makeCard={(id) => playerCard(plist, teams, config, t.matches, id)} />
       <Sheet open={!!welcome} onClose={() => setWelcome(null)} title="Torneio criado">
         <div className="flex flex-col gap-3">
           <p className="m-0 text-[15px]">Mande o link ou o código para a galera. O PIN é só para quem vai lançar placar.</p>
