@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyGame, buildInitial, DEFAULT_CONFIG, evaluate, individualSides, knockoutChampion, mulberry32, nextStep,
   parsePlayerList, playerEntities, rankingMessage, rankingSections, rodizioPlans, scheduleQuality, standings,
-  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners,
+  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners, podiums,
   type Config, type Match, type NewMatch, type Player, type Scoring,
 } from './index';
 
@@ -336,6 +336,10 @@ describe('ranking', () => {
     all = all.map((x) => (x.id === 'f' ? { ...x, sets: [[2, 3]] as [number, number][] } : x));
     expect(finalWinners('H', c, all)).toEqual(f.b);
     expect(tournamentStatus(players, c, all)).toBe('encerrado');
+    const [pod] = podiums(players, [], c, all);
+    expect(pod).toMatchObject({ division: 'H', headline: 'Campeões', final: '3 x 2' });
+    expect(pod.places.map((x) => x.pos)).toEqual([1, 2]);
+    expect(pod.places[0].names).toEqual(f.b.map((id) => players.find((p) => p.id === id)!.name));
   });
   it('jogo extra entre grupos vale para os 4, cada um no ranking do seu grupo', () => {
     const players = mkPlayers(8, 0);

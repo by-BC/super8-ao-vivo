@@ -8,3 +8,4 @@ export { knockoutStart, knockoutNext, knockoutChampion, bracketOrder, roundLabel
 export * from './setup';
 export * from './importer';
 export * from './whatsapp';
+export * from './podium';

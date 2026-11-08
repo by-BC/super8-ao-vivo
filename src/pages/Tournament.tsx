@@ -1,10 +1,11 @@
 import QRCode from 'qrcode';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
-  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, randomSeed, rankingMessage, rankingSections, scheduleMessage,
+  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, podiums, randomSeed, rankingMessage, rankingSections, scheduleMessage,
   scoringLabel, tournamentStatus, type Match, type Player,
 } from '../engine';
 import { MatchCard, Name } from '../components/MatchCard';
+import { PodiumSheet } from '../components/PodiumSheet';
 import { Bracket, RankingSections } from '../components/Ranking';
 import { Button, copyText, CopySheet, cx, Note, Panel, Pill, Sheet, useToast } from '../components/ui';
 import { api, ApiFail, errorText } from '../lib/api';
@@ -23,6 +24,7 @@ export function TournamentPage({ code }: { code: string }) {
   const [tab, setTab] = useState<Tab>('jogos');
   const [pinOpen, setPinOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [podiumOpen, setPodiumOpen] = useState(false);
   const [copyFallback, setCopyFallback] = useState<string | null>(null);
   const [welcome, setWelcome] = useState<{ code: string; pin: string } | null>(null);
   const [saved, setSaved] = useState(() => getSaved(code));
@@ -110,6 +112,7 @@ export function TournamentPage({ code }: { code: string }) {
   // a final junta os grupos, então aparece em qualquer filtro de grupo
   const shownMatches = group === 'todos' ? byDivision : byDivision.filter((m) => m.grp === group || !m.grp);
   const shownPlayers = division === 'todos' ? plist : divs.find((d) => d.id === division)!.players;
+  const pods = podiums(plist, teams, config, t.matches).filter((p) => division === 'todos' || p.division === division);
   const shownSections = sections.filter((s) => (division === 'todos' || s.division === division) && (group === 'todos' || s.kind !== 'grupo' || s.id.endsWith(`-${group}`)));
 
   async function share(text: string) {
@@ -193,6 +196,17 @@ export function TournamentPage({ code }: { code: string }) {
 
         {tab === 'ranking' && (
           <>
+            {pods.length > 0 && (
+              <button type="button" onClick={() => setPodiumOpen(true)}
+                className="flex items-center gap-3 rounded-xl bg-ink px-4 py-3.5 text-left text-bg shadow-card">
+                <span className="ball h-11 w-11 flex-none" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <b className="block font-display text-[22px] font-black uppercase leading-none">Arte dos campeões</b>
+                  <span className="text-sm opacity-85">Pódio pronto pro Story e pro Feed. Baixe ou compartilhe.</span>
+                </span>
+                <span className="flex-none rounded-full bg-ball px-3 py-1.5 text-sm font-extrabold text-ballink">Abrir</span>
+              </button>
+            )}
             {config.format === 'grupos' && <Bracket matches={shownMatches} teams={teams} players={players} config={config} divisionLabel={(id) => divisionsOf(plist, config.modality).find((d) => d.id === id)?.label ?? id} />}
             {divisionsWithFinal(plist, config, t.matches).filter((d) => division === 'todos' || d === division).map((d) => {
               const f = t.matches.find((m) => m.division === d && m.stage === 'mata' && m.label === 'Final');
@@ -201,13 +215,13 @@ export function TournamentPage({ code }: { code: string }) {
               const label = divs.find((x) => x.id === d)?.label ?? '';
               return (
                 <section key={`final-${d}`} className={cx('rounded-xl p-4 shadow-card', w ? 'bg-ball text-ballink' : 'bg-surface')}>
-                  <span className="text-[11px] font-extrabold uppercase tracking-[.14em]">{w ? 'Campeões' : 'Final'}{divs.length > 1 ? ` · ${label}` : ''}</span>
+                  <span className="text-[11px] font-extrabold uppercase tracking-[.14em]">{w ? (pods.find((p) => p.division === d)?.headline ?? 'Campeões') : 'Final'}{divs.length > 1 ? ` · ${label}` : ''}</span>
                   {w ? (
                     <div className="font-display text-[28px] font-black uppercase leading-tight">{nm(w)}</div>
                   ) : f ? (
                     <p className="m-0 mt-1 text-[15px]"><b>{nm(f.a)}</b> x <b>{nm(f.b)}</b>{f.sets.length ? ` · ${formatScore(f.sets, config.scoring)}` : ''}</p>
                   ) : (
-                    <p className="m-0 mt-1 text-[15px] text-muted">1º e 2º do Grupo A contra 1º e 2º do Grupo B, quando os jogos de grupo acabarem.</p>
+                    <p className="m-0 mt-1 text-[15px] text-muted">Final cruzada: 1º do A + 2º do B contra 2º do A + 1º do B, quando os jogos de grupo acabarem.</p>
                   )}
                   {w && f && <p className="m-0 mt-1 text-sm font-semibold">Final: {nm(f.a)} {formatScore(f.sets, config.scoring)} {nm(f.b)}</p>}
                 </section>
@@ -246,6 +260,8 @@ export function TournamentPage({ code }: { code: string }) {
       <PinSheet open={pinOpen} code={code} onClose={() => setPinOpen(false)} onUnlocked={(token) => { setSaved(upsertSaved({ code, token })); setPinOpen(false); toast('Pronto: você pode lançar placar.'); }} />
       <ShareSheet open={shareOpen} code={code} name={tour.name} onClose={() => setShareOpen(false)} onCopy={share} />
       <CopySheet text={copyFallback} onClose={() => setCopyFallback(null)} />
+      <PodiumSheet open={podiumOpen} onClose={() => setPodiumOpen(false)} podiums={pods}
+        info={{ name: tour.name, date: new Date(tour.createdAt).toLocaleDateString('pt-BR'), site: `${location.host}${location.pathname.replace(/\/$/, '')}` || 'super8 ao vivo', code }} />
       <Sheet open={!!welcome} onClose={() => setWelcome(null)} title="Torneio criado">
         <div className="flex flex-col gap-3">
           <p className="m-0 text-[15px]">Mande o link ou o código para a galera. O PIN é só para quem vai lançar placar.</p>
