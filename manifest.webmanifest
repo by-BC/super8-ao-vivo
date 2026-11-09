@@ -1,0 +1,15 @@
+{
+  "name": "Super 8 ao vivo",
+  "short_name": "Super 8",
+  "description": "Sorteio, placar e ranking do racha de beach tennis, ao vivo no celular de todo mundo.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbe38e",
+  "theme_color": "#3a2218",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
