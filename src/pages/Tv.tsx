@@ -14,6 +14,27 @@ export function TvPage({ code }: { code: string }) {
     return <main className="grid min-h-screen place-items-center bg-band text-bandink"><p className="font-display text-4xl font-black uppercase">{t.state === 'nao_encontrado' ? 'Código não encontrado' : 'Carregando…'}</p></main>;
   }
 
+  if (tour.phase === 'inscricao') {
+    const open = tour.signup?.open ?? false;
+    return (
+      <main className="min-h-screen bg-band p-[max(24px,env(safe-area-inset-left,0px))] text-bandink">
+        <header className="mb-6 flex flex-wrap items-center gap-4">
+          <div className="ball h-14 w-14" aria-hidden />
+          <h1 className="m-0 font-display text-[clamp(36px,5vw,72px)] font-black uppercase leading-none">{tour.name}</h1>
+          <span className="ml-auto text-right text-lg opacity-80">
+            Inscreva-se: <b className="font-display text-3xl tracking-[.12em] text-ball">{code}</b>
+            <br />
+            <small className="opacity-70">{shareLink(code).replace(/^https?:\/\//, '')}</small>
+          </span>
+        </header>
+        <h2 className="m-0 mb-4 font-display text-5xl font-black uppercase text-ball">Inscrições {open ? 'abertas' : 'fechadas'} · {t.entries.length}</h2>
+        <ol className="m-0 list-none columns-2 gap-8 p-0 text-[clamp(20px,2.4vw,34px)] font-bold lg:columns-4">
+          {t.entries.map((e, i) => <li key={e.id} className="break-inside-avoid py-1"><span className="opacity-60 tabnum">{i + 1}.</span> {e.name}</li>)}
+        </ol>
+      </main>
+    );
+  }
+
   const { config } = tour;
   const nm = (ids: string[]) => ids.map((id) => players.get(id)?.name ?? '?').join(' & ');
   const isDone = (m: (typeof t.matches)[number]) => evaluate(m.sets, config.scoring, m.stage === 'mata', m.stage === 'mata' && m.b.length === 0).done;

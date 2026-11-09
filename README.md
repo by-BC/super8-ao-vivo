@@ -12,13 +12,18 @@ quem tem o **PIN de árbitro** lança placar. Sem login e sem instalar nada.
 |---|---|
 | Tipo | **Misto** (H+M) · **Feminino e masculino** (cada um com sua chave e seu ranking, no mesmo código, com filtro na tela) · **Só feminino** · **Só masculino** · **Livre** |
 | Formato | **Rodízio / Super 8** (parceiro novo a cada rodada, ranking individual) · **Duplas fixas** todos contra todos · **Grupos + mata-mata** · **Mexicano** (cada rodada montada pelo ranking: 1º e 4º contra 2º e 3º) |
-| Formação das duplas | Sorteio · Equilibrado por nível (forte com mais fraco) · Manual |
+| Formação das duplas | Sorteio · Equilibrado por nível A–D (forte com mais fraco) · Manual |
 | Partida | Total fixo de games, com empate (ex.: 4 → 3x1 acaba, 2x2 empata) · Primeiro a X games · Set de 4 ou 6 com tie-break · Melhor de 3 com match tie-break de 10 |
 | Ranking | Games feitos · Vitória 3, empate 1, derrota 0 · Média por partida · Rei e Rainha da areia · ordem de desempate escolhida (vitórias, saldo, confronto direto, games) |
 | Logística | Número de quadras, número de rodadas (com sugestão), grupos e classificados por grupo |
 
 Também dá para montar o rodízio **dividido em grupos** (ranking por grupo e final cruzada: 1º do A + 2º do B contra 2º do A + 1º do B) e marcar **jogo extra que vale só para alguns jogadores**, quando o grupo tem número ímpar de gente.
 O organizador pode trocar o critério do ranking depois de criado e entrar como organizador em outro aparelho com a chave.
+
+**Inscrição pelo link:** em vez de colar a lista, o organizador abre a inscrição e manda o link no grupo. Cada um coloca nome, gênero e
+**nível de A a D** (A profissional, B avançado, C intermediário, D iniciante). Dá para limitar vagas (no total ou por gênero) com lista de espera
+que sobe sozinha quando alguém sai. Só o organizador vê os níveis, corrige se alguém se avaliou errado, adiciona quem não tem celular e toca
+em **Sortear**: as duplas fixas saem equilibradas (A com D, B com C) e o rodízio monta cada jogo com duplas de força parecida.
 
 Também tem: **nomes em qualquer formato** (vírgula, um por linha, lista numerada, "Mulheres:" e "Homens:", com ou sem emoji,
 "Bruno homem", "Ana (F)"; ignora título, recado com horário e lista de espera; dá para marcar o lote inteiro como mulheres ou homens),
@@ -76,7 +81,7 @@ npm test                     # motor do torneio: formatos, pontuação, ranking,
 
 ### Banco
 
-Aplique `supabase/migrations/20261107180000_super8.sql` no seu projeto (SQL Editor ou `supabase db push`).
+Aplique as migrations de `supabase/migrations/`, na ordem, no seu projeto (SQL Editor ou `supabase db push`).
 Ela cria o schema `super8`, as tabelas e as funções `s8_*`. Nada fora do schema `super8` é alterado, além das funções `public.s8_*`.
 
 ### Publicação
@@ -103,7 +108,7 @@ supabase/         migration do banco
 
 ## Próximos passos
 
-- Inscrição pelo próprio link (a galera coloca o nome antes do sorteio)
+- Rodízio dividido em grupos direto no app (hoje só por importação), com os grupos equilibrados pelo nível
 - Disputa de 3º lugar no mata-mata
 - Histórico de jogadores entre torneios (ranking da temporada)
 - Limpeza automática de torneios antigos

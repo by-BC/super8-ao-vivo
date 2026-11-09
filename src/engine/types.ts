@@ -4,7 +4,7 @@ export interface Player {
   id: string;
   name: string;
   gender: Gender | null;
-  /** 1 = iniciante, 2 = intermediário, 3 = avançado. Usado no sorteio equilibrado. */
+  /** Nível: 4 = A (profissional), 3 = B, 2 = C, 1 = D (iniciante). Usado para equilibrar duplas e jogos. */
   level?: number;
 }
 

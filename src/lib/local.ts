@@ -74,3 +74,18 @@ export const saveQueue = (code: string, q: Intent[]) => write(`s8:fila:${code}`,
 
 export const loadDraft = <T,>(fallback: T) => read<T>('s8:rascunho', fallback);
 export const saveDraft = (d: unknown) => write('s8:rascunho', d);
+
+/** Minha inscrição neste aparelho: com o token dá para editar ou sair da lista. */
+export interface MyEntry {
+  id: string;
+  token: string;
+  name: string;
+  gender: 'H' | 'M' | null;
+  level: number | null;
+}
+
+export const getMyEntry = (code: string) => read<MyEntry | null>(`s8:inscricao:${code}`, null);
+export const saveMyEntry = (code: string, e: MyEntry) => write(`s8:inscricao:${code}`, e);
+export function dropMyEntry(code: string): void {
+  try { localStorage.removeItem(`s8:inscricao:${code}`); } catch { /* ignore */ }
+}

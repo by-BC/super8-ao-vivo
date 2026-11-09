@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  buildInitial, DEFAULT_CONFIG, gamesPerMatch, isIndividual, matchesPerRound, parsePlayerList, randomSeed, scoringLabel,
+  buildInitial, DEFAULT_CONFIG, gamesPerMatch, isIndividual, LEVELS, levelLetter, matchesPerRound, parsePlayerList, randomSeed, scoringLabel,
   suggestRounds, summarize, validateSetup, type Config, type Format, type Gender, type Modality, type PairingMethod,
   type Player, type RankingBase, type ScoringType, type SetupArea, type Tiebreak,
 } from '../engine';
+import { signupSummary } from '../lib/signup';
 import { Button, Choices, cx, Field, GenderDot, Note, Panel, Segmented, Sheet, Stepper, useToast } from '../components/ui';
 import { api, ApiFail, errorText } from '../lib/api';
 import { loadDraft, saveDraft, upsertSaved } from '../lib/local';
@@ -21,6 +22,9 @@ interface Draft {
   manual: [string, string][];
   roundsTouched: boolean;
   tipo: Tipo;
+  /** lista: o organizador coloca os nomes · inscricao: cada um se inscreve pelo link */
+  entry: 'lista' | 'inscricao';
+  signup: { askLevel: boolean; limitOn: boolean; limit: number; perGender: boolean };
 }
 
 const WEEKDAY = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
@@ -39,6 +43,8 @@ const fresh = (): Draft => ({
   manual: [],
   roundsTouched: false,
   tipo: 'mista',
+  entry: 'lista',
+  signup: { askLevel: true, limitOn: false, limit: 8, perGender: true },
 });
 
 const STEPS = ['Jogadores', 'Formato', 'Regras', 'Confirmar'] as const;
@@ -86,7 +92,7 @@ export function CreatePage() {
     const saved = loadDraft<Partial<Draft> | null>(null);
     if (!saved?.config) return fresh();
     const config = { ...DEFAULT_CONFIG, ...saved.config };
-    return { ...fresh(), ...saved, config, tipo: saved.tipo ?? tipoOf(config.modality), pin: randomPin(), name: fresh().name } as Draft;
+    return { ...fresh(), ...saved, config, tipo: saved.tipo ?? tipoOf(config.modality), signup: { ...fresh().signup, ...saved.signup }, pin: randomPin(), name: fresh().name } as Draft;
   });
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -101,7 +107,7 @@ export function CreatePage() {
   const only = onlyOf(d.tipo);
   /** quem entra de fato no torneio */
   const players = useMemo(
-    () => d.players.filter((p) => !only || p.gender === only).map((p) => ({ ...p, name: p.name.trim(), level: d.useLevel ? p.level ?? 2 : undefined })),
+    () => d.players.filter((p) => !only || p.gender === only).map((p) => ({ ...p, name: p.name.trim(), level: d.useLevel ? p.level : undefined })),
     [d.players, d.useLevel, only],
   );
   const suggested = useMemo(() => suggestRounds(players, c), [players, c]);
@@ -118,13 +124,30 @@ export function CreatePage() {
   const women = d.players.filter((p) => p.gender === 'M');
   const men = d.players.filter((p) => p.gender === 'H');
   const teamsFormat = c.format === 'duplas' || c.format === 'grupos';
-  const ready = check.ok && pinOk && nameOk;
+  const viaLink = d.entry === 'inscricao';
+  const gendered = d.tipo === 'mista' || d.tipo === 'separado';
+  const ready = (viaLink || check.ok) && pinOk && nameOk;
+  const signupSettings = {
+    open: true,
+    askGender: d.tipo !== 'livre' && !only,
+    gender: only,
+    askLevel: d.signup.askLevel,
+    perGender: d.signup.limitOn && d.signup.perGender && gendered,
+    limit: d.signup.limitOn ? d.signup.limit : null,
+  };
 
   async function create() {
     if (!ready || busy) return;
     setBusy(true);
     try {
       const config: Config = { ...c, ranking: { ...c.ranking, sorteio: randomSeed() } };
+      if (viaLink) {
+        const r = await api.createSignup(d.name.trim(), { ...config, pairing: config.pairing === 'manual' ? 'sorteio' : config.pairing }, d.pin, signupSettings);
+        upsertSaved({ code: r.code, name: d.name.trim(), adminKey: r.adminKey, token: r.token });
+        try { sessionStorage.setItem('s8:novo', JSON.stringify({ code: r.code, pin: d.pin })); } catch { /* ok */ }
+        go(`/t/${r.code}`);
+        return;
+      }
       const built = buildInitial(players, config, randomSeed(), d.manual);
       const r = await api.create(d.name.trim(), config, { players, teams: built.teams }, d.pin, built.matches);
       upsertSaved({ code: r.code, name: d.name.trim(), adminKey: r.adminKey, token: r.token });
@@ -138,8 +161,8 @@ export function CreatePage() {
   }
 
   const barInfo = [
-    `${players.length} jogadores${only ? '' : ` · ${women.length} M · ${men.length} H`}`,
-    check.ok ? `${summary.rounds} rodadas · ${summary.matches} jogos` : `${check.issues.length} ajuste${check.issues.length > 1 ? 's' : ''} pendente${check.issues.length > 1 ? 's' : ''}`,
+    viaLink ? 'Inscrição pelo link' : `${players.length} jogadores${only ? '' : ` · ${women.length} M · ${men.length} H`}`,
+    viaLink ? 'Rodadas no sorteio' : check.ok ? `${summary.rounds} rodadas · ${summary.matches} jogos` : `${check.issues.length} ajuste${check.issues.length > 1 ? 's' : ''} pendente${check.issues.length > 1 ? 's' : ''}`,
     scoringLabel(c.scoring),
     '',
   ][step];
@@ -164,10 +187,40 @@ export function CreatePage() {
       <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-[calc(110px+env(safe-area-inset-bottom,0px))] pt-4">
         {step === 0 && (
           <>
+            <Panel title="Como a galera entra">
+              <Choices name="Como a galera entra" value={d.entry} cols={1} compact
+                options={[
+                  { value: 'lista', title: 'Eu coloco os nomes', hint: 'Cola a lista do grupo e sorteia na hora.' },
+                  { value: 'inscricao', title: 'Inscrição pelo link', hint: 'Cada um põe nome, gênero e nível no celular. Você fecha e sorteia.' },
+                ]}
+                onChange={(v) => {
+                  set({ entry: v });
+                  if (v === 'inscricao') setC({ pairing: d.signup.askLevel ? 'equilibrado' : c.pairing === 'manual' ? 'sorteio' : c.pairing });
+                }} />
+            </Panel>
             <Panel title="Tipo de torneio">
-              <Choices name="Tipo de torneio" value={d.tipo} options={TIPOS} cols={1} compact
+              <Choices name="Tipo de torneio" value={d.tipo} options={viaLink ? TIPOS.map((t) => ({ ...t, hint: t.hint.replace('Usa só as mulheres da lista.', 'Só mulheres se inscrevem.').replace('Usa só os homens da lista.', 'Só homens se inscrevem.') })) : TIPOS} cols={1} compact
                 onChange={(t) => { set({ tipo: t, manual: [] }); setC({ modality: modalityOf(t) }); }} />
             </Panel>
+            {viaLink ? (
+              <Panel title="Inscrição">
+                <div className="flex flex-col gap-3">
+                  <Check checked={d.signup.askLevel} onChange={(v) => { set({ signup: { ...d.signup, askLevel: v } }); if (v) setC({ pairing: 'equilibrado' }); }}
+                    title="Perguntar o nível (A a D)" hint="A profissional · B avançado · C intermediário · D iniciante. Só você vê." />
+                  <Check checked={d.signup.limitOn} onChange={(v) => set({ signup: { ...d.signup, limitOn: v } })}
+                    title="Limitar vagas" hint="Quem passar do limite cai na lista de espera." />
+                  {d.signup.limitOn && (
+                    <>
+                      <Field label="Vagas" hint={gendered && d.signup.perGender ? 'Pra cada gênero' : 'No total'}>
+                        <Stepper id="vagas" label="vagas" value={d.signup.limit} min={2} max={64} onChange={(n) => set({ signup: { ...d.signup, limit: n } })} />
+                      </Field>
+                      {gendered && <Check checked={d.signup.perGender} onChange={(v) => set({ signup: { ...d.signup, perGender: v } })} title="Vagas por gênero" hint="Ex.: 8 homens e 8 mulheres." />}
+                    </>
+                  )}
+                  <Note kind="ok">Depois de criar, você manda o link no grupo. Quando fechar a lista, toca em <b>Sortear</b> e o app monta os jogos com quem se inscreveu.</Note>
+                </div>
+              </Panel>
+            ) : (<>
             <AddNames tipo={d.tipo} onAdd={(list) => {
               const have = new Set(d.players.map((p) => p.name.trim().toLocaleLowerCase('pt-BR')));
               const fresh = list.filter((p) => !have.has(p.name.toLocaleLowerCase('pt-BR')));
@@ -181,6 +234,7 @@ export function CreatePage() {
               onClear={() => set({ players: [], manual: [] })}
               onLevel={(useLevel) => set({ useLevel })}
             />
+            </>)}
           </>
         )}
 
@@ -191,7 +245,8 @@ export function CreatePage() {
             </Panel>
             <Panel title="Ajustes">
               <div className="flex flex-col gap-4">
-                {isIndividual(c.format) && (
+                {isIndividual(c.format) && viaLink && <p className="m-0 text-sm text-muted">As rodadas o app sugere na hora do sorteio, com quem se inscreveu. Dá pra mudar lá.</p>}
+                {isIndividual(c.format) && !viaLink && (
                   <Field label="Rodadas" hint={`Sugestão: ${suggested}${!d.roundsTouched ? ' (automático)' : ''}`}>
                     <div className="flex items-center gap-2">
                       {d.roundsTouched && suggested !== c.rounds && <Button kind="quiet" onClick={() => { setC({ rounds: suggested }); set({ roundsTouched: false }); }}>Usar {suggested}</Button>}
@@ -212,7 +267,7 @@ export function CreatePage() {
                 <Field label="Quadras" hint={courtSplit.length > 1 ? courtSplit.map((x) => `${DIV_LABEL[x.div.id]}: ${x.m}`).join(' · ') : 'Jogos ao mesmo tempo'}>
                   <Stepper id="quadras" label="quadras" value={c.courts} min={1} max={30} onChange={(n) => setC({ courts: n })} />
                 </Field>
-                {check.ok && (
+                {check.ok && !viaLink && (
                   <Note kind="ok">
                     <b>{summary.rounds} rodadas · {summary.matches} jogos.</b>{summary.extra && <> {summary.extra}.</>} Cada {isIndividual(c.format) ? 'pessoa' : 'dupla'} joga{' '}
                     {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas.
@@ -222,12 +277,14 @@ export function CreatePage() {
             </Panel>
             {teamsFormat && (
               <Panel title="Duplas">
-                <Choices name="Formação das duplas" value={c.pairing} options={PAIRINGS} cols={1} compact onChange={(v) => { setC({ pairing: v }); if (v === 'equilibrado') set({ useLevel: true }); }} />
-                {c.pairing === 'equilibrado' && <p className="m-0 mt-3 text-sm text-muted">Toque no nome de cada jogador, no passo 1, para marcar o nível.</p>}
+                <Choices name="Formação das duplas" value={c.pairing} options={viaLink ? PAIRINGS.filter((o) => o.value !== 'manual') : PAIRINGS} cols={1} compact
+                  onChange={(v) => { setC({ pairing: v }); if (v === 'equilibrado') { if (viaLink) set({ signup: { ...d.signup, askLevel: true } }); else set({ useLevel: true }); } }} />
+                {c.pairing === 'equilibrado' && <p className="m-0 mt-3 text-sm text-muted">{viaLink ? 'O nível de cada um vem da inscrição. Você pode corrigir antes de sortear.' : 'Toque no nome de cada jogador, no passo 1, para marcar o nível.'}</p>}
                 {c.pairing === 'manual' && <ManualPairs players={players} modality={c.modality} pairs={d.manual} onChange={(manual) => set({ manual })} />}
               </Panel>
             )}
-            {check.issues.filter((i) => i.area !== 'regras').map((i) => <Note key={i.text} kind="warn">{i.text}</Note>)}
+            {c.format === 'rodizio' && (viaLink ? d.signup.askLevel : d.useLevel) && <Note kind="ok">Com nível, o rodízio monta cada jogo com duplas de força parecida.</Note>}
+            {!viaLink && check.issues.filter((i) => i.area !== 'regras').map((i) => <Note key={i.text} kind="warn">{i.text}</Note>)}
           </>
         )}
 
@@ -283,10 +340,14 @@ export function CreatePage() {
               <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[15px]">
                 {[
                   ['Tipo', TIPOS.find((t) => t.value === d.tipo)!.title],
-                  ['Jogadores', `${players.length}${d.tipo === 'livre' ? '' : ` (${players.filter((p) => p.gender === 'M').length} M · ${players.filter((p) => p.gender === 'H').length} H)`}`],
+                  ...(viaLink
+                    ? [['Inscrição', `Pelo link · ${signupSummary({ ...signupSettings, gender: only })}`]]
+                    : [['Jogadores', `${players.length}${d.tipo === 'livre' ? '' : ` (${players.filter((p) => p.gender === 'M').length} M · ${players.filter((p) => p.gender === 'H').length} H)`}`]]),
                   ['Formato', FORMATS.find((f) => f.value === c.format)!.title],
-                  ['Tamanho', `${summary.rounds} rodadas · ${summary.matches} jogos`],
-                  ['Cada um joga', summary.minGames === summary.maxGames ? `${summary.minGames} partidas` : `${summary.minGames} a ${summary.maxGames} partidas`],
+                  ...(viaLink ? [] : [
+                    ['Tamanho', `${summary.rounds} rodadas · ${summary.matches} jogos`],
+                    ['Cada um joga', summary.minGames === summary.maxGames ? `${summary.minGames} partidas` : `${summary.minGames} a ${summary.maxGames} partidas`],
+                  ]),
                   ['Partida', `${scoringLabel(c.scoring)} (≈${gamesPerMatch(c.scoring)} games)`],
                   ['Ranking', c.ranking.base === 'games' ? 'Games feitos' : 'Vitória 3 · Empate 1 · Derrota 0'],
                   ['Quadras', courtSplit.length > 1 ? `${c.courts} (${courtSplit.map((x) => `${DIV_LABEL[x.div.id]} ${x.m}`).join(', ')})` : String(c.courts)],
@@ -294,10 +355,10 @@ export function CreatePage() {
                   <div key={k} className="contents"><dt className="font-bold">{k}</dt><dd className="m-0 text-muted">{v}</dd></div>
                 ))}
               </dl>
-              {only && <p className="m-0 mt-3 text-sm text-muted">{d.players.length - players.length} pessoas da lista ficam de fora deste torneio.</p>}
+              {only && !viaLink && <p className="m-0 mt-3 text-sm text-muted">{d.players.length - players.length} pessoas da lista ficam de fora deste torneio.</p>}
             </Panel>
-            {check.warnings.map((w) => <Note key={w} kind="ok">{w}</Note>)}
-            {check.issues.map((i) => (
+            {!viaLink && check.warnings.map((w) => <Note key={w} kind="ok">{w}</Note>)}
+            {!viaLink && check.issues.map((i) => (
               <Note key={i.text} kind="warn">
                 {i.text}{' '}
                 <button type="button" className="font-bold underline underline-offset-2" onClick={() => setStep(AREA_STEP[i.area])}>Corrigir</button>
@@ -315,7 +376,7 @@ export function CreatePage() {
           {step < STEPS.length - 1 ? (
             <Button kind="primary" className="flex-none !text-xl" onClick={() => setStep(step + 1)}>Continuar</Button>
           ) : (
-            <Button kind="primary" className="flex-none !text-xl" disabled={!ready || busy} onClick={create}>{busy ? 'Criando…' : 'Criar'}</Button>
+            <Button kind="primary" className="flex-none !text-xl" disabled={!ready || busy} onClick={create}>{busy ? 'Criando…' : viaLink ? 'Abrir inscrição' : 'Criar'}</Button>
           )}
         </div>
       </nav>
@@ -404,7 +465,7 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
                 <li key={p.id} className="flex items-center overflow-hidden rounded-full border-[1.5px] border-hair bg-bg">
                   <button type="button" onClick={() => setEditing(p.id)} className="flex min-h-[40px] items-center gap-1.5 px-3 text-[15px] font-semibold text-ink">
                     {p.name || 'sem nome'}
-                    {d.useLevel && <span className="rounded-full bg-hair px-1.5 text-[11px] font-bold tabnum">{p.level ?? 2}</span>}
+                    {d.useLevel && <span className="rounded-full bg-hair px-1.5 text-[11px] font-bold">{levelLetter(p.level) ?? '?'}</span>}
                   </button>
                   {g.key === 'x' && (
                     <>
@@ -420,7 +481,7 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
       </div>
       {d.players.length > 0 && (
         <div className="mt-4 flex flex-col gap-2 border-t border-hair pt-3">
-          <Check checked={d.useLevel} onChange={onLevel} title="Usar nível" hint="1 iniciante · 2 intermediário · 3 avançado. Toque no nome para marcar." />
+          <Check checked={d.useLevel} onChange={onLevel} title="Usar nível" hint="A profissional · B avançado · C intermediário · D iniciante. Toque no nome para marcar." />
           {!confirmClear ? (
             <Button kind="quiet" className="self-start" onClick={() => setConfirmClear(true)}>Apagar a lista toda</Button>
           ) : (
@@ -443,9 +504,9 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
                 options={[{ value: 'M', label: 'Mulher', className: 'bg-sun text-surface' }, { value: 'H', label: 'Homem', className: 'bg-sea text-surface' }]} />
             </Field>
             {d.useLevel && (
-              <Field label="Nível" hint="1 iniciante · 3 avançado">
-                <Segmented<string> label="Nível" value={String(current.level ?? 2)} onChange={(v) => onUpdate(current.id, { level: Number(v) })}
-                  options={[{ value: '1', label: '1' }, { value: '2', label: '2' }, { value: '3', label: '3' }]} />
+              <Field label="Nível" hint={LEVELS.find((l) => l.value === current.level)?.title ?? 'Sem nível marcado'}>
+                <Segmented<string> label="Nível" value={current.level ? String(current.level) : null} onChange={(v) => onUpdate(current.id, { level: Number(v) })}
+                  options={LEVELS.map((l) => ({ value: String(l.value), label: l.letter }))} />
               </Field>
             )}
             <div className="grid grid-cols-2 gap-2">

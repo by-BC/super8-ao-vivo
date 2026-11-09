@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyGame, buildInitial, DEFAULT_CONFIG, evaluate, individualSides, knockoutChampion, mulberry32, nextStep,
   parsePlayerList, playerEntities, rankingMessage, rankingSections, rodizioPlans, scheduleQuality, standings,
-  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners, podiums, playerCard,
+  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners, podiums, playerCard, levelLetter, levelValue, formTeams,
   type Config, type Match, type NewMatch, type Player, type Scoring,
 } from './index';
 
@@ -385,5 +385,39 @@ describe('ranking', () => {
     expect(msg).toContain('🥇');
     expect(msg).toContain('https://exemplo/#/t/ABC234');
     expect(msg).toContain('Resultado final');
+  });
+});
+
+describe('níveis A–D', () => {
+  it('converte letra e número (A é o mais forte)', () => {
+    expect(levelValue('a')).toBe(4);
+    expect(levelValue('D')).toBe(1);
+    expect(levelValue('X')).toBeUndefined();
+    expect(levelLetter(4)).toBe('A');
+    expect(levelLetter(1)).toBe('D');
+    expect(levelLetter(undefined)).toBeNull();
+  });
+
+  it('rodízio com nível monta jogos mais parelhos e sem repetir parceiro', () => {
+    const lv = [4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1];
+    const withLevel: Player[] = lv.map((l, i) => ({ id: `x${i}`, name: `J${i}`, gender: null, level: l }));
+    const plain: Player[] = withLevel.map(({ level: _l, ...p }) => p);
+    const s = new Map(withLevel.map((p) => [p.id, p.level!]));
+    const gap = (plans: ReturnType<typeof rodizioPlans>) => {
+      const ds = plans.flat().map(([p, q]) => Math.abs(s.get(p[0])! + s.get(p[1])! - s.get(q[0])! - s.get(q[1])!));
+      return ds.reduce((a, b) => a + b, 0) / ds.length;
+    };
+    const balanced = rodizioPlans({ id: 'all', label: '', players: withLevel }, false, 6, 3, mulberry32(7));
+    const random = rodizioPlans({ id: 'all', label: '', players: plain }, false, 6, 3, mulberry32(7));
+    expect(gap(balanced)).toBeLessThan(gap(random));
+    expect(gap(balanced)).toBeLessThanOrEqual(1);
+    expect(scheduleQuality({ id: 'all', label: '', players: withLevel }, false, balanced)).toMatchObject({ partnerRepeats: 0, gamesSpread: 0 });
+  });
+
+  it('duplas fixas equilibradas juntam A com D e B com C', () => {
+    const ps: Player[] = [4, 3, 2, 1].map((l, i) => ({ id: `y${i}`, name: `P${i}`, gender: null, level: l }));
+    const teams = formTeams(ps, { ...cfg(), modality: 'livre', format: 'duplas', pairing: 'equilibrado' }, mulberry32(1));
+    const sums = teams.map((t) => t.players.reduce((a, id) => a + ps.find((p) => p.id === id)!.level!, 0));
+    expect(sums).toEqual([5, 5]);
   });
 });

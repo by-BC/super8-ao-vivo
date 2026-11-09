@@ -1,3 +1,4 @@
+import { DEFAULT_LEVEL, levelOf } from './levels';
 import { pairKey, shuffle, type Rng } from './rng';
 import type { Config, Division, Modality, NewMatch, Player, Stage, Team } from './types';
 
@@ -77,11 +78,37 @@ interface Counts {
   partner: Map<string, number>;
   opp: Map<string, number>;
   games: Map<string, number>;
+  /** Nível de cada um, só quando a divisão tem níveis diferentes marcados. */
+  lv: Map<string, number> | null;
+  /** Força média de uma dupla (soma de 2 níveis). */
+  mean: number;
 }
 
 const get = (m: Map<string, number>, k: string) => m.get(k) ?? 0;
 const bump = (m: Map<string, number>, k: string, d = 1) => m.set(k, get(m, k) + d);
-const newCounts = (): Counts => ({ partner: new Map(), opp: new Map(), games: new Map() });
+function newCounts(div: Division): Counts {
+  const has = div.players.some((p) => p.level != null) && new Set(div.players.map(levelOf)).size > 1;
+  const lv = has ? new Map(div.players.map((p) => [p.id, levelOf(p)])) : null;
+  const mean = lv ? (2 * [...lv.values()].reduce((a, b) => a + b, 0)) / lv.size : 0;
+  return { partner: new Map(), opp: new Map(), games: new Map(), lv, mean };
+}
+
+/** Pesos do equilíbrio por nível: jogo com duplas de força diferente e dupla forte demais (ou fraca demais). */
+const LEVEL_W = 3;
+const PAIR_W = 2;
+const strength = (c: Counts, p: Pair) => (c.lv!.get(p[0]) ?? DEFAULT_LEVEL) + (c.lv!.get(p[1]) ?? DEFAULT_LEVEL);
+
+function levelCost(c: Counts, p: Pair, q: Pair): number {
+  if (!c.lv) return 0;
+  const d = strength(c, p) - strength(c, q);
+  return d * d * LEVEL_W;
+}
+
+function pairBal(c: Counts, p: Pair): number {
+  if (!c.lv) return 0;
+  const d = strength(c, p) - c.mean;
+  return d * d * PAIR_W;
+}
 
 function partnerCost(c: Counts, x: string, y: string): number {
   const p = get(c.partner, pairKey(x, y));
@@ -105,8 +132,8 @@ function mixedPairs(men: string[], women: string[], c: Counts, rng: Rng): Pair[]
     improved = false;
     for (let i = 0; i < men.length; i++) {
       for (let j = i + 1; j < men.length; j++) {
-        const cur = partnerCost(c, men[i], w[i]) + partnerCost(c, men[j], w[j]);
-        const alt = partnerCost(c, men[i], w[j]) + partnerCost(c, men[j], w[i]);
+        const cur = partnerCost(c, men[i], w[i]) + partnerCost(c, men[j], w[j]) + pairBal(c, [men[i], w[i]]) + pairBal(c, [men[j], w[j]]);
+        const alt = partnerCost(c, men[i], w[j]) + partnerCost(c, men[j], w[i]) + pairBal(c, [men[i], w[j]]) + pairBal(c, [men[j], w[i]]);
         if (alt < cur) { [w[i], w[j]] = [w[j], w[i]]; improved = true; }
       }
     }
@@ -124,9 +151,9 @@ function freePairs(ps: string[], c: Counts, rng: Rng): Pair[] {
       for (let j = i + 1; j < pairs.length; j++) {
         const [a, b] = pairs[i];
         const [x, y] = pairs[j];
-        const cur = partnerCost(c, a, b) + partnerCost(c, x, y);
-        const o1 = partnerCost(c, a, x) + partnerCost(c, b, y);
-        const o2 = partnerCost(c, a, y) + partnerCost(c, b, x);
+        const cur = partnerCost(c, a, b) + partnerCost(c, x, y) + pairBal(c, [a, b]) + pairBal(c, [x, y]);
+        const o1 = partnerCost(c, a, x) + partnerCost(c, b, y) + pairBal(c, [a, x]) + pairBal(c, [b, y]);
+        const o2 = partnerCost(c, a, y) + partnerCost(c, b, x) + pairBal(c, [a, y]) + pairBal(c, [b, x]);
         if (o1 < cur && o1 <= o2) { pairs[i] = [a, x]; pairs[j] = [b, y]; improved = true; }
         else if (o2 < cur) { pairs[i] = [a, y]; pairs[j] = [b, x]; improved = true; }
       }
@@ -145,9 +172,9 @@ function matchPairs(pairs: Pair[], c: Counts, rng: Rng): RoundPlan {
       for (let j = i + 1; j < ms.length; j++) {
         const [p, q] = ms[i];
         const [r, t] = ms[j];
-        const cur = oppCost(c, p, q) + oppCost(c, r, t);
-        const o1 = oppCost(c, p, r) + oppCost(c, q, t);
-        const o2 = oppCost(c, p, t) + oppCost(c, q, r);
+        const cur = oppCost(c, p, q) + oppCost(c, r, t) + levelCost(c, p, q) + levelCost(c, r, t);
+        const o1 = oppCost(c, p, r) + oppCost(c, q, t) + levelCost(c, p, r) + levelCost(c, q, t);
+        const o2 = oppCost(c, p, t) + oppCost(c, q, r) + levelCost(c, p, t) + levelCost(c, q, r);
         if (o1 < cur && o1 <= o2) { ms[i] = [p, r]; ms[j] = [q, t]; improved = true; }
         else if (o2 < cur) { ms[i] = [p, t]; ms[j] = [q, r]; improved = true; }
       }
@@ -174,7 +201,7 @@ function idsBy(div: Division) {
 }
 
 function greedySchedule(div: Division, mixed: boolean, rounds: number, m: number, rng: Rng): RoundPlan[] {
-  const c = newCounts();
+  const c = newCounts(div);
   const { all, men, women } = idsBy(div);
   const out: RoundPlan[] = [];
   for (let r = 0; r < rounds; r++) {
@@ -196,7 +223,7 @@ function latinSchedule(div: Division, rounds: number, m: number, rng: Rng): Roun
   if (women.length !== k || k < 3) return null;
   const odd = k % 2 === 1;
   if (!(odd ? 2 * m === k - 1 : 2 * m === k)) return null;
-  const c = newCounts();
+  const c = newCounts(div);
   const out: RoundPlan[] = [];
   for (let r = 0; r < rounds; r++) {
     const rr = r % k;
@@ -222,7 +249,7 @@ function circleSchedule(div: Division, rounds: number, m: number, rng: Rng): Rou
   const ids = shuffle(idsBy(div).all, rng);
   if (ids.length % 4 !== 0 || 4 * m !== ids.length) return null;
   const pm = circleRounds(ids);
-  const c = newCounts();
+  const c = newCounts(div);
   const out: RoundPlan[] = [];
   for (let r = 0; r < rounds; r++) {
     const plan = matchPairs(pm[r % pm.length], c, rng);
@@ -236,10 +263,12 @@ export interface ScheduleQuality {
   partnerRepeats: number;
   oppSquares: number;
   gamesSpread: number;
+  /** Soma, em todos os jogos, da diferença de força entre as duplas ao quadrado (0 sem nível). */
+  levelGap: number;
 }
 
 export function scheduleQuality(div: Division, mixed: boolean, plans: RoundPlan[]): ScheduleQuality {
-  const c = newCounts();
+  const c = newCounts(div);
   plans.forEach((p) => record(c, p));
   let partnerRepeats = 0;
   for (const v of c.partner.values()) partnerRepeats += Math.max(0, v - 1);
@@ -252,10 +281,12 @@ export function scheduleQuality(div: Division, mixed: boolean, plans: RoundPlan[
     return Math.max(...g) - Math.min(...g);
   };
   const gamesSpread = mixed ? Math.max(spread(men), spread(women)) : spread(all);
-  return { partnerRepeats, oppSquares, gamesSpread };
+  let levelGap = 0;
+  if (c.lv) for (const plan of plans) for (const [p, q] of plan) levelGap += (strength(c, p) - strength(c, q)) ** 2;
+  return { partnerRepeats, oppSquares, gamesSpread, levelGap };
 }
 
-const cost = (q: ScheduleQuality) => q.partnerRepeats * 1000 + q.gamesSpread * 300 + q.oppSquares;
+const cost = (q: ScheduleQuality) => q.partnerRepeats * 1000 + q.gamesSpread * 300 + q.oppSquares + q.levelGap * LEVEL_W;
 
 /** Monta todas as rodadas do rodízio de uma divisão, testando várias tentativas e ficando com a melhor. */
 export function rodizioPlans(div: Division, mixed: boolean, rounds: number, m: number, rng: Rng, budgetMs = 400): RoundPlan[] {
@@ -309,7 +340,7 @@ export function rodizioMatches(players: Player[], config: Config, rng: Rng): New
 /* ------------------------------------------------------------------ */
 
 function byLevel(ps: Player[], desc: boolean, rng: Rng): Player[] {
-  return shuffle(ps, rng).sort((x, y) => (desc ? -1 : 1) * ((x.level ?? 2) - (y.level ?? 2)));
+  return shuffle(ps, rng).sort((x, y) => (desc ? -1 : 1) * (levelOf(x) - levelOf(y)));
 }
 
 /** Forma as duplas fixas: sorteio, equilibrado por nível (forte com mais fraco) ou manual. */
@@ -342,8 +373,8 @@ const GROUP_LETTERS = 'ABCDEFGHIJKLMNOP';
 
 /** Distribui as duplas nos grupos em "serpentina" (1-2-3-3-2-1), equilibrando força quando há nível. */
 export function assignGroups(teams: Team[], groups: number, players: Player[], config: Config, rng: Rng): Team[] {
-  const level = new Map(players.map((p) => [p.id, p.level ?? 2]));
-  const strength = (t: Team) => t.players.reduce((s, id) => s + (level.get(id) ?? 2), 0);
+  const level = new Map(players.map((p) => [p.id, levelOf(p)]));
+  const strength = (t: Team) => t.players.reduce((s, id) => s + (level.get(id) ?? DEFAULT_LEVEL), 0);
   const out: Team[] = [];
   const byDiv = new Map<string, Team[]>();
   teams.forEach((t) => byDiv.set(t.division, [...(byDiv.get(t.division) ?? []), t]));

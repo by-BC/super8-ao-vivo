@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { applyGame, type Match } from '../engine';
-import { api, ApiFail, type TournamentRow } from './api';
+import { api, ApiFail, type PublicEntry, type TournamentRow } from './api';
 import { dropToken, getSaved, loadQueue, saveQueue, type Intent } from './local';
 import { supabase } from './supabase';
 
@@ -28,6 +28,7 @@ const POLL_MS = 15000;
  */
 export function useTournament(code: string) {
   const [tournament, setTournament] = useState<TournamentRow | null>(null);
+  const [entries, setEntries] = useState<PublicEntry[]>([]);
   const [server, setServer] = useState<Map<string, Match>>(new Map());
   const [state, setState] = useState<LoadState>('carregando');
   const [live, setLive] = useState<LiveState>('conectando');
@@ -64,6 +65,7 @@ export function useTournament(code: string) {
       serverRef.current = map;
       setServer(map);
       setTournament(r.tournament);
+      setEntries(r.entries ?? []);
       setState('ok');
       setReachable(true);
       return true;
@@ -222,7 +224,7 @@ export function useTournament(code: string) {
   }, [load]);
 
   return {
-    tournament, matches, serverMatches, state, live, reachable, pending: queue.length, authLost, lastError,
+    tournament, entries, matches, serverMatches, state, live, reachable, pending: queue.length, authLost, lastError,
     clearError: () => setLastError(null), clearAuthLost: () => setAuthLost(false),
     reload, notify, point,
   };

@@ -7,6 +7,7 @@ import {
 import { MatchCard, Name } from '../components/MatchCard';
 import { PodiumSheet } from '../components/PodiumSheet';
 import { CardSheet } from '../components/CardSheet';
+import { SignupView } from './Signup';
 import { Bracket, RankingSections } from '../components/Ranking';
 import { Button, copyText, CopySheet, cx, Note, Panel, Pill, Sheet, useToast } from '../components/ui';
 import { api, ApiFail, errorText } from '../lib/api';
@@ -99,6 +100,52 @@ export function TournamentPage({ code }: { code: string }) {
   }
 
   const { config } = tour;
+  const header = (
+    <header className="band-lines bg-band text-bandink">
+      <div className="gutter relative z-[1] mx-auto flex max-w-[760px] items-center gap-3 py-4">
+        <a href="#/" aria-label="Início" className="ball h-10 w-10" />
+        <div className="min-w-0 flex-1">
+          <h1 className="m-0 font-display text-[clamp(24px,7.5vw,32px)] font-black uppercase leading-[.92] [overflow-wrap:break-word]">{tour.name}</h1>
+          <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 text-[13px] leading-snug opacity-90">
+            <LiveBadge live={t.live} reachable={t.reachable} pending={t.pending} />
+            <span>· {FORMAT_LABEL[config.format]}</span>
+          </p>
+        </div>
+        <button type="button" onClick={() => setShareOpen(true)} className="flex flex-none flex-col items-center rounded-[10px] border-[1.5px] border-current px-2 py-1" aria-label={`Compartilhar código ${code}`}>
+          <span className="text-[9px] font-bold uppercase tracking-[.14em] opacity-80">Código</span>
+          <span className="font-display text-xl font-black tracking-[.1em]">{code}</span>
+        </button>
+      </div>
+    </header>
+  );
+  const welcomeSheet = (
+    <Sheet open={!!welcome} onClose={() => setWelcome(null)} title="Torneio criado">
+      <div className="flex flex-col gap-3">
+        <p className="m-0 text-[15px]">{tour.phase === 'inscricao' ? 'Agora copie o convite e mande no grupo: cada um se inscreve pelo link. Quando fechar a lista, você sorteia aqui.' : 'Mande o link ou o código para a galera. O PIN é só para quem vai lançar placar.'}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-[10px] bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">Código</small><b className="font-display text-3xl tracking-[.12em]">{code}</b></div>
+          <div className="rounded-[10px] bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">PIN árbitro</small><b className="font-display text-3xl tracking-[.2em]">{welcome?.pin}</b></div>
+        </div>
+        <Note kind="ok">Este aparelho ficou como <b>organizador</b>: só daqui dá para editar nomes, trocar o PIN e sortear de novo.</Note>
+        <Button kind="primary" block onClick={() => { setWelcome(null); if (tour.phase !== 'inscricao') setShareOpen(true); }}>{tour.phase === 'inscricao' ? 'Entendi' : 'Compartilhar'}</Button>
+      </div>
+    </Sheet>
+  );
+
+  if (tour.phase === 'inscricao') {
+    return (
+      <>
+        {header}
+        <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-[calc(32px+env(safe-area-inset-bottom,0px))] pt-4">
+          <SignupView code={code} tour={tour} entries={t.entries} adminKey={saved?.adminKey ?? null} onChanged={async () => { t.notify(); await t.reload(); }} />
+        </main>
+        <ShareSheet open={shareOpen} code={code} name={tour.name} onClose={() => setShareOpen(false)} onCopy={share} />
+        <CopySheet text={copyFallback} onClose={() => setCopyFallback(null)} />
+        {welcomeSheet}
+      </>
+    );
+  }
+
   const { players: plist, teams } = tour.data;
   const status = tournamentStatus(plist, config, t.matches);
   const finished = status === 'encerrado';
@@ -146,22 +193,7 @@ export function TournamentPage({ code }: { code: string }) {
 
   return (
     <>
-      <header className="band-lines bg-band text-bandink">
-        <div className="gutter relative z-[1] mx-auto flex max-w-[760px] items-center gap-3 py-4">
-          <a href="#/" aria-label="Início" className="ball h-10 w-10" />
-          <div className="min-w-0 flex-1">
-            <h1 className="m-0 font-display text-[clamp(24px,7.5vw,32px)] font-black uppercase leading-[.92] [overflow-wrap:break-word]">{tour.name}</h1>
-            <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 text-[13px] leading-snug opacity-90">
-              <LiveBadge live={t.live} reachable={t.reachable} pending={t.pending} />
-              <span>· {FORMAT_LABEL[config.format]}</span>
-            </p>
-          </div>
-          <button type="button" onClick={() => setShareOpen(true)} className="flex flex-none flex-col items-center rounded-[10px] border-[1.5px] border-current px-2 py-1" aria-label={`Compartilhar código ${code}`}>
-            <span className="text-[9px] font-bold uppercase tracking-[.14em] opacity-80">Código</span>
-            <span className="font-display text-xl font-black tracking-[.1em]">{code}</span>
-          </button>
-        </div>
-      </header>
+      {header}
 
       <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-4">
         {divs.length > 1 && tab !== 'info' && (
@@ -280,17 +312,7 @@ export function TournamentPage({ code }: { code: string }) {
       <CardSheet open={cardOpen} onClose={() => setCardOpen(false)} info={artInfo} initialId={cardId}
         groups={divs.map((d) => ({ label: divs.length > 1 ? d.label : 'Jogadores', players: d.players }))}
         makeCard={(id) => playerCard(plist, teams, config, t.matches, id)} />
-      <Sheet open={!!welcome} onClose={() => setWelcome(null)} title="Torneio criado">
-        <div className="flex flex-col gap-3">
-          <p className="m-0 text-[15px]">Mande o link ou o código para a galera. O PIN é só para quem vai lançar placar.</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-[10px] bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">Código</small><b className="font-display text-3xl tracking-[.12em]">{code}</b></div>
-            <div className="rounded-[10px] bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">PIN árbitro</small><b className="font-display text-3xl tracking-[.2em]">{welcome?.pin}</b></div>
-          </div>
-          <Note kind="ok">Este aparelho ficou como <b>organizador</b>: só daqui dá para editar nomes, trocar o PIN e sortear de novo.</Note>
-          <Button kind="primary" block onClick={() => { setWelcome(null); setShareOpen(true); }}>Compartilhar</Button>
-        </div>
-      </Sheet>
+      {welcomeSheet}
     </>
   );
 }

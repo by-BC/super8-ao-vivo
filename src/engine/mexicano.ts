@@ -1,3 +1,4 @@
+import { levelOf } from './levels';
 import { evaluate } from './scoring';
 import { matchesPerRound, pickPlaying } from './schedule';
 import { individualSides, playerEntities, standings } from './standings';
@@ -22,7 +23,7 @@ export function mexicanoRound(roundNo: number, players: Player[], config: Config
 
     let order: string[];
     if (roundNo === 1 || divMatches.length === 0) {
-      order = shuffle(div.players, rng).sort((x, y) => (y.level ?? 2) - (x.level ?? 2)).map((p) => p.id);
+      order = shuffle(div.players, rng).sort((x, y) => levelOf(y) - levelOf(x)).map((p) => p.id);
     } else {
       order = standings(playerEntities(div.players), divMatches, config, individualSides).map((r) => r.key);
     }
