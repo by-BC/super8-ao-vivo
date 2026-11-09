@@ -1,4 +1,4 @@
-import { evaluate, knockoutChampion, type Config, type Match, type Player, type RankingSection, type Row, type Team } from '../engine';
+import { evaluate, knockoutChampion, type Config, type Match, type Player, type Podium, type PodiumPlace, type RankingSection, type Row, type Team } from '../engine';
 import { Name } from './MatchCard';
 import { cx, Pill } from './ui';
 
@@ -32,21 +32,38 @@ function RowItem({ r, players, showGender, media, played, qualifies, compact, on
   );
 }
 
-function Podium({ rows }: { rows: Row[] }) {
-  const step = (r: Row | undefined, cls: string, first = false) =>
-    r ? (
-      <div className={cx('flex min-w-0 flex-col items-center gap-1 rounded-t-[10px] rounded-b px-2 py-3 text-center', cls)}>
-        {first && <span className="text-[11px] font-extrabold uppercase tracking-[.14em]">Campeão</span>}
-        <span className="font-display text-[42px] font-black leading-none">{r.pos}º</span>
-        <span className="text-[15px] font-bold leading-tight [overflow-wrap:anywhere]">{r.label}</span>
+/** Pódio 2-1-3 do resultado final: feito pra galera tirar print. */
+export function ResultPodium({ podium: p }: { podium: Podium }) {
+  const first = p.places[0];
+  const order = p.places.length >= 3 ? [p.places[1], first, p.places[2]] : p.places.length === 2 ? [p.places[1], first] : [first];
+  const step = (pl: PodiumPlace) => {
+    const top = pl === first;
+    return (
+      <div key={pl.pos + pl.names.join()} className={cx('flex min-w-0 flex-col items-center justify-start gap-1 rounded-t-[12px] rounded-b-md px-2 pb-4 pt-3 text-center',
+        top ? 'min-h-[188px] bg-ball text-ballink' : pl.pos === 2 ? 'mt-8 min-h-[156px] bg-court' : 'mt-14 min-h-[132px] bg-court')}>
+        {top && <span className="text-[11px] font-extrabold uppercase tracking-[.16em]">{p.headline}</span>}
+        <span className={cx('font-display font-black leading-none', top ? 'text-[52px]' : 'text-[44px]')}>{pl.pos}º</span>
+        <span className="flex flex-col text-[15px] font-bold leading-tight [overflow-wrap:anywhere]">
+          {pl.names.map((n, i) => <span key={n + i}>{n}{i < pl.names.length - 1 ? ' &' : ''}</span>)}
+        </span>
+        {pl.pts && <span className={cx('text-[13px] font-semibold', top ? 'opacity-80' : 'text-muted')}>{pl.pts}</span>}
       </div>
-    ) : <div />;
+    );
+  };
   return (
-    <div className="mb-3.5 grid grid-cols-[1fr_1.15fr_1fr] items-end gap-2">
-      {step(rows[1], 'min-h-[146px] bg-court')}
-      {step(rows[0], 'min-h-[178px] bg-ball text-ballink', true)}
-      {step(rows[2], 'min-h-[122px] bg-court')}
-    </div>
+    <section className="rounded-xl bg-surface p-4 shadow-card">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          {p.label && <span className="block text-[11px] font-extrabold uppercase tracking-[.14em] text-muted">{p.label}</span>}
+          <h2 className="m-0 font-display text-[26px] font-extrabold uppercase leading-none">Resultado final</h2>
+        </div>
+        <Pill>Fechado</Pill>
+      </div>
+      <div className={cx('grid items-start gap-2', order.length === 3 ? 'grid-cols-[1fr_1.15fr_1fr]' : order.length === 2 ? 'mx-auto w-full max-w-[420px] grid-cols-[1fr_1.15fr]' : 'mx-auto w-full max-w-[240px] grid-cols-1')}>
+        {order.map(step)}
+      </div>
+      {p.final && <p className="m-0 mt-3 text-center text-sm font-bold text-muted">Final {p.final}</p>}
+    </section>
   );
 }
 
@@ -67,7 +84,6 @@ export function RankingSections({ sections, players, config, finished, onPlayer 
               <h2 className="m-0 font-display text-[26px] font-extrabold uppercase leading-none">{title}</h2>
               {s.kind === 'grupo' && s.qualify ? <Pill>{s.qualify} {individual ? 'vão pra final' : `classifica${s.qualify > 1 ? 'm' : ''}`}</Pill> : null}
             </div>
-            {finished && s.kind === 'geral' && played && individual && <Podium rows={s.rows} />}
             <div className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-2.5 border-b-[1.5px] border-hair px-2.5 pb-2 text-[11px] font-extrabold uppercase tracking-[.1em] text-muted" aria-hidden>
               <span>#</span><span>{individual ? 'Jogador' : 'Dupla'}</span><span className="text-right">{config.ranking.base === 'games' ? 'Games' : 'Pontos'}</span>
             </div>

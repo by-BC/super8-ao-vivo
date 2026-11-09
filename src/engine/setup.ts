@@ -1,7 +1,7 @@
 import { knockoutChampion, knockoutNext, knockoutStart } from './knockout';
 import { mexicanoRound, nextMexicano } from './mexicano';
 import { mulberry32, type Rng } from './rng';
-import { assignGroups, capacity, divisionsOf, formTeams, matchesPerRound, rodizioMatches, teamRoundRobin } from './schedule';
+import { assignGroups, capacity, divisionsOf, formTeams, matchesPerRound, plannedExtras, rodizioMatches, rodizioUnits, splitGroups, teamRoundRobin, type Unit } from './schedule';
 import { evaluate } from './scoring';
 import { individualSides, playerEntities, standings, teamEntities, teamSides, type Row } from './standings';
 import { isIndividual, MAX_PLAYERS, type Config, type Match, type NewMatch, type Player, type Team } from './types';
@@ -53,10 +53,28 @@ export function validateSetup(players: Player[], config: Config, manual?: [strin
       if (mixed && (countG(d.players, 'H') < 2 || countG(d.players, 'M') < 2)) fail('jogadores', 'O misto precisa de pelo menos 2 homens e 2 mulheres.');
       else if (!mixed && d.players.length < 4) fail('jogadores', `Precisa de pelo menos 4 jogadores${where}.`);
     }
-    if (mixed) {
+    if (config.format === 'rodizio' && config.rodizioGroups === 2) {
+      for (const d of divs) {
+        const where = divs.length > 1 ? ` no ${d.label}` : '';
+        const small = splitGroups(d, mixed, null).some((g) => (mixed ? countG(g, 'H') < 2 || countG(g, 'M') < 2 : g.length < 4));
+        if (small) fail('formato', `Com 2 grupos${where}, cada grupo precisa de pelo menos ${mixed ? '2 homens e 2 mulheres' : '4 jogadores'}. Junte num grupo só ou chame mais gente.`);
+      }
+    }
+    const units = individualUnits(players, config);
+    const idle = units.filter((u) => u.m === 0 && capacity(u.div, mixed) > 0);
+    if (idle.length && !issues.length) {
+      fail('formato', units.length > 1
+        ? `São ${units.length} ${config.rodizioGroups === 2 ? 'grupos' : 'chaves'} jogando ao mesmo tempo: precisa de pelo menos ${units.length} quadras.`
+        : 'Precisa de pelo menos 1 quadra.');
+    }
+    if (mixed && config.rodizioGroups !== 2) {
       const h = countG(players, 'H');
       const m = countG(players, 'M');
       if (h !== m && h >= 2 && m >= 2) warnings.push(`São ${h} homens e ${m} mulheres: ${h > m ? 'os homens folgam' : 'as mulheres folgam'} um pouco mais.`);
+    }
+    if (!issues.length && !config.extraGames && !config.ranking.media) {
+      const sm = summarize(players, config);
+      if (sm.minGames !== sm.maxGames) warnings.push(`Tem gente com ${sm.minGames} e gente com ${sm.maxGames} partidas: ligue o jogo extra ou a média por partida pro ranking ficar justo.`);
     }
   } else {
     for (const d of divs) {
@@ -99,18 +117,35 @@ export function validateSetup(players: Player[], config: Config, manual?: [strin
   return { ok: issues.length === 0, errors: issues.map((i) => i.text), warnings, issues };
 }
 
+/** Divisões (ou grupos do rodízio) que rodam separado, cada uma com suas quadras. */
+export function individualUnits(players: Player[], config: Config): Unit[] {
+  if (config.format === 'rodizio') return rodizioUnits(players, config, null);
+  return matchesPerRound(players, config).map(({ div, m }) => ({ div, grp: null, m }));
+}
+
 /** Sugestão de rodadas para o rodízio: cada um joga ~ com todos os parceiros possíveis, até 7 partidas. */
 export function suggestRounds(players: Player[], config: Config): number {
   const mixed = config.modality === 'mista';
   let best = 1;
-  for (const { div, m } of matchesPerRound(players, config)) {
+  for (const { div, m } of individualUnits(players, config)) {
     if (!m) continue;
     const n = div.players.length;
     const partners = mixed ? Math.max(countG(div.players, 'H'), countG(div.players, 'M')) : n - 1;
     const target = Math.min(partners, 7);
     best = Math.max(best, Math.ceil((target * n) / (4 * m)));
   }
-  return Math.min(best, 60);
+  best = Math.min(best, 60);
+  if (config.format !== 'rodizio' || !config.extraGames) return best;
+  // com jogo extra, prefere um número de rodadas perto da sugestão que precise de menos extras
+  // (e, de preferência, só extras que valem pros 4)
+  let pick = best;
+  let pickScore = Infinity;
+  for (let r = Math.max(1, best - 2); r <= Math.min(60, best + 2); r++) {
+    const ex = plannedExtras(players, { ...config, rounds: r });
+    const score = ex.length * 10 + ex.filter((x) => x.counts?.length).length * 15 + Math.abs(r - best) * 6 + (r < best ? 2 : 0);
+    if (score < pickScore) { pick = r; pickScore = score; }
+  }
+  return pick;
 }
 
 export interface Summary {
@@ -128,17 +163,26 @@ export function summarize(players: Player[], config: Config): Summary {
     let matches = 0;
     let minG = Infinity;
     let maxG = 0;
-    for (const { div, m } of matchesPerRound(players, config)) {
+    const extras = plannedExtras(players, config);
+    for (const { div, m } of individualUnits(players, config)) {
       matches += m * config.rounds;
       const groups = mixed ? [countG(div.players, 'H'), countG(div.players, 'M')] : [div.players.length];
       for (const n of groups) {
         if (!n) continue;
         const slots = (mixed ? 2 : 4) * m * config.rounds;
-        minG = Math.min(minG, Math.floor(slots / n));
+        // com jogo extra, quem ficou devendo sobe pro máximo do grupo
+        minG = Math.min(minG, extras.length ? Math.ceil(slots / n) : Math.floor(slots / n));
         maxG = Math.max(maxG, Math.ceil(slots / n));
       }
     }
-    return { rounds: config.rounds, matches, minGames: minG === Infinity ? 0 : minG, maxGames: maxG };
+    const extraRounds = extras.length ? Math.max(...extras.map((x) => x.round)) - config.rounds : 0;
+    return {
+      rounds: config.rounds + extraRounds,
+      matches: matches + extras.length,
+      minGames: minG === Infinity ? 0 : minG,
+      maxGames: maxG,
+      extra: extras.length ? `${extras.length} ${extras.length === 1 ? 'é jogo extra' : 'são jogos extras'} no fim, pra igualar as partidas` : undefined,
+    };
   }
   let matches = 0;
   let ko = 0;

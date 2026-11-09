@@ -57,6 +57,12 @@ export interface Config {
   groups: number;
   /** Quantas duplas de cada grupo vão para o mata-mata. */
   qualify: number;
+  /** Rodízio: 1 = todo mundo junto · 2 = dois grupos por divisão, com final cruzada no fim. */
+  rodizioGroups?: 1 | 2;
+  /** Rodízio: quem ficou com uma partida a menos ganha um jogo extra no fim, pra todo mundo somar o mesmo número. */
+  extraGames?: boolean;
+  /** Inscrição aberta sem formato: o organizador escolhe no sorteio, com sugestões pela lista. */
+  formatLater?: boolean;
 }
 
 export interface Team {
@@ -113,6 +119,8 @@ export const DEFAULT_CONFIG: Config = {
   pairing: 'sorteio',
   groups: 2,
   qualify: 2,
+  rodizioGroups: 1,
+  extraGames: true,
 };
 
 export const MAX_PLAYERS = 64;

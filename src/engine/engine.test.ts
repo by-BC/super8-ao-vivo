@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   applyGame, buildInitial, DEFAULT_CONFIG, evaluate, individualSides, knockoutChampion, mulberry32, nextStep,
   parsePlayerList, playerEntities, rankingMessage, rankingSections, rodizioPlans, scheduleQuality, standings,
-  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners, podiums, playerCard, levelLetter, levelValue, formTeams,
-  type Config, type Match, type NewMatch, type Player, type Scoring,
+  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners, podiums, playerCard, levelLetter, levelValue, formTeams, summarize, splitGroups, suggestFormats, possibleModalities,
+  type Config, type Match, type NewMatch, type Player, type Scoring, type SetScore,
 } from './index';
 
 const SABADO = `LISTA PLAY SÁBADO
@@ -50,6 +50,11 @@ function mkPlayers(h: number, m: number): Player[] {
 
 const cfg = (over: Partial<Config> = {}): Config => ({ ...DEFAULT_CONFIG, ...over, ranking: { ...DEFAULT_CONFIG.ranking, ...(over.ranking ?? {}) } });
 const toMatches = (ms: NewMatch[], start = 0): Match[] => ms.map((m, i) => ({ ...m, id: `x${start + i}`, version: 0 }));
+
+function noCourtTwicePerRound(ms: NewMatch[]) {
+  const keys = ms.map((m) => `${m.stage}|${m.round}|${m.court}`);
+  expect(new Set(keys).size).toBe(keys.length);
+}
 
 function noOneTwicePerRound(ms: NewMatch[]) {
   const byRound = new Map<string, string[]>();
@@ -169,8 +174,14 @@ describe('rodízio individual', () => {
     c.rounds = suggestRounds(ps, c);
     expect(validateSetup(ps, c).ok).toBe(true);
     const { matches } = buildInitial(ps, c, 42);
-    expect(matches).toHaveLength(4 * c.rounds);
+    expect(matches.filter((m) => m.label !== 'Extra')).toHaveLength(4 * c.rounds);
+    expect(matches.filter((m) => m.label === 'Extra').every((m) => m.round > c.rounds)).toBe(true);
     noOneTwicePerRound(matches);
+    noCourtTwicePerRound(matches);
+    // com o jogo extra, cada gênero soma o mesmo número de partidas que contam
+    const counted = new Map<string, number>();
+    for (const m of matches) for (const id of [...m.a, ...m.b]) if (!m.counts || m.counts.includes(id)) counted.set(id, (counted.get(id) ?? 0) + 1);
+    for (const gnd of ['H', 'M']) expect(new Set(ps.filter((p) => p.gender === gnd).map((p) => counted.get(p.id))).size).toBe(1);
     const g = new Map(ps.map((p) => [p.id, p.gender]));
     for (const m of matches) {
       expect(new Set(m.a.map((id) => g.get(id)))).toEqual(new Set(['H', 'M']));
@@ -419,5 +430,87 @@ describe('níveis A–D', () => {
     const teams = formTeams(ps, { ...cfg(), modality: 'livre', format: 'duplas', pairing: 'equilibrado' }, mulberry32(1));
     const sums = teams.map((t) => t.players.reduce((a, id) => a + ps.find((p) => p.id === id)!.level!, 0));
     expect(sums).toEqual([5, 5]);
+  });
+});
+
+describe('rodízio em 2 grupos', () => {
+  const counted = (matches: NewMatch[]) => {
+    const c = new Map<string, number>();
+    for (const m of matches) for (const id of [...m.a, ...m.b]) if (!m.counts || m.counts.includes(id)) c.set(id, (c.get(id) ?? 0) + 1);
+    return c;
+  };
+
+  it('sábado (13 F + 14 M, 4 quadras): uma quadra por grupo, extra A x B iguala os jogos e a final cruzada sai no fim', () => {
+    const ps: Player[] = parsePlayerList(SABADO).players.map((p, i) => ({ id: `p${i}`, ...p }));
+    const c = cfg({ modality: 'mesmo_genero', courts: 4, rodizioGroups: 2, extraGames: true, ranking: { ...DEFAULT_CONFIG.ranking, base: 'resultado' } });
+    c.rounds = suggestRounds(ps, c);
+    expect(validateSetup(ps, c).ok).toBe(true);
+    const { matches } = buildInitial(ps, c, 11);
+    noOneTwicePerRound(matches);
+    noCourtTwicePerRound(matches);
+    for (const div of ['H', 'M']) {
+      const ms = matches.filter((m) => m.division === div);
+      const regular = ms.filter((m) => m.grp);
+      expect(new Set(regular.map((m) => m.grp))).toEqual(new Set(['A', 'B']));
+      // cada grupo sempre na mesma quadra
+      for (const g of ['A', 'B']) expect(new Set(regular.filter((m) => m.grp === g && !m.label).map((m) => m.court)).size).toBe(1);
+      // ninguém do grupo A joga com alguém do B fora do extra A x B
+      const grpOf = new Map<string, string>();
+      for (const m of regular.filter((x) => !x.label)) for (const id of [...m.a, ...m.b]) grpOf.set(id, m.grp!);
+      for (const m of regular) expect(new Set([...m.a, ...m.b].map((id) => grpOf.get(id))).size).toBe(1);
+      const cross = ms.filter((m) => m.label === 'Extra · A x B');
+      expect(cross.length).toBeGreaterThan(0);
+      for (const m of cross) {
+        expect(new Set(m.a.map((id) => grpOf.get(id)))).toEqual(new Set(['A']));
+        expect(new Set(m.b.map((id) => grpOf.get(id)))).toEqual(new Set(['B']));
+      }
+      // dentro de cada grupo todo mundo soma o mesmo número de partidas
+      const cnt = counted(ms);
+      for (const g of ['A', 'B']) expect(new Set([...grpOf].filter(([, x]) => x === g).map(([id]) => cnt.get(id))).size).toBe(1);
+    }
+    // jogando tudo, sai a final cruzada de cada divisão
+    const played: Match[] = matches.map((m, i) => ({ ...m, id: `m${i}`, version: 1, sets: [[4, 2]] as SetScore[] }));
+    const step = nextStep(ps, [], c, played, 1);
+    expect(step?.title).toBe('Gerar final');
+    expect(step!.matches.map((m) => m.division).sort()).toEqual(['H', 'M']);
+    const s = summarize(ps, c);
+    expect(s.matches).toBe(matches.length);
+  });
+
+  it('grupos equilibrados pelo nível e, no misto, com homens e mulheres nos dois', () => {
+    const lv = [4, 4, 3, 3, 2, 2, 1, 1];
+    const ps: Player[] = [...lv.map((l, i) => ({ id: `h${i}`, name: `H${i}`, gender: 'H' as const, level: l })), ...lv.map((l, i) => ({ id: `m${i}`, name: `M${i}`, gender: 'M' as const, level: l }))];
+    const [a, b] = splitGroups({ id: 'all', label: '', players: ps }, true, mulberry32(3));
+    const sum = (g: Player[]) => g.reduce((x, p) => x + p.level!, 0);
+    expect(a.length).toBe(8);
+    expect(b.length).toBe(8);
+    expect(a.filter((p) => p.gender === 'H').length).toBe(4);
+    expect(Math.abs(sum(a) - sum(b))).toBeLessThanOrEqual(2);
+  });
+
+  it('pede uma quadra por grupo e grupo com pelo menos 4', () => {
+    const ps = mkPlayers(0, 14);
+    expect(validateSetup(ps, cfg({ modality: 'livre', courts: 1, rounds: 6, rodizioGroups: 2 })).issues[0]?.text).toMatch(/2 quadras/);
+    expect(validateSetup(mkPlayers(0, 7), cfg({ modality: 'livre', courts: 2, rounds: 6, rodizioGroups: 2 })).issues[0]?.text).toMatch(/pelo menos 4/);
+  });
+});
+
+describe('sugestões de formato pela lista', () => {
+  it('cada sugestão é válida, cabe no tempo pedido e muda com o tempo', () => {
+    const ps = mkPlayers(8, 8);
+    const base = cfg({ courts: 4, scoring: { type: 'total', games: 6 } });
+    const mods = possibleModalities(ps, true);
+    expect(mods).toEqual(['mista', 'mesmo_genero']);
+    const short = suggestFormats(ps, base, { minutes: 90, modalities: mods });
+    const long = suggestFormats(ps, base, { minutes: 240, modalities: mods });
+    expect(short.length).toBeGreaterThan(0);
+    for (const x of [...short, ...long]) expect(validateSetup(ps, x.config, []).ok).toBe(true);
+    expect(short.filter((x) => x.fits).length).toBeGreaterThan(0);
+    expect(Math.max(...long.map((x) => x.summary.minGames))).toBeGreaterThan(Math.max(...short.map((x) => x.summary.minGames)));
+  });
+  it('lista grande e 4 quadras sugere rodízio em 2 grupos quando o tempo deixa', () => {
+    const ps = mkPlayers(14, 13);
+    const s = suggestFormats(ps, cfg({ courts: 4, scoring: { type: 'total', games: 6 } }), { minutes: 300, modalities: ['mesmo_genero'] });
+    expect(s.some((x) => x.config.format === 'rodizio' && x.config.rodizioGroups === 2)).toBe(true);
   });
 });

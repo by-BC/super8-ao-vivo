@@ -1,5 +1,5 @@
 import { DEFAULT_LEVEL, levelOf } from './levels';
-import { pairKey, shuffle, type Rng } from './rng';
+import { mulberry32, pairKey, shuffle, type Rng } from './rng';
 import type { Config, Division, Modality, NewMatch, Player, Stage, Team } from './types';
 
 export const BYE = '__bye__';
@@ -308,15 +308,15 @@ export function rodizioPlans(div: Division, mixed: boolean, rounds: number, m: n
   return best;
 }
 
-export function plansToMatches(perDiv: { div: Division; plans: RoundPlan[] }[], roundOffset = 0): NewMatch[] {
+export function plansToMatches(perDiv: { div: Division; plans: RoundPlan[]; grp?: string | null }[], roundOffset = 0): NewMatch[] {
   const out: NewMatch[] = [];
   const total = Math.max(0, ...perDiv.map((d) => d.plans.length));
   for (let r = 0; r < total; r++) {
     let slot = 0;
-    for (const { div, plans } of perDiv) {
+    for (const { div, plans, grp } of perDiv) {
       for (const [p, q] of plans[r] ?? []) {
         out.push({
-          stage: 'rodada', round: roundOffset + r + 1, division: div.id, grp: null, slot, court: slot + 1,
+          stage: 'rodada', round: roundOffset + r + 1, division: div.id, grp: grp ?? null, slot, court: slot + 1,
           label: null, a: [...p], b: [...q], teamA: null, teamB: null, sets: [],
         });
         slot++;
@@ -326,13 +326,182 @@ export function plansToMatches(perDiv: { div: Division; plans: RoundPlan[] }[], 
   return out;
 }
 
+/* ------------------------------------------------------------------ */
+/* Rodízio em grupos e jogo extra                                      */
+/* ------------------------------------------------------------------ */
+
+/** Um pedaço do rodízio que roda separado: a divisão inteira ou um grupo dela, com suas quadras. */
+export interface Unit {
+  div: Division;
+  grp: string | null;
+  /** partidas por rodada (= quadras deste grupo) */
+  m: number;
+}
+
+/**
+ * Divide a divisão em 2 grupos equilibrados: ordena pelo nível e distribui em serpentina (A B B A A B…).
+ * No misto, homens e mulheres são distribuídos separado, pra cada grupo ter os dois. Sem rng, só os tamanhos importam.
+ */
+export function splitGroups(div: Division, mixed: boolean, rng: Rng | null): [Player[], Player[]] {
+  const order = (ps: Player[]) => (rng ? shuffle(ps, rng) : [...ps]).sort((x, y) => levelOf(y) - levelOf(x));
+  const snake = (ps: Player[]): [Player[], Player[]] => {
+    const g: [Player[], Player[]] = [[], []];
+    ps.forEach((p, i) => g[Math.floor(i / 2) % 2 === 0 ? i % 2 : 1 - (i % 2)].push(p));
+    return g[0].length >= g[1].length ? g : [g[1], g[0]];
+  };
+  if (mixed) {
+    const [ha, hb] = snake(order(div.players.filter((p) => p.gender === 'H')));
+    const [ma, mb] = snake(order(div.players.filter((p) => p.gender === 'M')));
+    return [[...ha, ...ma], [...hb, ...mb]];
+  }
+  return snake(order(div.players));
+}
+
+export function rodizioUnits(players: Player[], config: Config, rng: Rng | null): Unit[] {
+  const mixed = config.modality === 'mista';
+  const two = config.format === 'rodizio' && config.rodizioGroups === 2;
+  const subs: { div: Division; grp: string | null }[] = [];
+  for (const div of divisionsOf(players, config.modality)) {
+    if (!two) { subs.push({ div, grp: null }); continue; }
+    const [a, b] = splitGroups(div, mixed, rng);
+    subs.push({ div: { ...div, players: a }, grp: 'A' }, { div: { ...div, players: b }, grp: 'B' });
+  }
+  const alloc = allocateCourts(subs.map((x) => capacity(x.div, mixed)), subs.map((x) => x.div.players.length), config.courts);
+  return subs.map((x, i) => ({ ...x, m: alloc[i] }));
+}
+
+/** Quantos jogos cada um faz no rodízio, a partir das rodadas montadas. */
+function gamesOf(plans: RoundPlan[]): Map<string, number> {
+  const g = new Map<string, number>();
+  for (const plan of plans) for (const [p, q] of plan) for (const id of [...p, ...q]) bump(g, id);
+  return g;
+}
+
+/**
+ * Jogo extra no fim pra todo mundo somar o mesmo número de partidas dentro do grupo.
+ * Primeiro junta quem ficou devendo dos dois grupos num jogo A x B (vale pros 4, cada um no seu grupo).
+ * O que sobrar joga dentro do próprio grupo; se faltar gente, completa com quem já fechou e o jogo vale só pra quem devia.
+ */
+export function equalizeExtras(units: Unit[], games: Map<string, number>[], mixed: boolean, startRound: number, rng: Rng): NewMatch[] {
+  const out: NewMatch[] = [];
+  // quadras de cada grupo, na mesma ordem em que as rodadas normais foram numeradas
+  const courts: number[][] = [];
+  units.reduce((c, u) => { courts.push(Array.from({ length: u.m }, (_, k) => c + k)); return c + u.m; }, 1);
+  const usedCourt = new Set<string>();
+  const usedPlayer = new Set<string>();
+  const divIds = [...new Set(units.map((u) => u.div.id))];
+  for (const divId of divIds) {
+    const idx = units.map((_, i) => i).filter((i) => units[i].div.id === divId && units[i].m > 0);
+    const nextSlot = new Map<number, number>();
+    /** Põe o jogo na primeira rodada extra em que tem quadra livre do grupo e ninguém dos 4 já está jogando. */
+    const add = (unit: number, grp: string | null, a: string[], b: string[], counts: string[] | null, label: string) => {
+      const ids = [...a, ...b];
+      for (let round = startRound; ; round++) {
+        if (ids.some((id) => usedPlayer.has(`${round}|${id}`))) continue;
+        const court = courts[unit].find((c) => !usedCourt.has(`${round}|${c}`));
+        if (court === undefined) continue;
+        usedCourt.add(`${round}|${court}`);
+        ids.forEach((id) => usedPlayer.add(`${round}|${id}`));
+        const slot = nextSlot.get(round) ?? 0;
+        nextSlot.set(round, slot + 1);
+        out.push({ stage: 'rodada', round, division: divId, grp, slot, court, label, a, b, teamA: null, teamB: null, sets: [], counts });
+        return;
+      }
+    };
+    // quem deve jogo, por grupo e (no misto) por gênero
+    const info = idx.map((i) => {
+      const u = units[i];
+      const g = games[i];
+      const kinds = mixed ? (['H', 'M'] as const) : (['all'] as const);
+      const shorts: Record<string, string[]> = {};
+      const fillers: Record<string, string[]> = {};
+      for (const k of kinds) {
+        const ids = u.div.players.filter((p) => k === 'all' || p.gender === k).map((p) => p.id);
+        if (!ids.length) { shorts[k] = []; fillers[k] = []; continue; }
+        const max = Math.max(...ids.map((id) => g.get(id) ?? 0));
+        shorts[k] = shuffle(ids.filter((id) => (g.get(id) ?? 0) < max), rng);
+        fillers[k] = shuffle(ids.filter((id) => (g.get(id) ?? 0) >= max), rng);
+      }
+      return { i, u, shorts, fillers };
+    });
+
+    // quem já pagou o jogo que devia passa a poder completar quadra
+    const settle = (x: (typeof info)[number], k: string, n: number) => {
+      const done = x.shorts[k].splice(-n, n);
+      x.fillers[k].push(...done);
+      return done;
+    };
+    if (info.length === 2) {
+      const [A, B] = info;
+      if (mixed) {
+        while (A.shorts.H.length && A.shorts.M.length && B.shorts.H.length && B.shorts.M.length) {
+          add(A.i, null, [...settle(A, 'H', 1), ...settle(A, 'M', 1)], [...settle(B, 'H', 1), ...settle(B, 'M', 1)], null, 'Extra · A x B');
+        }
+      } else {
+        while (A.shorts.all.length >= 2 && B.shorts.all.length >= 2) {
+          add(A.i, null, settle(A, 'all', 2), settle(B, 'all', 2), null, 'Extra · A x B');
+        }
+      }
+    }
+
+    for (const x of info) {
+      const fill = (k: string, n: number) => {
+        const f = x.fillers[k];
+        const got = f.splice(0, n);
+        f.push(...got); // roda a fila pra não ser sempre o mesmo completando
+        return got;
+      };
+      if (mixed) {
+        while (x.shorts.H.length || x.shorts.M.length) {
+          const hs = x.shorts.H.splice(0, 2);
+          const ms = x.shorts.M.splice(0, 2);
+          const h = [...hs, ...fill('H', 2 - hs.length)];
+          const m = [...ms, ...fill('M', 2 - ms.length)];
+          if (h.length < 2 || m.length < 2) break;
+          const owed = [...hs, ...ms];
+          add(x.i, x.u.grp, [h[0], m[0]], [h[1], m[1]], owed.length === 4 ? null : owed, 'Extra');
+        }
+      } else {
+        while (x.shorts.all.length) {
+          const owed = x.shorts.all.splice(0, 4);
+          const ids = [...owed, ...fill('all', 4 - owed.length)];
+          if (ids.length < 4) break;
+          add(x.i, x.u.grp, [ids[0], ids[1]], [ids[2], ids[3]], owed.length === 4 ? null : owed, 'Extra');
+        }
+      }
+    }
+  }
+  return out;
+}
+
 export function rodizioMatches(players: Player[], config: Config, rng: Rng): NewMatch[] {
   const mixed = config.modality === 'mista';
-  const perDiv = matchesPerRound(players, config).map(({ div, m }) => ({
-    div,
-    plans: rodizioPlans(div, mixed, config.rounds, m, rng),
-  }));
-  return plansToMatches(perDiv);
+  const units = rodizioUnits(players, config, rng);
+  const perUnit = units.map((u) => ({ div: u.div, grp: u.grp, plans: rodizioPlans(u.div, mixed, config.rounds, u.m, rng) }));
+  const out = plansToMatches(perUnit);
+  if (config.extraGames) out.push(...equalizeExtras(units, perUnit.map((x) => gamesOf(x.plans)), mixed, config.rounds + 1, rng));
+  return out;
+}
+
+/** Jogos extras que o torneio vai ter, sem montar as rodadas de verdade (para o resumo antes de criar). */
+export function plannedExtras(players: Player[], config: Config): NewMatch[] {
+  if (config.format !== 'rodizio' || !config.extraGames) return [];
+  const mixed = config.modality === 'mista';
+  const units = rodizioUnits(players, config, null);
+  const games = units.map((u) => {
+    const g = new Map<string, number>();
+    const kinds = mixed ? ['H', 'M'] : ['all'];
+    for (const k of kinds) {
+      const ids = u.div.players.filter((p) => k === 'all' || p.gender === k).map((p) => p.id);
+      if (!ids.length) continue;
+      const slots = (mixed ? 2 : 4) * u.m * config.rounds;
+      const base = Math.floor(slots / ids.length);
+      const more = slots % ids.length;
+      ids.forEach((id, i) => g.set(id, base + (i < more ? 1 : 0)));
+    }
+    return g;
+  });
+  return equalizeExtras(units, games, mixed, config.rounds + 1, mulberry32(1));
 }
 
 /* ------------------------------------------------------------------ */

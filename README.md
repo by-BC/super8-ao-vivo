@@ -17,8 +17,15 @@ quem tem o **PIN de árbitro** lança placar. Sem login e sem instalar nada.
 | Ranking | Games feitos · Vitória 3, empate 1, derrota 0 · Média por partida · Rei e Rainha da areia · ordem de desempate escolhida (vitórias, saldo, confronto direto, games) |
 | Logística | Número de quadras, número de rodadas (com sugestão), grupos e classificados por grupo |
 
-Também dá para montar o rodízio **dividido em grupos** (ranking por grupo e final cruzada: 1º do A + 2º do B contra 2º do A + 1º do B) e marcar **jogo extra que vale só para alguns jogadores**, quando o grupo tem número ímpar de gente.
+Também dá para montar o rodízio **dividido em 2 grupos** (cada grupo na sua quadra, ranking por grupo e final cruzada: 1º do A + 2º do B contra 2º do A + 1º do B;
+com nível, os grupos saem equilibrados) e ligar o **jogo extra automático**: quem ficou com uma partida a menos joga um extra no fim, de preferência
+A x B entre os grupos, pra todo mundo somar o mesmo número de jogos e marcar **jogo extra que vale só para alguns jogadores**, quando o grupo tem número ímpar de gente.
 O organizador pode trocar o critério do ranking depois de criado e entrar como organizador em outro aparelho com a chave.
+
+**Formato decidido depois:** na inscrição dá para deixar o formato em aberto. Com a lista fechada, o app sugere formatos que cabem no número de
+inscritos, nas quadras e no tempo que a galera tem (1h30 a 4h), com rodadas, grupos e duração estimada; o organizador toca na sugestão ou ajusta à mão.
+
+**Pódio "Resultado final"** no topo do ranking quando o torneio acaba, em todo formato, pronto pra print.
 
 **Inscrição pelo link:** em vez de colar a lista, o organizador abre a inscrição e manda o link no grupo. Cada um coloca nome, gênero e
 **nível de A a D** (A profissional, B avançado, C intermediário, D iniciante). Dá para limitar vagas (no total ou por gênero) com lista de espera
@@ -67,6 +74,9 @@ sequenceDiagram
   Trocar o PIN derruba na hora todo mundo que entrou com o PIN antigo.
 - Freio contra criação em massa: no máximo 30 torneios por minuto no servidor todo.
 
+- **Limpeza automática:** todo dia às 3h da manhã (horário de Brasília) sai do banco o torneio que já foi jogado e está parado há 6 horas,
+  e qualquer torneio ou inscrição esquecido há 30 dias (job `super8-limpeza-3h` no pg_cron). Torneio sorteado e ainda não jogado não é apagado na madrugada.
+
 O que **não** está coberto: quem tem o PIN pode lançar placar errado de propósito (o PIN é para gente de confiança), e o código de 6 letras
 deixa o torneio visível para quem souber ou adivinhar o código.
 
@@ -108,10 +118,9 @@ supabase/         migration do banco
 
 ## Próximos passos
 
-- Rodízio dividido em grupos direto no app (hoje só por importação), com os grupos equilibrados pelo nível
+- Editar partida pelo app (trocar jogador, mudar rodada ou quadra) sem mexer no banco
 - Disputa de 3º lugar no mata-mata
 - Histórico de jogadores entre torneios (ranking da temporada)
-- Limpeza automática de torneios antigos
 
 ## Licença
 

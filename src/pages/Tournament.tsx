@@ -8,7 +8,7 @@ import { MatchCard, Name } from '../components/MatchCard';
 import { PodiumSheet } from '../components/PodiumSheet';
 import { CardSheet } from '../components/CardSheet';
 import { SignupView } from './Signup';
-import { Bracket, RankingSections } from '../components/Ranking';
+import { Bracket, RankingSections, ResultPodium } from '../components/Ranking';
 import { Button, copyText, CopySheet, cx, Note, Panel, Pill, Sheet, useToast } from '../components/ui';
 import { api, ApiFail, errorText } from '../lib/api';
 import { getSaved, upsertSaved } from '../lib/local';
@@ -108,7 +108,7 @@ export function TournamentPage({ code }: { code: string }) {
           <h1 className="m-0 font-display text-[clamp(24px,7.5vw,32px)] font-black uppercase leading-[.92] [overflow-wrap:break-word]">{tour.name}</h1>
           <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 text-[13px] leading-snug opacity-90">
             <LiveBadge live={t.live} reachable={t.reachable} pending={t.pending} />
-            <span>· {FORMAT_LABEL[config.format]}</span>
+            <span>· {config.formatLater && tour.phase === 'inscricao' ? 'Formato a definir' : FORMAT_LABEL[config.format]}</span>
           </p>
         </div>
         <button type="button" onClick={() => setShareOpen(true)} className="flex flex-none flex-col items-center rounded-[10px] border-[1.5px] border-current px-2 py-1" aria-label={`Compartilhar código ${code}`}>
@@ -233,6 +233,7 @@ export function TournamentPage({ code }: { code: string }) {
 
         {tab === 'ranking' && (
           <>
+            {pods.map((p) => <ResultPodium key={p.division} podium={p} />)}
             {pods.length > 0 && (
               <button type="button" onClick={() => setPodiumOpen(true)}
                 className="flex items-center gap-3 rounded-xl bg-ink px-4 py-3.5 text-left text-bg shadow-card">
@@ -255,12 +256,18 @@ export function TournamentPage({ code }: { code: string }) {
                 <span className="flex-none rounded-full border-[1.5px] border-ink px-3 py-1.5 text-sm font-extrabold">Gerar</span>
               </button>
             )}
+            {done > 0 && (
+              <p className="m-0 px-1 text-[13px] text-muted">
+                {finished ? 'Torneio encerrado: os dados somem às 3h da madrugada. Gere a arte e as cartinhas antes.' : 'Depois que o torneio acaba, os dados somem às 3h da madrugada.'}
+              </p>
+            )}
             {config.format === 'grupos' && <Bracket matches={shownMatches} teams={teams} players={players} config={config} divisionLabel={(id) => divisionsOf(plist, config.modality).find((d) => d.id === id)?.label ?? id} />}
             {divisionsWithFinal(plist, config, t.matches).filter((d) => division === 'todos' || d === division).map((d) => {
               const f = t.matches.find((m) => m.division === d && m.stage === 'mata' && m.label === 'Final');
               const w = finalWinners(d, config, t.matches);
               const nm = (ids: string[]) => ids.map((id) => players.get(id)?.name ?? '?').join(' & ');
               const label = divs.find((x) => x.id === d)?.label ?? '';
+              if (w && pods.some((p) => p.division === d)) return null; // o pódio já mostra
               return (
                 <section key={`final-${d}`} className={cx('rounded-xl p-4 shadow-card', w ? 'bg-ball text-ballink' : 'bg-surface')}>
                   <span className="text-[11px] font-extrabold uppercase tracking-[.14em]">{w ? (pods.find((p) => p.division === d)?.headline ?? 'Campeões') : 'Final'}{divs.length > 1 ? ` · ${label}` : ''}</span>

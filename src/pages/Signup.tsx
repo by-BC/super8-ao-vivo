@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  buildInitial, isIndividual, LEVELS, levelLetter, levelValue, parsePlayerList, randomSeed, suggestRounds, summarize, validateSetup,
-  type Config, type Gender, type LevelLetter, type PairingMethod,
+  buildInitial, isIndividual, LEVELS, levelLetter, levelValue, matchMinutes, parsePlayerList, possibleModalities, randomSeed, scoringLabel, suggestFormats,
+  suggestRounds, summarize, validateSetup,
+  type Config, type Format, type Gender, type LevelLetter, type Modality, type PairingMethod, type RankingBase, type ScoringType,
 } from '../engine';
 import { Button, Choices, copyText, CopySheet, cx, Field, GenderDot, Note, Panel, Segmented, Sheet, Stepper, useToast } from '../components/ui';
 import { api, ApiFail, errorText, type AdminEntry, type PublicEntry, type SignupSettings, type TournamentRow } from '../lib/api';
@@ -358,12 +359,12 @@ function AdminPanel({ code, adminKey, tour, entries, onChanged }: {
       </Panel>
 
       <section className="rounded-xl bg-ink px-4 py-4 text-bg shadow-card">
-        <b className="block font-display text-[24px] font-black uppercase leading-none">Fechar e sortear</b>
+        <b className="block font-display text-[24px] font-black uppercase leading-none">{tour.config.formatLater ? 'Montar o jogo' : 'Fechar e sortear'}</b>
         <p className="m-0 mt-1 text-sm opacity-85">
           Entram os {confirmed.length} confirmados{waiting.length ? `; ${waiting.length} da espera ficam de fora` : ''}.
           {s.askLevel && noLevel > 0 && ` ${noLevel} sem nível contam como meio-termo.`}
         </p>
-        <Button kind="primary" block className="mt-3 !text-xl" disabled={!list || confirmed.length < 4} onClick={() => setDrawOpen(true)}>Sortear</Button>
+        <Button kind="primary" block className="mt-3 !text-xl" disabled={!list || confirmed.length < 4} onClick={() => setDrawOpen(true)}>{tour.config.formatLater ? 'Ver sugestões e sortear' : 'Sortear'}</Button>
       </section>
 
       {list && (
@@ -413,26 +414,65 @@ function AddPeople({ code, adminKey, s, onDone }: { code: string; adminKey: stri
   );
 }
 
+const FORMAT_OPTIONS = [
+  { value: 'rodizio', title: 'Rodízio · Super 8', hint: 'Parceiro novo a cada rodada. Ranking individual.' },
+  { value: 'duplas', title: 'Duplas fixas', hint: 'Todas as duplas se enfrentam.' },
+  { value: 'grupos', title: 'Grupos + mata-mata', hint: 'Duplas em grupos; os melhores vão pra chave.' },
+  { value: 'mexicano', title: 'Mexicano', hint: 'Cada rodada montada pelo ranking.' },
+] satisfies { value: Format; title: string; hint: string }[];
+
+const TIME_OPTIONS = [{ value: '90', label: '1h30' }, { value: '120', label: '2h' }, { value: '180', label: '3h' }, { value: '240', label: '4h' }];
+
+const hm = (min: number) => `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
+
+function Tick({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint?: string }) {
+  return (
+    <label className="flex min-h-[44px] items-start gap-3 text-[15px]">
+      <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--sea)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>{title}{hint && <small className="block text-muted">{hint}</small>}</span>
+    </label>
+  );
+}
+
+/** Montar o jogo com a lista fechada: sugestões pelo número de inscritos e pelo tempo, e ajuste fino à mão. */
 function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }: {
   open: boolean; onClose: () => void; code: string; adminKey: string; tour: TournamentRow; confirmed: AdminEntry[]; onStarted: () => Promise<void>;
 }) {
   const toast = useToast();
   const s = settingsOf(tour.signup);
   const players = useMemo(() => entriesToPlayers(confirmed, s.gender), [confirmed, s.gender]);
-  const [cfg, setCfg] = useState<Config>(tour.config);
-  const [roundsTouched, setRoundsTouched] = useState(false);
+  const [cfg, setCfg] = useState<Config>(() => ({ ...tour.config }));
+  const [minutes, setMinutes] = useState(120);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [manual, setManual] = useState(false);
   const [busy, setBusy] = useState(false);
-  const suggested = useMemo(() => suggestRounds(players, cfg), [players, cfg]);
-  useEffect(() => { if (open && !roundsTouched && isIndividual(cfg.format)) setCfg((c) => ({ ...c, rounds: suggested })); }, [open, suggested, roundsTouched]);
+  const mods = useMemo(() => (s.gender ? (['mesmo_genero'] as Modality[]) : possibleModalities(players, s.askGender)), [players, s.gender, s.askGender]);
+  const suggestions = useMemo(() => suggestFormats(players, cfg, { minutes, modalities: mods }), [players, cfg.courts, cfg.scoring, minutes, mods]);
   const check = useMemo(() => validateSetup(players, cfg, []), [players, cfg]);
   const summary = useMemo(() => summarize(players, cfg), [players, cfg]);
   const teamsFormat = cfg.format === 'duplas' || cfg.format === 'grupos';
+  const estimate = (isIndividual(cfg.format) ? summary.rounds + (cfg.format === 'rodizio' && cfg.rodizioGroups === 2 ? 1 : 0) : Math.ceil(summary.matches / Math.max(1, cfg.courts))) * matchMinutes(cfg.scoring);
+
+  // formato a definir: já começa com a melhor sugestão
+  useEffect(() => {
+    if (open && tour.config.formatLater && !picked && !manual && suggestions[0]) { setCfg(suggestions[0].config); setPicked(suggestions[0].key); }
+  }, [open, suggestions]);
+
+  const update = (patch: Partial<Config>, resetRounds = false) => {
+    setPicked(null);
+    setCfg((c) => {
+      const n = { ...c, ...patch };
+      if (resetRounds && isIndividual(n.format)) n.rounds = suggestRounds(players, n);
+      return n;
+    });
+  };
+  const modLabel = (m: Modality) => (m === 'mista' ? 'Misto' : m === 'livre' ? 'Livre' : players.some((p) => p.gender === 'H') && players.some((p) => p.gender === 'M') ? 'F e M separados' : 'Mesmo gênero');
 
   async function start() {
     if (!check.ok || busy) return;
     setBusy(true);
     try {
-      const config: Config = { ...cfg, ranking: { ...cfg.ranking, sorteio: cfg.ranking.sorteio ?? randomSeed() } };
+      const config: Config = { ...cfg, formatLater: false, ranking: { ...cfg.ranking, sorteio: cfg.ranking.sorteio ?? randomSeed() } };
       const built = buildInitial(players, config, randomSeed());
       await api.adminStart(code, adminKey, config, { players, teams: built.teams }, built.matches);
       await onStarted();
@@ -444,27 +484,93 @@ function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }
   }
 
   return (
-    <Sheet open={open} onClose={onClose} title="Sortear">
+    <Sheet open={open} onClose={onClose} title="Montar o jogo">
       <div className="flex flex-col gap-4">
         <p className="m-0 text-[15px]">
           <b>{players.length} jogadores</b>
           {s.askGender && !s.gender && ` · ${players.filter((p) => p.gender === 'M').length} M · ${players.filter((p) => p.gender === 'H').length} H`}
         </p>
-        {isIndividual(cfg.format) && (
-          <Field label="Rodadas" hint={`Sugestão: ${suggested}`}>
-            <Stepper id="sorteio-rodadas" label="rodadas" value={cfg.rounds} min={1} max={60} onChange={(n) => { setRoundsTouched(true); setCfg({ ...cfg, rounds: n }); }} />
-          </Field>
-        )}
         <Field label="Quadras">
-          <Stepper id="sorteio-quadras" label="quadras" value={cfg.courts} min={1} max={30} onChange={(n) => setCfg({ ...cfg, courts: n })} />
+          <Stepper id="sorteio-quadras" label="quadras" value={cfg.courts} min={1} max={30} onChange={(n) => update({ courts: n }, true)} />
         </Field>
-        {teamsFormat && (
-          <Choices<PairingMethod> name="Duplas" value={cfg.pairing === 'manual' ? 'sorteio' : cfg.pairing} cols={1} compact onChange={(v) => setCfg({ ...cfg, pairing: v })}
-            options={[{ value: 'equilibrado', title: 'Equilibradas pelo nível', hint: 'A com D, B com C.' }, { value: 'sorteio', title: 'Sorteio puro' }]} />
+        <Field label="Tempo de jogo" hint="Pra caber tudo">
+          <Segmented<string> label="Tempo de jogo" value={String(minutes)} onChange={(v) => { setMinutes(Number(v)); setPicked(null); }} options={TIME_OPTIONS} />
+        </Field>
+
+        <div className="flex flex-col gap-2">
+          <b>Sugestões pra essa lista</b>
+          {suggestions.length === 0 && <p className="m-0 text-sm text-muted">Nenhum formato fecha com essa lista. Ajuste à mão abaixo.</p>}
+          {suggestions.map((x) => {
+            const on = picked === x.key;
+            return (
+              <button key={x.key} type="button" aria-pressed={on} onClick={() => { setCfg(x.config); setPicked(x.key); }}
+                className={cx('flex flex-col gap-1 rounded-[12px] border-[1.5px] px-3 py-2.5 text-left', on ? 'border-ink bg-ball text-ballink' : 'border-hair bg-bg')}>
+                <span className="flex items-center justify-between gap-2">
+                  <b className="font-display text-[20px] font-black uppercase leading-none">{x.title}</b>
+                  <span className={cx('flex-none rounded-full px-2 py-0.5 text-[12px] font-extrabold', on ? 'bg-ink text-bg' : x.fits ? 'bg-tintok' : 'bg-tintwarn')}>~{hm(x.minutes)}</span>
+                </span>
+                <span className={cx('text-[13px] leading-snug', on ? '' : 'text-muted')}>{x.why}</span>
+                <span className={cx('text-[12px] font-bold', on ? '' : 'text-muted')}>{x.summary.rounds} rodadas · {x.summary.matches} jogos</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <details className="rounded-[12px] border-[1.5px] border-hair px-3 py-2" open={manual} onToggle={(e) => setManual((e.target as HTMLDetailsElement).open)}>
+          <summary className="min-h-[40px] cursor-pointer py-2 font-bold">Ajustar à mão</summary>
+          <div className="flex flex-col gap-4 pb-2 pt-1">
+            {mods.length > 1 && (
+              <Field label="Tipo">
+                <Segmented<Modality> label="Tipo" value={cfg.modality} onChange={(m) => update({ modality: m, ranking: { ...cfg.ranking, separarGenero: m === 'mista' } }, true)}
+                  options={mods.map((m) => ({ value: m, label: modLabel(m) }))} />
+              </Field>
+            )}
+            <Choices<Format> name="Formato" value={cfg.format} options={FORMAT_OPTIONS} cols={1} compact onChange={(f) => update({ format: f }, true)} />
+            {cfg.format === 'rodizio' && (
+              <>
+                <Tick checked={cfg.rodizioGroups === 2} onChange={(v) => update({ rodizioGroups: v ? 2 : 1 }, true)} title="Dividir em 2 grupos" hint="Cada grupo na sua quadra; no fim, final cruzada." />
+                <Tick checked={!!cfg.extraGames} onChange={(v) => update({ extraGames: v }, true)} title="Igualar jogos com jogo extra" hint="Quem jogou menos ganha um extra no fim." />
+              </>
+            )}
+            {isIndividual(cfg.format) && (
+              <Field label="Rodadas" hint={`Sugestão: ${suggestRounds(players, cfg)}`}>
+                <Stepper id="sorteio-rodadas" label="rodadas" value={cfg.rounds} min={1} max={60} onChange={(n) => update({ rounds: n })} />
+              </Field>
+            )}
+            {cfg.format === 'grupos' && (
+              <>
+                <Field label="Grupos"><Stepper id="sorteio-grupos" label="grupos" value={cfg.groups} min={1} max={8} onChange={(n) => update({ groups: n })} /></Field>
+                <Field label="Classificam por grupo"><Stepper id="sorteio-classificam" label="classificados" value={cfg.qualify} min={1} max={4} onChange={(n) => update({ qualify: n })} /></Field>
+              </>
+            )}
+            {teamsFormat && (
+              <Choices<PairingMethod> name="Duplas" value={cfg.pairing === 'manual' ? 'sorteio' : cfg.pairing} cols={1} compact onChange={(v) => update({ pairing: v })}
+                options={[{ value: 'equilibrado', title: 'Equilibradas pelo nível', hint: 'A com D, B com C.' }, { value: 'sorteio', title: 'Sorteio puro' }]} />
+            )}
+            <Field label="Partida" hint={scoringLabel(cfg.scoring)}>
+              <Segmented<ScoringType> label="Tipo de partida" value={cfg.scoring.type}
+                onChange={(t) => update({ scoring: { type: t, games: t === 'set' || t === 'melhor3' ? (cfg.scoring.games >= 6 ? 6 : 4) : cfg.scoring.games } })}
+                options={[{ value: 'total', label: 'Total' }, { value: 'corrida', label: '1º a X' }, { value: 'set', label: 'Set' }, { value: 'melhor3', label: 'Md3' }]} />
+            </Field>
+            <Field label="Games">
+              <Stepper id="sorteio-games" label="games" value={cfg.scoring.games} min={1} max={30} onChange={(n) => update({ scoring: { ...cfg.scoring, games: n } })} />
+            </Field>
+            <Field label="Ranking">
+              <Segmented<RankingBase> label="Critério do ranking" value={cfg.ranking.base} onChange={(v) => update({ ranking: { ...cfg.ranking, base: v } })}
+                options={[{ value: 'resultado', label: 'V3 · E1 · D0' }, { value: 'games', label: 'Games' }]} />
+            </Field>
+          </div>
+        </details>
+
+        {cfg.format === 'rodizio' && s.askLevel && <Note kind="ok">Com nível, o rodízio monta cada jogo com duplas de força parecida{cfg.rodizioGroups === 2 ? ' e os grupos saem equilibrados' : ''}.</Note>}
+        {check.ok && (
+          <Note kind="ok">
+            <b>{summary.rounds} rodadas · {summary.matches} jogos · ~{hm(estimate)}.</b> Cada um joga {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas.
+            {summary.extra && <> {summary.extra}.</>}
+          </Note>
         )}
-        {cfg.format === 'rodizio' && s.askLevel && <Note kind="ok">Com nível, o rodízio monta cada jogo com duplas de força parecida.</Note>}
-        {check.ok && <Note kind="ok"><b>{summary.rounds} rodadas · {summary.matches} jogos.</b> Cada um joga {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas.</Note>}
         {check.issues.map((i) => <Note key={i.text} kind="warn">{i.text}</Note>)}
+        {check.warnings.map((w) => <Note key={w} kind="ok">{w}</Note>)}
         <p className="m-0 text-sm text-muted">Depois do sorteio a inscrição fecha e a página vira a tabela de jogos.</p>
         <Button kind="primary" block className="!text-xl" disabled={!check.ok || busy} onClick={start}>{busy ? 'Sorteando…' : 'Sortear e começar'}</Button>
       </div>

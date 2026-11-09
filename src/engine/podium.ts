@@ -7,6 +7,8 @@ import type { Config, Match, Player, Team } from './types';
 export interface PodiumPlace {
   pos: number;
   names: string[];
+  /** Pontos no ranking ("11 pts"), quando o pódio sai do ranking. */
+  pts?: string;
 }
 
 /** O que vai na imagem de campeões de uma divisão. */
@@ -79,7 +81,8 @@ export function podiums(players: Player[], teams: Team[], config: Config, matche
   for (const s of rankingSections(players, teams, config, matches)) {
     if (s.kind !== 'geral' || !s.rows.some((r) => r.j > 0)) continue;
     const top = s.rows.slice(0, 3);
-    out.push({ division: s.division, label: label(s.division), headline: headlineFor(top[0].ids, byId), places: top.map((r) => ({ pos: r.pos, names: nm(r.ids) })) });
+    const pts = (v: number) => (config.ranking.media ? `${v.toFixed(1).replace('.', ',')} por jogo` : `${v} ${v === 1 ? 'pt' : 'pts'}`);
+    out.push({ division: s.division, label: label(s.division), headline: headlineFor(top[0].ids, byId), places: top.map((r) => ({ pos: r.pos, names: nm(r.ids), pts: pts(r.main) })) });
   }
   return out;
 }

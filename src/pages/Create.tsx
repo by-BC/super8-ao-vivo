@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  buildInitial, DEFAULT_CONFIG, gamesPerMatch, isIndividual, LEVELS, levelLetter, matchesPerRound, parsePlayerList, randomSeed, scoringLabel,
+  buildInitial, DEFAULT_CONFIG, gamesPerMatch, individualUnits, isIndividual, LEVELS, levelLetter, matchesPerRound, parsePlayerList, randomSeed, scoringLabel,
   suggestRounds, summarize, validateSetup, type Config, type Format, type Gender, type Modality, type PairingMethod,
   type Player, type RankingBase, type ScoringType, type SetupArea, type Tiebreak,
 } from '../engine';
@@ -24,7 +24,7 @@ interface Draft {
   tipo: Tipo;
   /** lista: o organizador coloca os nomes · inscricao: cada um se inscreve pelo link */
   entry: 'lista' | 'inscricao';
-  signup: { askLevel: boolean; limitOn: boolean; limit: number; perGender: boolean };
+  signup: { askLevel: boolean; limitOn: boolean; limit: number; perGender: boolean; formatLater: boolean };
 }
 
 const WEEKDAY = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
@@ -44,7 +44,7 @@ const fresh = (): Draft => ({
   roundsTouched: false,
   tipo: 'mista',
   entry: 'lista',
-  signup: { askLevel: true, limitOn: false, limit: 8, perGender: true },
+  signup: { askLevel: true, limitOn: false, limit: 8, perGender: true, formatLater: true },
 });
 
 const STEPS = ['Jogadores', 'Formato', 'Regras', 'Confirmar'] as const;
@@ -118,13 +118,21 @@ export function CreatePage() {
 
   const check = useMemo(() => validateSetup(players, c, d.manual), [players, c, d.manual]);
   const summary = useMemo(() => summarize(players, c), [players, c]);
-  const courtSplit = useMemo(() => matchesPerRound(players, c), [players, c]);
+  const courtSplit = useMemo(
+    () => (isIndividual(c.format) ? individualUnits(players, c) : matchesPerRound(players, c).map((x) => ({ ...x, grp: null as string | null }))),
+    [players, c],
+  );
+  const splitLabel = (x: { div: { id: string }; grp: string | null }) => `${DIV_LABEL[x.div.id]}${x.grp ? ` ${x.grp}` : ''}`;
   const pinOk = /^\d{4,8}$/.test(d.pin);
   const nameOk = d.name.trim().length > 0 && d.name.trim().length <= 60;
   const women = d.players.filter((p) => p.gender === 'M');
   const men = d.players.filter((p) => p.gender === 'H');
   const teamsFormat = c.format === 'duplas' || c.format === 'grupos';
   const viaLink = d.entry === 'inscricao';
+  const later = viaLink && d.signup.formatLater;
+  const visible = later ? [0, 3] : [0, 1, 2, 3];
+  const pos = Math.max(0, visible.indexOf(step));
+  const goStep = (dir: 1 | -1) => setStep(visible[Math.min(visible.length - 1, Math.max(0, pos + dir))]);
   const gendered = d.tipo === 'mista' || d.tipo === 'separado';
   const ready = (viaLink || check.ok) && pinOk && nameOk;
   const signupSettings = {
@@ -142,7 +150,7 @@ export function CreatePage() {
     try {
       const config: Config = { ...c, ranking: { ...c.ranking, sorteio: randomSeed() } };
       if (viaLink) {
-        const r = await api.createSignup(d.name.trim(), { ...config, pairing: config.pairing === 'manual' ? 'sorteio' : config.pairing }, d.pin, signupSettings);
+        const r = await api.createSignup(d.name.trim(), { ...config, formatLater: later, pairing: config.pairing === 'manual' ? 'sorteio' : config.pairing }, d.pin, signupSettings);
         upsertSaved({ code: r.code, name: d.name.trim(), adminKey: r.adminKey, token: r.token });
         try { sessionStorage.setItem('s8:novo', JSON.stringify({ code: r.code, pin: d.pin })); } catch { /* ok */ }
         go(`/t/${r.code}`);
@@ -175,11 +183,11 @@ export function CreatePage() {
             <a href="#/" aria-label="Voltar para o início" className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-current text-xl no-underline text-bandink">←</a>
             <div className="min-w-0">
               <h1 className="m-0 font-display text-[30px] font-black uppercase leading-none">Novo torneio</h1>
-              <p className="m-0 mt-0.5 text-sm opacity-85">Passo {step + 1} de {STEPS.length} · {STEPS[step]}</p>
+              <p className="m-0 mt-0.5 text-sm opacity-85">Passo {pos + 1} de {visible.length} · {STEPS[step]}</p>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-4 gap-1.5" aria-hidden>
-            {STEPS.map((s, i) => <i key={s} className={cx('block h-1.5 rounded-full', i <= step ? 'bg-ball' : 'bg-white/20')} />)}
+          <div className={cx('mt-3 grid gap-1.5', visible.length === 4 ? 'grid-cols-4' : 'grid-cols-2')} aria-hidden>
+            {visible.map((v, i) => <i key={v} className={cx('block h-1.5 rounded-full', i <= pos ? 'bg-ball' : 'bg-white/20')} />)}
           </div>
         </div>
       </header>
@@ -217,6 +225,8 @@ export function CreatePage() {
                       {gendered && <Check checked={d.signup.perGender} onChange={(v) => set({ signup: { ...d.signup, perGender: v } })} title="Vagas por gênero" hint="Ex.: 8 homens e 8 mulheres." />}
                     </>
                   )}
+                  <Check checked={d.signup.formatLater} onChange={(v) => set({ signup: { ...d.signup, formatLater: v } })}
+                    title="Decido o formato depois" hint="Com a lista fechada, o app sugere o formato que cabe no número de gente, nas quadras e no tempo que vocês têm." />
                   <Note kind="ok">Depois de criar, você manda o link no grupo. Quando fechar a lista, toca em <b>Sortear</b> e o app monta os jogos com quem se inscreveu.</Note>
                 </div>
               </Panel>
@@ -254,6 +264,14 @@ export function CreatePage() {
                     </div>
                   </Field>
                 )}
+                {c.format === 'rodizio' && (
+                  <>
+                    <Check checked={c.rodizioGroups === 2} onChange={(v) => setC({ rodizioGroups: v ? 2 : 1 })} title="Dividir em 2 grupos"
+                      hint="Cada grupo faz seu rodízio na sua quadra e tem seu ranking. No fim, final cruzada: 1º A + 2º B x 2º A + 1º B. Com nível, os grupos saem equilibrados." />
+                    <Check checked={!!c.extraGames} onChange={(v) => setC({ extraGames: v })} title="Igualar jogos com jogo extra"
+                      hint="Quem ficou com uma partida a menos joga um extra no fim (A x B quando tem grupos), pra todo mundo somar o mesmo número." />
+                  </>
+                )}
                 {c.format === 'grupos' && (
                   <>
                     <Field label="Grupos" hint={c.modality === 'mesmo_genero' && !only ? 'Em cada gênero' : undefined}>
@@ -264,13 +282,13 @@ export function CreatePage() {
                     </Field>
                   </>
                 )}
-                <Field label="Quadras" hint={courtSplit.length > 1 ? courtSplit.map((x) => `${DIV_LABEL[x.div.id]}: ${x.m}`).join(' · ') : 'Jogos ao mesmo tempo'}>
+                <Field label="Quadras" hint={courtSplit.length > 1 && !viaLink ? courtSplit.map((x) => `${splitLabel(x)}: ${x.m}`).join(' · ') : 'Jogos ao mesmo tempo'}>
                   <Stepper id="quadras" label="quadras" value={c.courts} min={1} max={30} onChange={(n) => setC({ courts: n })} />
                 </Field>
                 {check.ok && !viaLink && (
                   <Note kind="ok">
                     <b>{summary.rounds} rodadas · {summary.matches} jogos.</b>{summary.extra && <> {summary.extra}.</>} Cada {isIndividual(c.format) ? 'pessoa' : 'dupla'} joga{' '}
-                    {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas.
+                    {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas{c.format === 'rodizio' && c.rodizioGroups === 2 && c.extraGames && summary.minGames !== summary.maxGames ? ' (igual dentro de cada grupo)' : ''}.
                   </Note>
                 )}
               </div>
@@ -343,14 +361,16 @@ export function CreatePage() {
                   ...(viaLink
                     ? [['Inscrição', `Pelo link · ${signupSummary({ ...signupSettings, gender: only })}`]]
                     : [['Jogadores', `${players.length}${d.tipo === 'livre' ? '' : ` (${players.filter((p) => p.gender === 'M').length} M · ${players.filter((p) => p.gender === 'H').length} H)`}`]]),
-                  ['Formato', FORMATS.find((f) => f.value === c.format)!.title],
+                  ['Formato', later ? 'Decide no sorteio, com sugestões pela lista' : FORMATS.find((f) => f.value === c.format)!.title],
                   ...(viaLink ? [] : [
                     ['Tamanho', `${summary.rounds} rodadas · ${summary.matches} jogos`],
                     ['Cada um joga', summary.minGames === summary.maxGames ? `${summary.minGames} partidas` : `${summary.minGames} a ${summary.maxGames} partidas`],
                   ]),
-                  ['Partida', `${scoringLabel(c.scoring)} (≈${gamesPerMatch(c.scoring)} games)`],
-                  ['Ranking', c.ranking.base === 'games' ? 'Games feitos' : 'Vitória 3 · Empate 1 · Derrota 0'],
-                  ['Quadras', courtSplit.length > 1 ? `${c.courts} (${courtSplit.map((x) => `${DIV_LABEL[x.div.id]} ${x.m}`).join(', ')})` : String(c.courts)],
+                  ...(later ? [] : [['Partida', `${scoringLabel(c.scoring)} (≈${gamesPerMatch(c.scoring)} games)`]]),
+                  ...(later ? [] : [
+                    ['Ranking', c.ranking.base === 'games' ? 'Games feitos' : 'Vitória 3 · Empate 1 · Derrota 0'],
+                    ['Quadras', courtSplit.length > 1 && !viaLink ? `${c.courts} (${courtSplit.map((x) => `${splitLabel(x)} ${x.m}`).join(', ')})` : String(c.courts)],
+                  ]),
                 ].map(([k, v]) => (
                   <div key={k} className="contents"><dt className="font-bold">{k}</dt><dd className="m-0 text-muted">{v}</dd></div>
                 ))}
@@ -371,10 +391,10 @@ export function CreatePage() {
 
       <nav className="gutter fixed inset-x-0 bottom-0 z-20 border-t border-hair bg-surface pb-[max(12px,env(safe-area-inset-bottom,0px))] pt-3 shadow-[0_-8px_24px_-16px_rgba(0,0,0,.5)]">
         <div className="mx-auto flex max-w-[760px] items-center gap-2">
-          <Button className="flex-none" onClick={() => (step === 0 ? go('/') : setStep(step - 1))}>{step === 0 ? 'Cancelar' : 'Voltar'}</Button>
+          <Button className="flex-none" onClick={() => (step === 0 ? go('/') : goStep(-1))}>{step === 0 ? 'Cancelar' : 'Voltar'}</Button>
           <span className="line-clamp-2 min-w-0 flex-1 text-center text-[11px] font-semibold leading-tight text-muted tabnum">{barInfo}</span>
           {step < STEPS.length - 1 ? (
-            <Button kind="primary" className="flex-none !text-xl" onClick={() => setStep(step + 1)}>Continuar</Button>
+            <Button kind="primary" className="flex-none !text-xl" onClick={() => goStep(1)}>Continuar</Button>
           ) : (
             <Button kind="primary" className="flex-none !text-xl" disabled={!ready || busy} onClick={create}>{busy ? 'Criando…' : viaLink ? 'Abrir inscrição' : 'Criar'}</Button>
           )}
