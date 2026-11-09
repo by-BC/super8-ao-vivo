@@ -4,6 +4,7 @@ import { renderPhotoPoster } from '../lib/photoArt';
 import { podiumFileName, renderPodium, type ImgFormat, type PodiumInfo } from '../lib/podiumImage';
 import { canShareFiles, FocusSlider, PhotoButton, shareFiles, type Photo } from './ArtParts';
 import { Button, Segmented, Sheet, useToast } from './ui';
+import { Carregando } from './Brand';
 
 interface Img {
   division: string;
@@ -52,7 +53,7 @@ export function PodiumSheet({ open, onClose, podiums, info }: { open: boolean; o
         <Segmented<ImgFormat> label="Formato" value={format} onChange={setFormat}
           options={[{ value: 'story', label: 'Story (9:16)' }, { value: 'feed', label: 'Post (4:5)' }]} />
         {!anyPhoto && (
-          <p className="m-0 rounded-lg bg-ball px-3 py-2.5 text-sm font-semibold text-ballink">
+          <p className="m-0 rounded-lg bg-highlight px-3 py-2.5 text-sm font-semibold text-ink">
             Põe a foto dos campeões no pódio: vira capa de revista e é o que a galera mais compartilha. A foto fica só no seu celular.
           </p>
         )}
@@ -79,7 +80,7 @@ export function PodiumSheet({ open, onClose, podiums, info }: { open: boolean; o
             );
           })}
         </div>
-        {busy && !imgs.length && <p className="m-0 text-muted">Montando a arte…</p>}
+        {busy && !imgs.length && <Carregando label="Montando a arte…" />}
         {canShare && (
           <Button kind="primary" block disabled={busy} onClick={async () => { if (!(await shareFiles(files, info.name))) toast('Não deu para abrir o compartilhar. Use o Baixar.'); }}>
             Compartilhar {many ? `as ${imgs.length} imagens` : 'imagem'}

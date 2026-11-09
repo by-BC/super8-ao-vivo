@@ -50,7 +50,7 @@ export function FocusSlider({ value, onChange }: { value: number; onChange: (v: 
   return (
     <label className="flex items-center gap-2 text-[13px] font-bold text-muted">
       Enquadrar
-      <input type="range" min={0} max={1} step={0.02} value={v} className="min-w-0 flex-1 accent-[var(--sea)]"
+      <input type="range" min={0} max={1} step={0.02} value={v} className="min-w-0 flex-1 accent-[var(--accent)]"
         onChange={(e) => {
           const n = Number(e.target.value);
           setV(n);

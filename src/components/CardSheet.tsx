@@ -48,7 +48,7 @@ export function CardSheet({ open, onClose, groups, makeCard, info, initialId }: 
         <label className="flex flex-col gap-1 text-sm font-bold">
           Quem é você?
           <select value={id} onChange={(e) => { setId(e.target.value); setPhoto(null); }}
-            className="min-h-[46px] w-full rounded-lg border-[1.5px] border-hair bg-bg px-3 text-base font-bold text-ink">
+            className="min-h-[46px] w-full rounded-lg border-[1.5px] border-line bg-bg px-3 text-base font-bold text-ink">
             <option value="" disabled>Escolha seu nome</option>
             {groups.map((g) => (
               <optgroup key={g.label} label={g.label}>

@@ -19,7 +19,7 @@ interface Ctx {
 
 function namer(players: Player[]) {
   const byId = new Map(players.map((p) => [p.id, p.name]));
-  return (ids: string[]) => ids.map((id) => byId.get(id) ?? '?').join(' & ');
+  return (ids: string[]) => ids.map((id) => byId.get(id) ?? '?').join(' e ');
 }
 
 function ptsText(r: Row, config: Config): string {

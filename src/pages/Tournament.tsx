@@ -14,6 +14,7 @@ import { api, ApiFail, errorText } from '../lib/api';
 import { getSaved, upsertSaved } from '../lib/local';
 import { go, shareLink } from '../lib/router';
 import { useTournament } from '../lib/useTournament';
+import { Carregando, Costura, Simbolo } from '../components/Brand';
 
 type Tab = 'jogos' | 'ranking' | 'info';
 
@@ -81,7 +82,7 @@ export function TournamentPage({ code }: { code: string }) {
 
   const players = useMemo(() => new Map<string, Player>((tour?.data.players ?? []).map((p) => [p.id, p])), [tour]);
 
-  if (t.state === 'carregando') return <Shell code={code}><p className="text-muted">Carregando o torneio…</p></Shell>;
+  if (t.state === 'carregando') return <Shell code={code}><Carregando label="Carregando o torneio…" /></Shell>;
   if (t.state === 'nao_encontrado') {
     return (
       <Shell code={code}>
@@ -101,19 +102,19 @@ export function TournamentPage({ code }: { code: string }) {
 
   const { config } = tour;
   const header = (
-    <header className="band-lines bg-band text-bandink">
-      <div className="gutter relative z-[1] mx-auto flex max-w-[760px] items-center gap-3 py-4">
-        <a href="#/" aria-label="Início" className="ball h-10 w-10" />
+    <header className="bg-band text-bandink">
+      <div className="gutter mx-auto flex max-w-[760px] items-center gap-3 py-4">
+        <a href="#/" aria-label="Início" className="flex-none"><Simbolo onBand size={40} /></a>
         <div className="min-w-0 flex-1">
-          <h1 className="m-0 font-display text-[clamp(24px,7.5vw,32px)] font-black uppercase leading-[.92] [overflow-wrap:break-word]">{tour.name}</h1>
+          <h1 className="m-0 font-display text-[clamp(24px,7.5vw,32px)] font-extrabold leading-[.92] [overflow-wrap:break-word]">{tour.name}</h1>
           <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 text-[13px] leading-snug opacity-90">
             <LiveBadge live={t.live} reachable={t.reachable} pending={t.pending} />
             <span>· {config.formatLater && tour.phase === 'inscricao' ? 'Formato a definir' : FORMAT_LABEL[config.format]}</span>
           </p>
         </div>
-        <button type="button" onClick={() => setShareOpen(true)} className="flex flex-none flex-col items-center rounded-[10px] border-[1.5px] border-current px-2 py-1" aria-label={`Compartilhar código ${code}`}>
+        <button type="button" onClick={() => setShareOpen(true)} className="flex flex-none flex-col items-center rounded-lg border-[1.5px] border-current px-2 py-1" aria-label={`Compartilhar código ${code}`}>
           <span className="text-[9px] font-bold uppercase tracking-[.14em] opacity-80">Código</span>
-          <span className="font-display text-xl font-black tracking-[.1em]">{code}</span>
+          <span className="font-display text-xl font-extrabold tracking-[.1em]">{code}</span>
         </button>
       </div>
     </header>
@@ -123,8 +124,8 @@ export function TournamentPage({ code }: { code: string }) {
       <div className="flex flex-col gap-3">
         <p className="m-0 text-[15px]">{tour.phase === 'inscricao' ? 'Agora copie o convite e mande no grupo: cada um se inscreve pelo link. Quando fechar a lista, você sorteia aqui.' : 'Mande o link ou o código para a galera. O PIN é só para quem vai lançar placar.'}</p>
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-[10px] bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">Código</small><b className="font-display text-3xl tracking-[.12em]">{code}</b></div>
-          <div className="rounded-[10px] bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">PIN árbitro</small><b className="font-display text-3xl tracking-[.2em]">{welcome?.pin}</b></div>
+          <div className="rounded-lg bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">Código</small><b className="font-display text-3xl tracking-[.12em]">{code}</b></div>
+          <div className="rounded-lg bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">PIN árbitro</small><b className="font-display text-3xl tracking-[.2em]">{welcome?.pin}</b></div>
         </div>
         <Note kind="ok">Este aparelho ficou como <b>organizador</b>: só daqui dá para editar nomes, trocar o PIN e sortear de novo.</Note>
         <Button kind="primary" block onClick={() => { setWelcome(null); if (tour.phase !== 'inscricao') setShareOpen(true); }}>{tour.phase === 'inscricao' ? 'Entendi' : 'Compartilhar'}</Button>
@@ -197,17 +198,17 @@ export function TournamentPage({ code }: { code: string }) {
 
       <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-4">
         {divs.length > 1 && tab !== 'info' && (
-          <div role="group" aria-label="Mostrar" className="grid grid-cols-3 gap-1 rounded-xl bg-surface p-1 shadow-card">
+          <div role="group" aria-label="Mostrar" className="grid grid-cols-3 gap-1 rounded-lg bg-surface p-1 shadow-card">
             {[{ id: 'todos', label: 'Todos' }, ...divs.map((d) => ({ id: d.id, label: d.label }))].map((o) => (
               <button key={o.id} type="button" aria-pressed={division === o.id} onClick={() => setDivF(o.id)}
-                className={cx('min-h-[44px] rounded-lg font-bold', division === o.id ? (o.id === 'M' ? 'bg-sun text-surface' : o.id === 'H' ? 'bg-sea text-surface' : 'bg-ink text-bg') : 'text-muted')}>
+                className={cx('min-h-[44px] rounded-lg font-bold', division === o.id ? 'bg-ink text-bg' : 'text-muted')}>
                 {o.label}
               </button>
             ))}
           </div>
         )}
         {groupIds.length > 1 && tab !== 'info' && (
-          <div role="group" aria-label="Grupo" className="flex gap-1 rounded-xl bg-surface p-1 shadow-card">
+          <div role="group" aria-label="Grupo" className="flex gap-1 rounded-lg bg-surface p-1 shadow-card">
             {['todos', ...groupIds].map((g) => (
               <button key={g} type="button" aria-pressed={group === g} onClick={() => setGrpF(g)}
                 className={cx('min-h-[44px] flex-1 rounded-lg font-bold', group === g ? 'bg-ink text-bg' : 'text-muted')}>
@@ -217,7 +218,7 @@ export function TournamentPage({ code }: { code: string }) {
           </div>
         )}
         {!canScore && tab === 'jogos' && !finished && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface px-4 py-3 shadow-card">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-4 py-3 shadow-card">
             <span className="text-[15px]">Você está assistindo. Para lançar placar, entre com o PIN.</span>
             <Button onClick={() => setPinOpen(true)}>Sou árbitro</Button>
           </div>
@@ -236,21 +237,23 @@ export function TournamentPage({ code }: { code: string }) {
             {pods.map((p) => <ResultPodium key={p.division} podium={p} />)}
             {pods.length > 0 && (
               <button type="button" onClick={() => setPodiumOpen(true)}
-                className="flex items-center gap-3 rounded-xl bg-ink px-4 py-3.5 text-left text-bg shadow-card">
-                <span className="ball h-11 w-11 flex-none" aria-hidden />
-                <span className="min-w-0 flex-1">
-                  <b className="block font-display text-[22px] font-black uppercase leading-none">Arte dos campeões</b>
-                  <span className="text-sm opacity-85">Põe a foto do pódio e vira capa de revista. Story ou Feed.</span>
+                className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3.5 text-left shadow-card">
+                <span aria-hidden className="flex h-12 w-10 flex-none items-end justify-center gap-[3px] rounded-md bg-band px-1.5 pb-1.5">
+                  <i className="block h-4 w-2 rounded-t-sm bg-bandraised" /><i className="block h-7 w-2 rounded-t-sm bg-podium" /><i className="block h-3 w-2 rounded-t-sm bg-bandraised" />
                 </span>
-                <span className="flex-none rounded-full bg-ball px-3 py-1.5 text-sm font-extrabold text-ballink">Abrir</span>
+                <span className="min-w-0 flex-1">
+                  <b className="block font-display text-[22px] font-extrabold leading-none">Arte dos campeões</b>
+                  <span className="text-sm text-muted">Põe a foto do pódio e vira capa de revista. Story ou Feed.</span>
+                </span>
+                <span className="flex-none rounded-full bg-accent px-3 py-1.5 text-sm font-extrabold text-onaccent">Abrir</span>
               </button>
             )}
             {done > 0 && (
               <button type="button" onClick={() => openCard(null)}
-                className="flex items-center gap-3 rounded-xl bg-surface px-4 py-3.5 text-left shadow-card">
-                <span aria-hidden className="grid h-12 w-10 flex-none place-items-center rounded-md bg-ball font-display text-xl font-black text-ballink [clip-path:polygon(18%_0,82%_0,100%_14%,100%_80%,50%_100%,0_80%,0_14%)]">87</span>
+                className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3.5 text-left shadow-card">
+                <span aria-hidden className="grid h-12 w-10 flex-none place-items-center rounded-md bg-accent font-display text-xl font-extrabold text-onaccent [clip-path:polygon(18%_0,82%_0,100%_14%,100%_80%,50%_100%,0_80%,0_14%)]">87</span>
                 <span className="min-w-0 flex-1">
-                  <b className="block font-display text-[22px] font-black uppercase leading-none">Minha cartinha</b>
+                  <b className="block font-display text-[22px] font-extrabold leading-none">Minha cartinha</b>
                   <span className="text-sm text-muted">Sua carta com nota e números do torneio. Ou toque no seu nome no ranking.</span>
                 </span>
                 <span className="flex-none rounded-full border-[1.5px] border-ink px-3 py-1.5 text-sm font-extrabold">Gerar</span>
@@ -265,14 +268,14 @@ export function TournamentPage({ code }: { code: string }) {
             {divisionsWithFinal(plist, config, t.matches).filter((d) => division === 'todos' || d === division).map((d) => {
               const f = t.matches.find((m) => m.division === d && m.stage === 'mata' && m.label === 'Final');
               const w = finalWinners(d, config, t.matches);
-              const nm = (ids: string[]) => ids.map((id) => players.get(id)?.name ?? '?').join(' & ');
+              const nm = (ids: string[]) => ids.map((id) => players.get(id)?.name ?? '?').join(' e ');
               const label = divs.find((x) => x.id === d)?.label ?? '';
               if (w && pods.some((p) => p.division === d)) return null; // o pódio já mostra
               return (
-                <section key={`final-${d}`} className={cx('rounded-xl p-4 shadow-card', w ? 'bg-ball text-ballink' : 'bg-surface')}>
+                <section key={`final-${d}`} className={cx('rounded-lg p-4 shadow-card', w ? 'bg-accent text-onaccent' : 'bg-surface')}>
                   <span className="text-[11px] font-extrabold uppercase tracking-[.14em]">{w ? (pods.find((p) => p.division === d)?.headline ?? 'Campeões') : 'Final'}{divs.length > 1 ? ` · ${label}` : ''}</span>
                   {w ? (
-                    <div className="font-display text-[28px] font-black uppercase leading-tight">{nm(w)}</div>
+                    <div className="font-display text-[28px] font-extrabold leading-tight">{nm(w)}</div>
                   ) : f ? (
                     <p className="m-0 mt-1 text-[15px]"><b>{nm(f.a)}</b> x <b>{nm(f.b)}</b>{f.sets.length ? ` · ${formatScore(f.sets, config.scoring)}` : ''}</p>
                   ) : (
@@ -300,13 +303,13 @@ export function TournamentPage({ code }: { code: string }) {
       </main>
 
       <nav aria-label="Seções" className="gutter fixed inset-x-0 bottom-0 z-20 border-t border-hair bg-surface pb-[max(8px,env(safe-area-inset-bottom,0px))] pt-0 shadow-[0_-8px_24px_-16px_rgba(0,0,0,.5)]">
-        <div className="-mx-4 h-[3px] bg-hair sm:mx-0" aria-hidden><i className="block h-full bg-ball transition-[width]" style={{ width: real.length ? `${(done / real.length) * 100}%` : '0%' }} /></div>
+        <div className="-mx-4 h-[3px] bg-hair sm:mx-0" aria-hidden><i className="block h-full bg-accent transition-[width]" style={{ width: real.length ? `${(done / real.length) * 100}%` : '0%' }} /></div>
         <div className="mx-auto flex max-w-[760px] gap-1 pt-2" role="tablist">
           {(['jogos', 'ranking', 'info'] as Tab[]).map((k) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => { setTab(k); window.scrollTo(0, 0); }}
-              className={cx('flex min-h-[52px] flex-1 flex-col items-center justify-center rounded-[10px] px-1 text-[15px] font-bold leading-tight', tab === k ? 'bg-ink text-bg' : 'text-muted')}>
+              className={cx('flex min-h-[52px] flex-1 flex-col items-center justify-center rounded-lg px-1 text-[15px] font-bold leading-tight', tab === k ? 'bg-ink text-bg' : 'text-muted')}>
               {k === 'jogos' ? 'Jogos' : k === 'ranking' ? 'Ranking' : 'Info'}
-              {k === 'jogos' && <span className={cx('mt-0.5 rounded-full px-2 text-[11px] tabnum', tab === k ? 'bg-ball text-ballink' : 'bg-hair')}>{done}/{real.length}</span>}
+              {k === 'jogos' && <span className={cx('mt-0.5 rounded-full px-2 text-[11px] tabnum', tab === k ? 'bg-accent text-onaccent' : 'bg-hair')}>{done}/{real.length}</span>}
             </button>
           ))}
         </div>
@@ -327,10 +330,10 @@ export function TournamentPage({ code }: { code: string }) {
 function Shell({ code, children }: { code: string; children: React.ReactNode }) {
   return (
     <>
-      <header className="band-lines bg-band text-bandink">
-        <div className="gutter relative z-[1] mx-auto flex max-w-[760px] items-center gap-3 py-5">
-          <a href="#/" aria-label="Início" className="ball h-11 w-11" />
-          <h1 className="m-0 font-display text-[34px] font-black uppercase tracking-[.12em]">{code}</h1>
+      <header className="bg-band text-bandink">
+        <div className="gutter mx-auto flex max-w-[760px] items-center gap-3 py-5">
+          <a href="#/" aria-label="Início" className="flex-none"><Simbolo onBand size={44} /></a>
+          <h1 className="m-0 font-display text-[34px] font-extrabold tracking-[.12em]">{code}</h1>
         </div>
       </header>
       <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-16 pt-5">{children}</main>
@@ -339,8 +342,8 @@ function Shell({ code, children }: { code: string; children: React.ReactNode }) 
 }
 
 function LiveBadge({ live, reachable, pending }: { live: string; reachable: boolean; pending: number }) {
-  if (!reachable) return <span className="inline-flex items-center gap-1.5 font-semibold text-ball">● Sem conexão{pending ? ` · ${pending} na fila` : ''}</span>;
-  if (pending) return <span className="inline-flex items-center gap-1.5 font-semibold text-ball">● Enviando {pending}</span>;
+  if (!reachable) return <span className="inline-flex items-center gap-1.5 font-semibold">● Sem conexão{pending ? ` · ${pending} na fila` : ''}</span>;
+  if (pending) return <span className="inline-flex items-center gap-1.5 font-semibold">● Enviando {pending}</span>;
   if (live === 'ao_vivo') return <span className="inline-flex items-center gap-1.5 font-semibold"><i className="live-dot" aria-hidden /> Ao vivo</span>;
   if (live === 'offline') return <span className="font-semibold opacity-80">Atualiza a cada 15 s</span>;
   return <span className="font-semibold opacity-80">Conectando…</span>;
@@ -382,7 +385,7 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
           const label = b.ms[0].stage === 'mata' ? (b.ms[0].label?.replace(/ \d+$/, '') ?? 'Mata') : `R${b.ms[0].round}`;
           return (
             <a key={b.key} href={`#bloco-${i}`} onClick={(e) => { e.preventDefault(); document.getElementById(`bloco-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-              className={cx('flex min-h-[38px] flex-none items-center rounded-full border-[1.5px] px-3.5 text-sm font-bold no-underline', i === current ? 'border-transparent bg-ball text-ballink' : allDone ? 'border-hair bg-surface text-muted' : 'border-hair bg-surface text-ink')}>
+              className={cx('flex min-h-[38px] flex-none items-center rounded-full border-[1.5px] px-3.5 text-sm font-bold no-underline', i === current ? 'border-transparent bg-accent text-onaccent' : allDone ? 'border-line bg-surface text-muted' : 'border-line bg-surface text-ink')}>
               {label}{allDone ? ' ✓' : ''}
             </a>
           );
@@ -390,9 +393,9 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
       </div>
 
       {finished && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-ball px-4 py-3 text-ballink">
-          <b className="font-display text-2xl font-black uppercase">Torneio encerrado</b>
-          <button type="button" onClick={onRanking} className="rounded-lg bg-ballink px-3 py-2 font-bold text-ball">Ver resultado</button>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-accent px-4 py-3 text-onaccent">
+          <b className="font-display text-2xl font-extrabold">Torneio encerrado</b>
+          <button type="button" onClick={onRanking} className="rounded-lg bg-surface px-3 py-2 font-bold text-ink">Ver resultado</button>
         </div>
       )}
 
@@ -416,9 +419,9 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
             return (
               <section key={b.key} id={`bloco-${i}`} className="scroll-mt-4">
                 <button type="button" onClick={() => toggle(b.key)} aria-expanded={false}
-                  className="flex min-h-[52px] w-full items-center gap-2.5 rounded-xl bg-surface px-4 text-left shadow-card">
-                  <span className="font-display text-2xl font-black uppercase text-muted">{title}</span>
-                  <Pill className="border-[1.5px] border-hair text-muted">Encerrada</Pill>
+                  className="flex min-h-[52px] w-full items-center gap-2.5 rounded-lg bg-surface px-4 text-left shadow-card">
+                  <span className="font-display text-2xl font-extrabold text-muted">{title}</span>
+                  <Pill className="border-[1.5px] border-line text-muted">Encerrada</Pill>
                   <span className="ml-auto text-sm font-bold text-muted">Ver {b.ms.length} jogo{b.ms.length > 1 ? 's' : ''} ▾</span>
                 </button>
               </section>
@@ -427,11 +430,11 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
           return (
             <section key={b.key} id={`bloco-${i}`} className="flex scroll-mt-4 flex-col gap-2.5">
               <header className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-                <h3 className={cx('m-0 font-display text-[28px] font-black uppercase leading-none', allDone && 'text-muted')}>
+                <h3 className={cx('m-0 font-display text-[28px] font-extrabold leading-none', allDone && 'text-muted')}>
                   {first.stage === 'mata' ? (first.label?.replace(/ \d+$/, '') ?? 'Mata-mata') : `Rodada ${first.round}`}
                 </h3>
-                {i === current && <Pill className="bg-ball text-ballink">Agora</Pill>}
-                {allDone && <button type="button" onClick={() => toggle(b.key)} aria-expanded className="rounded-full border-[1.5px] border-hair px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-muted">Encerrada · recolher ▴</button>}
+                {i === current && <Pill className="bg-accent text-onaccent">Agora</Pill>}
+                {allDone && <button type="button" onClick={() => toggle(b.key)} aria-expanded className="rounded-full border-[1.5px] border-line px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-muted">Encerrada · recolher ▴</button>}
                 {rest.length > 0 && (
                   <p className="m-0 ml-auto flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                     <span className="text-[11px] font-extrabold uppercase tracking-[.12em]">Folga</span>
@@ -439,6 +442,7 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
                   </p>
                 )}
               </header>
+              {i === current && <Costura className="my-1" />}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {b.ms.map((m) => (
                   <MatchCard key={m.id} match={m} number={numbers.get(m.id) ?? 0} players={players} scoring={config.scoring} canScore={canScore && !finished} showGender={showGender}
@@ -488,9 +492,9 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
     <>
       <Panel title="Compartilhar">
         <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
-          <Button kind="primary" className="!text-lg" onClick={onShare}>Link e QR code</Button>
+          <Button kind="primary" onClick={onShare}>Link e QR code</Button>
           <Button onClick={onCopySchedule}>Copiar tabela de jogos</Button>
-          <a href={`#/t/${code}/telao`} className="flex min-h-[48px] items-center justify-center rounded-[10px] border-[1.5px] border-ink font-bold text-ink no-underline min-[420px]:col-span-2">Abrir modo telão</a>
+          <a href={`#/t/${code}/telao`} className="flex min-h-[48px] items-center justify-center rounded-lg border-[1.5px] border-ink font-bold text-ink no-underline min-[420px]:col-span-2">Abrir modo telão</a>
         </div>
       </Panel>
 
@@ -521,8 +525,8 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
             }}>
               <input id="chave-org" aria-label="Chave do organizador" autoComplete="off" autoCapitalize="none" spellCheck={false} value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)} placeholder="Cole a chave aqui"
-                className="min-h-[48px] w-full rounded-[10px] border-[1.5px] border-hair bg-bg px-3 font-mono text-base text-ink" />
-              <Button kind="primary" type="submit" className="!text-xl" disabled={busy || keyInput.trim().length < 16}>Entrar como organizador</Button>
+                className="min-h-[48px] w-full rounded-lg border-[1.5px] border-line bg-bg px-3 font-mono text-base text-ink" />
+              <Button kind="primary" type="submit" disabled={busy || keyInput.trim().length < 16}>Entrar como organizador</Button>
             </form>
           )
         )}
@@ -538,13 +542,13 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
                 {([['games', 'Games feitos'], ['resultado', 'Vitória 3 · Empate 1']] as const).map(([v, label]) => (
                   <button key={v} type="button" aria-pressed={config.ranking.base === v} disabled={busy}
                     onClick={() => { if (config.ranking.base !== v) void run(() => api.adminRanking(code, adminKey, { ...config.ranking, base: v }), 'Critério do ranking trocado.'); }}
-                    className={cx('min-h-[52px] rounded-[10px] border-[1.5px] px-2 font-bold', config.ranking.base === v ? 'border-ink bg-ink text-bg' : 'border-hair')}>
+                    className={cx('min-h-[52px] rounded-lg border-[1.5px] px-2 font-bold', config.ranking.base === v ? 'border-ink bg-ink text-bg' : 'border-line')}>
                     {label}
                   </button>
                 ))}
               </div>
               <label className="mt-2 flex min-h-[44px] items-center gap-3 text-[15px]">
-                <input type="checkbox" className="h-6 w-6 accent-[var(--sea)]" checked={config.ranking.media} disabled={busy}
+                <input type="checkbox" className="h-6 w-6 accent-[var(--accent)]" checked={config.ranking.media} disabled={busy}
                   onChange={(e) => void run(() => api.adminRanking(code, adminKey, { ...config.ranking, media: e.target.checked }), e.target.checked ? 'Ranking por média por partida.' : 'Ranking pelo total.')} />
                 Usar média por partida
               </label>
@@ -559,10 +563,10 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
                   {names.map((p, i) => (
                     <input key={p.id} id={`edit-${p.id}`} aria-label={`Nome ${i + 1}`} value={p.name} maxLength={40}
                       onChange={(e) => setNames(names.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)))}
-                      className="min-h-[44px] rounded-[9px] border-[1.5px] border-hair bg-bg px-3 font-semibold text-ink" />
+                      className="min-h-[44px] rounded-lg border-[1.5px] border-line bg-bg px-3 font-semibold text-ink" />
                   ))}
                   <div className="grid grid-cols-2 gap-2">
-                    <Button kind="primary" className="!text-lg" disabled={busy || names.some((p) => !p.name.trim())}
+                    <Button kind="primary" disabled={busy || names.some((p) => !p.name.trim())}
                       onClick={async () => { if (await run(() => api.adminUpdate(code, adminKey, tour.name, { ...tour.data, players: names.map((p) => ({ ...p, name: p.name.trim() })) }, tour.version), 'Nomes salvos.')) setNames(null); }}>Salvar</Button>
                     <Button onClick={() => setNames(null)}>Cancelar</Button>
                   </div>
@@ -575,7 +579,7 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
               <p className="m-0 text-[13px] text-muted">Quem entrou com o PIN antigo perde o acesso na hora.</p>
               <div className="mt-2 flex gap-2">
                 <input id="novo-pin" aria-label="Novo PIN" inputMode="numeric" maxLength={8} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Novo PIN" className="min-h-[44px] w-full min-w-0 rounded-[9px] border-[1.5px] border-hair bg-bg px-3 font-display text-2xl font-black tracking-[.25em] text-ink" />
+                  placeholder="Novo PIN" className="min-h-[44px] w-full min-w-0 rounded-lg border-[1.5px] border-line bg-bg px-3 font-body text-2xl font-bold tracking-[.25em] text-ink" />
                 <Button disabled={busy || !/^\d{4,8}$/.test(newPin)} onClick={async () => { if (await run(() => api.adminPin(code, adminKey, newPin), `PIN trocado para ${newPin}.`)) setNewPin(''); }}>Trocar</Button>
               </div>
             </div>
@@ -586,7 +590,7 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
               {!confirmReset ? (
                 <Button className="mt-2" block onClick={() => setConfirmReset(true)}>Sortear de novo</Button>
               ) : (
-                <div className="mt-2 flex flex-col gap-2 rounded-xl bg-tintwarn p-3">
+                <div className="mt-2 flex flex-col gap-2 rounded-lg bg-tintwarn p-3">
                   <b>{anyScore ? 'Isso apaga os placares que já foram lançados.' : 'A chave atual vai ser trocada por um sorteio novo.'}</b>
                   <div className="grid grid-cols-2 gap-2">
                     <Button kind="danger" disabled={busy} onClick={async () => {
@@ -631,7 +635,7 @@ function PinSheet({ open, code, onClose, onUnlocked }: { open: boolean; code: st
       >
         <input id="pin-arbitro" aria-label="PIN" inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-          className="min-h-[56px] rounded-[10px] border-[1.5px] border-hair bg-bg px-3 text-center font-display text-4xl font-black tracking-[.4em] text-ink" />
+          className="min-h-[56px] rounded-lg border-[1.5px] border-line bg-bg px-3 text-center font-body text-4xl font-bold tracking-[.4em] text-ink" />
         {err && <Note kind="warn">{err}</Note>}
         <Button kind="primary" type="submit" block disabled={busy || !/^\d{4,8}$/.test(pin)}>{busy ? 'Conferindo…' : 'Entrar'}</Button>
       </form>
@@ -650,11 +654,11 @@ function ShareSheet({ open, code, name, onClose, onCopy }: { open: boolean; code
   return (
     <Sheet open={open} onClose={onClose} title="Compartilhar">
       <div className="flex flex-col items-center gap-3">
-        {qr && <img src={qr} alt={`QR code do torneio ${code}`} className="w-[min(260px,70vw)] rounded-xl bg-white p-2" />}
-        <p className="m-0 font-display text-4xl font-black tracking-[.14em]">{code}</p>
-        <p className="m-0 w-full select-all break-all rounded-[10px] bg-bg p-3 text-center text-sm">{link}</p>
+        {qr && <img src={qr} alt={`QR code do torneio ${code}`} className="w-[min(260px,70vw)] rounded-lg bg-white p-2" />}
+        <p className="m-0 font-display text-4xl font-extrabold tracking-[.14em]">{code}</p>
+        <p className="m-0 w-full select-all break-all rounded-lg bg-bg p-3 text-center text-sm">{link}</p>
         <div className="grid w-full grid-cols-1 gap-2 min-[420px]:grid-cols-2">
-          <Button kind="primary" className="!text-lg" onClick={() => onCopy(`🎾 ${name}\nAcompanhe ao vivo: ${link}\nCódigo: ${code}`)}>Copiar convite</Button>
+          <Button kind="primary" onClick={() => onCopy(`🎾 ${name}\nAcompanhe ao vivo: ${link}\nCódigo: ${code}`)}>Copiar convite</Button>
           <Button onClick={() => onCopy(link)}>Copiar só o link</Button>
         </div>
       </div>

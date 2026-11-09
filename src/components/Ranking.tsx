@@ -1,5 +1,6 @@
 import { evaluate, knockoutChampion, type Config, type Match, type Player, type Podium, type PodiumPlace, type RankingSection, type Row, type Team } from '../engine';
 import { Name } from './MatchCard';
+import { Simbolo } from './Brand';
 import { cx, Pill } from './ui';
 
 const fmt = (n: number, media: boolean) => (media ? n.toFixed(1).replace('.', ',') : String(n));
@@ -9,7 +10,7 @@ function RowItem({ r, players, showGender, media, played, qualifies, compact, on
 }) {
   const tap = onPlayer && r.ids.length === 1 && r.j > 0 ? () => onPlayer(r.ids[0]) : undefined;
   return (
-    <li className={cx('grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-hair px-2.5 py-3', played && r.pos === 1 && 'rounded-[10px] border-transparent bg-win', tap && 'cursor-pointer active:bg-hair')}
+    <li className={cx('grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-hair px-2.5 py-3', played && r.pos === 1 && 'rounded-lg border-transparent bg-highlight', tap && 'cursor-pointer active:bg-hair')}
       onClick={tap} role={tap ? 'button' : undefined} tabIndex={tap ? 0 : undefined} aria-label={tap ? `Cartinha de ${r.label}` : undefined}
       onKeyDown={tap ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(); } } : undefined}>
       <span className="font-display text-[26px] font-extrabold leading-none tabnum">{played ? `${r.pos}º` : '–'}</span>
@@ -20,49 +21,47 @@ function RowItem({ r, players, showGender, media, played, qualifies, compact, on
         {!compact && (
           <span className="text-[13px] font-semibold text-muted tabnum">
             {r.v}V · {r.e}E · {r.d}D · {r.j} {r.j === 1 ? 'jogo' : 'jogos'} · saldo {r.sg > 0 ? '+' : ''}{r.sg}
-            {qualifies && <b className="ml-1.5 text-sea">· {r.ids.length === 1 ? 'vai pra final' : 'classifica'}</b>}
+            {qualifies && <b className="ml-1.5 text-accentink">· {r.ids.length === 1 ? 'vai pra final' : 'classifica'}</b>}
           </span>
         )}
       </div>
       <div className="flex flex-col items-end leading-none">
-        <b className="font-display text-[38px] font-black tabnum">{fmt(r.main, media)}</b>
+        <b className="font-display text-[38px] font-extrabold tabnum">{fmt(r.main, media)}</b>
         <small className="mt-0.5 text-[11px] font-extrabold uppercase tracking-[.1em] text-muted">{media ? 'média' : 'pts'}</small>
       </div>
     </li>
   );
 }
 
-/** Pódio 2-1-3 do resultado final: feito pra galera tirar print. */
+/** Pódio 2-1-3 do resultado final: fundo cacau, 1º em manteiga com a bola em cima. Feito pra virar print. */
 export function ResultPodium({ podium: p }: { podium: Podium }) {
   const first = p.places[0];
   const order = p.places.length >= 3 ? [p.places[1], first, p.places[2]] : p.places.length === 2 ? [p.places[1], first] : [first];
   const step = (pl: PodiumPlace) => {
     const top = pl === first;
     return (
-      <div key={pl.pos + pl.names.join()} className={cx('flex min-w-0 flex-col items-center justify-start gap-1 rounded-t-[12px] rounded-b-md px-2 pb-4 pt-3 text-center',
-        top ? 'min-h-[188px] bg-ball text-ballink' : pl.pos === 2 ? 'mt-8 min-h-[156px] bg-court' : 'mt-14 min-h-[132px] bg-court')}>
-        {top && <span className="text-[11px] font-extrabold uppercase tracking-[.16em]">{p.headline}</span>}
-        <span className={cx('font-display font-black leading-none', top ? 'text-[52px]' : 'text-[44px]')}>{pl.pos}º</span>
+      <li key={pl.pos + pl.names.join()} className={cx('relative flex min-w-0 flex-col items-center gap-0.5 rounded-t-lg px-2 pb-4 text-center',
+        top ? 'min-h-[176px] bg-podium pt-8 text-podiumink' : pl.pos === 2 ? 'min-h-[132px] bg-bandraised pt-3' : 'min-h-[112px] bg-bandraised pt-3')}>
+        {top && <span className="absolute -top-[22px] left-1/2 -translate-x-1/2"><Simbolo size={44} tone="claro" /></span>}
+        <span className={cx('font-display font-extrabold leading-none tabnum', top ? 'text-[52px]' : 'text-[38px]')}>{pl.pos}º</span>
         <span className="flex flex-col text-[15px] font-bold leading-tight [overflow-wrap:anywhere]">
-          {pl.names.map((n, i) => <span key={n + i}>{n}{i < pl.names.length - 1 ? ' &' : ''}</span>)}
+          {pl.names.map((n, i) => <span key={n + i}>{n}</span>)}
         </span>
-        {pl.pts && <span className={cx('text-[13px] font-semibold', top ? 'opacity-80' : 'text-muted')}>{pl.pts}</span>}
-      </div>
+        {pl.pts && <span className="text-[12px] font-semibold opacity-85">{pl.pts}</span>}
+      </li>
     );
   };
   return (
-    <section className="rounded-xl bg-surface p-4 shadow-card">
-      <div className="mb-3 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          {p.label && <span className="block text-[11px] font-extrabold uppercase tracking-[.14em] text-muted">{p.label}</span>}
-          <h2 className="m-0 font-display text-[26px] font-extrabold uppercase leading-none">Resultado final</h2>
-        </div>
-        <Pill>Fechado</Pill>
+    <section className="rounded-lg bg-band px-4 pb-4 pt-5 text-bandink shadow-card" aria-label={`Resultado final${p.label ? `, ${p.label}` : ''}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[12px] font-bold uppercase tracking-[.12em]">Resultado final{p.label ? ` · ${p.label}` : ''}</span>
+        <Pill className="bg-bandraised text-bandink">Fechado</Pill>
       </div>
-      <div className={cx('grid items-start gap-2', order.length === 3 ? 'grid-cols-[1fr_1.15fr_1fr]' : order.length === 2 ? 'mx-auto w-full max-w-[420px] grid-cols-[1fr_1.15fr]' : 'mx-auto w-full max-w-[240px] grid-cols-1')}>
+      <h2 className="m-0 mb-9 mt-1 font-display text-[44px] font-extrabold leading-none">{p.headline}</h2>
+      <ol className={cx('m-0 grid list-none items-end gap-2 p-0', order.length === 3 ? 'grid-cols-[1fr_1.15fr_1fr]' : order.length === 2 ? 'mx-auto w-full max-w-[420px] grid-cols-[1fr_1.15fr]' : 'mx-auto w-full max-w-[240px] grid-cols-1')}>
         {order.map(step)}
-      </div>
-      {p.final && <p className="m-0 mt-3 text-center text-sm font-bold text-muted">Final {p.final}</p>}
+      </ol>
+      {p.final && <p className="m-0 mt-3 text-center text-sm font-semibold opacity-85">Final {p.final}</p>}
     </section>
   );
 }
@@ -79,9 +78,9 @@ export function RankingSections({ sections, players, config, finished, onPlayer 
         const title = s.kind === 'genero' ? (finished ? (s.title === 'Homens' ? 'Rei da areia' : 'Rainha da areia') : `Melhores ${s.title.toLowerCase()}`) : s.title;
         const rows = s.kind === 'genero' ? s.rows.slice(0, 3) : s.rows;
         return (
-          <section key={s.id} className="rounded-xl bg-surface p-4 shadow-card">
+          <section key={s.id} className="rounded-lg bg-surface p-4 shadow-card">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="m-0 font-display text-[26px] font-extrabold uppercase leading-none">{title}</h2>
+              <h2 className="m-0 font-display text-[26px] font-extrabold leading-none">{title}</h2>
               {s.kind === 'grupo' && s.qualify ? <Pill>{s.qualify} {individual ? 'vão pra final' : `classifica${s.qualify > 1 ? 'm' : ''}`}</Pill> : null}
             </div>
             <div className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-2.5 border-b-[1.5px] border-hair px-2.5 pb-2 text-[11px] font-extrabold uppercase tracking-[.1em] text-muted" aria-hidden>
@@ -122,7 +121,7 @@ export function Bracket({ matches, teams, players, config, divisionLabel }: {
   const divisions = [...new Set(ko.map((m) => m.division))];
   const name = (teamId: string | null) => {
     const t = teams.find((x) => x.id === teamId);
-    return t ? t.players.map((id) => players.get(id)?.name ?? '?').join(' & ') : '—';
+    return t ? t.players.map((id) => players.get(id)?.name ?? '?').join(' e ') : '—';
   };
   return (
     <div className="flex flex-col gap-4">
@@ -131,12 +130,12 @@ export function Bracket({ matches, teams, players, config, divisionLabel }: {
         const rounds = [...new Set(ms.map((m) => m.round))].sort((a, b) => a - b);
         const champ = knockoutChampion(d, matches, config);
         return (
-          <section key={d} className="rounded-xl bg-surface p-4 shadow-card">
-            <h2 className="m-0 mb-3 font-display text-[26px] font-extrabold uppercase leading-none">Mata-mata{d !== 'all' ? ` · ${divisionLabel(d)}` : ''}</h2>
+          <section key={d} className="rounded-lg bg-surface p-4 shadow-card">
+            <h2 className="m-0 mb-3 font-display text-[26px] font-extrabold leading-none">Mata-mata{d !== 'all' ? ` · ${divisionLabel(d)}` : ''}</h2>
             {champ && (
-              <div className="mb-3 rounded-[10px] bg-ball px-3 py-3 text-ballink">
+              <div className="mb-3 rounded-lg bg-accent px-3 py-3 text-onaccent">
                 <span className="text-[11px] font-extrabold uppercase tracking-[.14em]">Campeões</span>
-                <div className="font-display text-[28px] font-black uppercase leading-tight">{name(champ)}</div>
+                <div className="font-display text-[28px] font-extrabold leading-tight">{name(champ)}</div>
               </div>
             )}
             <div className="overflow-x-auto">
@@ -148,13 +147,13 @@ export function Bracket({ matches, teams, players, config, divisionLabel }: {
                       const bye = m.b.length === 0;
                       const r = evaluate(m.sets, config.scoring, true, bye);
                       const line = (team: string | null, s: 'a' | 'b', score: number | null) => (
-                        <div className={cx('flex items-center justify-between gap-2 px-2.5 py-1.5', r.done && r.winner === s ? 'bg-win font-bold' : r.done ? 'text-muted' : '')}>
+                        <div className={cx('flex items-center justify-between gap-2 px-2.5 py-1.5', r.done && r.winner === s ? 'bg-highlight font-bold' : r.done ? 'text-muted' : '')}>
                           <span className="min-w-0 truncate text-sm">{team ? name(team) : 'Folga'}</span>
                           {score !== null && <b className="font-display text-xl tabnum">{score}</b>}
                         </div>
                       );
                       return (
-                        <div key={m.id} className="overflow-hidden rounded-lg border-[1.5px] border-hair bg-bg">
+                        <div key={m.id} className="overflow-hidden rounded-lg border-[1.5px] border-line bg-bg">
                           {line(m.teamA, 'a', bye ? null : r.gamesA)}
                           <div className="border-t border-hair" />
                           {line(bye ? null : m.teamB, 'b', bye ? null : r.gamesB)}

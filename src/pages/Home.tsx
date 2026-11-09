@@ -3,20 +3,19 @@ import { Button, Note, Panel, Pill } from '../components/ui';
 import { listSaved } from '../lib/local';
 import { go } from '../lib/router';
 import { configured } from '../lib/supabase';
+import { Simbolo } from '../components/Brand';
 
 const roleLabel = { organizador: 'Organizador', arbitro: 'Árbitro', publico: 'Assistindo' } as const;
 
 export function Hero({ title, accent, sub, small }: { title: string; accent?: string; sub?: string; small?: boolean }) {
   return (
-    <header className="band-lines bg-band text-bandink">
-      <div className="gutter relative z-[1] mx-auto flex max-w-[760px] items-center gap-4 py-6">
-        <a href="#/" aria-label="Início" className={`ball ball-drop ${small ? 'h-11 w-11' : 'h-[62px] w-[62px]'}`} />
+    <header className="bg-band text-bandink">
+      <div className="gutter mx-auto flex max-w-[760px] items-center gap-4 py-6">
+        <a href="#/" aria-label="Início" className="flex-none"><Simbolo onBand size={small ? 44 : 64} /></a>
         <div className="min-w-0">
-          {!small && <p className="m-0 mb-1.5 text-xs font-semibold uppercase tracking-[.16em] opacity-80">Beach tennis · ao vivo</p>}
-          <h1 className={`m-0 font-display font-black uppercase leading-[.88] ${small ? 'text-[34px]' : 'text-[clamp(42px,12vw,68px)]'} [overflow-wrap:anywhere]`}>
-            {title} {accent && <span className="text-ball">{accent}</span>}
-          </h1>
-          {sub && <p className="m-0 mt-2 text-[15px] opacity-85">{sub}</p>}
+          <h1 className={`m-0 font-display font-extrabold leading-[.95] ${small ? 'text-[32px]' : 'text-[clamp(40px,11vw,60px)]'} [overflow-wrap:anywhere]`}>{title}</h1>
+          {accent && <p className="m-0 mt-0.5 text-[13px] font-bold uppercase tracking-[.16em]">{accent}</p>}
+          {sub && <p className="m-0 mt-2 text-[15px] opacity-90">{sub}</p>}
         </div>
       </div>
     </header>
@@ -53,7 +52,7 @@ export function HomePage() {
               placeholder="Ex.: AREIA7"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase())}
-              className="min-h-[48px] w-full min-w-0 rounded-[10px] border-[1.5px] border-hair bg-bg px-3 font-display text-2xl font-extrabold uppercase tracking-[.2em] text-ink"
+              className="min-h-[48px] w-full min-w-0 rounded-lg border-[1.5px] border-line bg-bg px-3 font-body text-2xl font-bold tracking-[.2em] text-ink"
             />
             <Button kind="line" type="submit" disabled={!valid}>Abrir</Button>
           </form>
@@ -69,7 +68,7 @@ export function HomePage() {
                       <b className="block truncate">{s.name || 'Torneio'}</b>
                       <small className="text-muted tabnum">{s.code} · {new Date(s.savedAt).toLocaleDateString('pt-BR')}</small>
                     </span>
-                    <Pill className={s.role === 'publico' ? 'bg-hair' : 'bg-ball text-ballink'}>{roleLabel[s.role]}</Pill>
+                    <Pill className={s.role === 'publico' ? 'bg-hair' : 'bg-accent text-onaccent'}>{roleLabel[s.role]}</Pill>
                   </a>
                 </li>
               ))}

@@ -100,6 +100,25 @@ O workflow `.github/workflows/deploy.yml` roda os testes, gera o build e publica
 A URL e a chave anon do Supabase ficam em `.env.production`. Elas são públicas de qualquer jeito (vão no JavaScript do site);
 o que protege o banco são as funções `s8_*` e o RLS fechado no schema `super8`.
 
+## Identidade visual
+
+"Praia de dia": três cores, na proporção 60 / 30 / 10.
+
+| Cor | Hex | Uso |
+| --- | --- | --- |
+| Manteiga | `#FBE38E` | fundo do app, texto sobre a faixa cacau, 1º lugar |
+| Cacau | `#3A2218` | texto, faixa do topo, pódio e artes |
+| Azul elétrico | `#2B5BFF` | a bola, o botão principal, o + do placar, "Venceu", ao vivo |
+
+- Fontes: **Baloo 2 ExtraBold** só em logo, título, placar e pódio; **Barlow** no resto (as duas pelo Google Fonts).
+- Símbolo: a bola com a costura em 8, inclinada −18°. A costura aparece pouco: no símbolo, no ícone, no divisor da
+  rodada atual, no carregando e na bola em cima do 1º lugar.
+- Tema Noite automático (modo escuro do celular), com as mesmas cores invertidas.
+- Os tokens ficam em `src/index.css` (variáveis CSS) e `tailwind.config.js`; o desenho do 8 em `src/lib/brandPaths.ts`;
+  o símbolo, o divisor e o carregando em `src/components/Brand.tsx`; ícone do app e favicon em `public/`.
+- As artes de compartilhar (pódio, pôster com foto, cartinha) seguem as mesmas regras: fundo cacau chapado, sem degradê,
+  texto nunca em cima da foto.
+
 ## Estrutura
 
 ```
@@ -111,7 +130,8 @@ src/engine/       motor puro, sem React e sem rede (testado com Vitest)
   standings.ts    ranking e desempates
   importer.ts     leitura da lista colada do WhatsApp
   whatsapp.ts     mensagens prontas para o grupo
-src/lib/          Supabase, chamadas RPC, fila offline e tempo real (useTournament)
+src/lib/          Supabase, chamadas RPC, fila offline e tempo real (useTournament), artes em canvas
+src/components/   placar, ranking, pódio, peças da marca (Brand.tsx)
 src/pages/        Início, Novo torneio, Torneio, Telão
 supabase/         migration do banco
 ```

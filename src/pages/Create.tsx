@@ -177,17 +177,17 @@ export function CreatePage() {
 
   return (
     <>
-      <header className="band-lines bg-band text-bandink">
-        <div className="gutter relative z-[1] mx-auto max-w-[760px] py-4">
+      <header className="bg-band text-bandink">
+        <div className="gutter mx-auto max-w-[760px] py-4">
           <div className="flex items-center gap-3">
             <a href="#/" aria-label="Voltar para o início" className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-current text-xl no-underline text-bandink">←</a>
             <div className="min-w-0">
-              <h1 className="m-0 font-display text-[30px] font-black uppercase leading-none">Novo torneio</h1>
+              <h1 className="m-0 font-display text-[30px] font-extrabold leading-none">Novo torneio</h1>
               <p className="m-0 mt-0.5 text-sm opacity-85">Passo {pos + 1} de {visible.length} · {STEPS[step]}</p>
             </div>
           </div>
           <div className={cx('mt-3 grid gap-1.5', visible.length === 4 ? 'grid-cols-4' : 'grid-cols-2')} aria-hidden>
-            {visible.map((v, i) => <i key={v} className={cx('block h-1.5 rounded-full', i <= pos ? 'bg-ball' : 'bg-white/20')} />)}
+            {visible.map((v, i) => <i key={v} className={cx('block h-1.5 rounded-full', i <= pos ? 'bg-accent' : 'bg-white/20')} />)}
           </div>
         </div>
       </header>
@@ -342,14 +342,14 @@ export function CreatePage() {
           <>
             <Panel title="Nome">
               <input id="nome-torneio" aria-label="Nome do torneio" maxLength={60} value={d.name} onChange={(e) => set({ name: e.target.value })}
-                className="min-h-[48px] w-full rounded-[10px] border-[1.5px] border-hair bg-bg px-3 text-lg font-semibold text-ink" />
+                className="min-h-[48px] w-full rounded-lg border-[1.5px] border-line bg-bg px-3 text-lg font-semibold text-ink" />
             </Panel>
             <Panel title="PIN do árbitro">
               <p className="m-0 mb-3 text-[15px] text-muted">Quem tiver esse PIN lança placar. Quem só tiver o código assiste.</p>
               <div className="flex gap-2">
                 <input id="pin" aria-label="PIN do árbitro" inputMode="numeric" autoComplete="off" maxLength={8} value={d.pin}
                   onChange={(e) => set({ pin: e.target.value.replace(/\D/g, '') })}
-                  className="min-h-[48px] w-full min-w-0 rounded-[10px] border-[1.5px] border-hair bg-bg px-3 font-display text-3xl font-black tracking-[.3em] text-ink" />
+                  className="min-h-[48px] w-full min-w-0 rounded-lg border-[1.5px] border-line bg-bg px-3 font-body text-3xl font-bold tracking-[.3em] text-ink" />
                 <Button onClick={() => set({ pin: randomPin() })}>Gerar</Button>
               </div>
               {!pinOk && <p className="m-0 mt-2 text-sm text-danger">Use de 4 a 8 números.</p>}
@@ -394,9 +394,9 @@ export function CreatePage() {
           <Button className="flex-none" onClick={() => (step === 0 ? go('/') : goStep(-1))}>{step === 0 ? 'Cancelar' : 'Voltar'}</Button>
           <span className="line-clamp-2 min-w-0 flex-1 text-center text-[11px] font-semibold leading-tight text-muted tabnum">{barInfo}</span>
           {step < STEPS.length - 1 ? (
-            <Button kind="primary" className="flex-none !text-xl" onClick={() => goStep(1)}>Continuar</Button>
+            <Button kind="primary" className="flex-none" onClick={() => goStep(1)}>Continuar</Button>
           ) : (
-            <Button kind="primary" className="flex-none !text-xl" disabled={!ready || busy} onClick={create}>{busy ? 'Criando…' : viaLink ? 'Abrir inscrição' : 'Criar'}</Button>
+            <Button kind="primary" className="flex-none" disabled={!ready || busy} onClick={create}>{busy ? 'Criando…' : viaLink ? 'Abrir inscrição' : 'Criar'}</Button>
           )}
         </div>
       </nav>
@@ -407,7 +407,7 @@ export function CreatePage() {
 function Check({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint?: string }) {
   return (
     <label className="flex min-h-[44px] items-start gap-3 text-[15px]">
-      <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--sea)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--accent)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span>{title}{hint && <small className="block text-muted">{hint}</small>}</span>
     </label>
   );
@@ -432,12 +432,12 @@ function AddNames({ tipo, onAdd }: { tipo: Tipo; onAdd: (l: { name: string; gend
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder={'Cole a lista do grupo ou digite:\nAna, Bia, Carla\nou um nome por linha'}
-        className="w-full rounded-[10px] border-[1.5px] border-hair bg-bg p-3 text-base text-ink"
+        className="w-full rounded-lg border-[1.5px] border-line bg-bg p-3 text-base text-ink"
       />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-bold">Esses nomes são</span>
         <Segmented<Batch> label="Gênero desses nomes" value={batch} onChange={setBatch}
-          options={[{ value: 'auto', label: 'Pela lista' }, { value: 'M', label: 'Mulheres', className: 'bg-sun text-surface' }, { value: 'H', label: 'Homens', className: 'bg-sea text-surface' }]} />
+          options={[{ value: 'auto', label: 'Pela lista' }, { value: 'M', label: 'Mulheres', className: 'bg-accent text-onaccent' }, { value: 'H', label: 'Homens', className: 'bg-ink text-bg' }]} />
       </div>
       <p className="m-0 mt-3 text-sm text-muted tabnum">
         {parsed.players.length
@@ -446,7 +446,7 @@ function AddNames({ tipo, onAdd }: { tipo: Tipo; onAdd: (l: { name: string; gend
         {parsed.ignored.length > 0 && <span className="block">Ignorei: {parsed.ignored.slice(0, 3).join(' · ')}{parsed.ignored.length > 3 ? '…' : ''}</span>}
         {parsed.duplicates.length > 0 && <span className="block">Repetidos: {parsed.duplicates.join(', ')}</span>}
       </p>
-      <Button kind="primary" block className="mt-3 !text-xl" disabled={!parsed.players.length} onClick={() => { onAdd(parsed.players); setText(''); }}>
+      <Button kind="primary" block className="mt-3" disabled={!parsed.players.length} onClick={() => { onAdd(parsed.players); setText(''); }}>
         {parsed.players.length ? `Adicionar ${parsed.players.length} nome${parsed.players.length > 1 ? 's' : ''}` : 'Adicionar'}
       </Button>
     </Panel>
@@ -482,15 +482,15 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
             {g.key === 'x' && <p className="m-0 mb-2 text-sm text-danger">Toque em M ou H em cada nome.</p>}
             <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
               {g.list.map((p) => (
-                <li key={p.id} className="flex items-center overflow-hidden rounded-full border-[1.5px] border-hair bg-bg">
+                <li key={p.id} className="flex items-center overflow-hidden rounded-full border-[1.5px] border-line bg-bg">
                   <button type="button" onClick={() => setEditing(p.id)} className="flex min-h-[40px] items-center gap-1.5 px-3 text-[15px] font-semibold text-ink">
                     {p.name || 'sem nome'}
                     {d.useLevel && <span className="rounded-full bg-hair px-1.5 text-[11px] font-bold">{levelLetter(p.level) ?? '?'}</span>}
                   </button>
                   {g.key === 'x' && (
                     <>
-                      <button type="button" aria-label={`${p.name} é mulher`} onClick={() => onUpdate(p.id, { gender: 'M' })} className="min-h-[40px] w-10 border-l border-hair font-extrabold text-sun">M</button>
-                      <button type="button" aria-label={`${p.name} é homem`} onClick={() => onUpdate(p.id, { gender: 'H' })} className="min-h-[40px] w-10 border-l border-hair font-extrabold text-sea">H</button>
+                      <button type="button" aria-label={`${p.name} é mulher`} onClick={() => onUpdate(p.id, { gender: 'M' })} className="min-h-[40px] w-10 border-l border-hair font-extrabold text-accentink">M</button>
+                      <button type="button" aria-label={`${p.name} é homem`} onClick={() => onUpdate(p.id, { gender: 'H' })} className="min-h-[40px] w-10 border-l border-hair font-extrabold text-ink">H</button>
                     </>
                   )}
                 </li>
@@ -505,7 +505,7 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
           {!confirmClear ? (
             <Button kind="quiet" className="self-start" onClick={() => setConfirmClear(true)}>Apagar a lista toda</Button>
           ) : (
-            <div className="flex flex-wrap items-center gap-2 rounded-xl bg-tintwarn p-3">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-tintwarn p-3">
               <span className="flex-1 font-semibold">Apagar os {d.players.length} nomes?</span>
               <Button kind="danger" onClick={() => { onClear(); setConfirmClear(false); }}>Apagar</Button>
               <Button onClick={() => setConfirmClear(false)}>Cancelar</Button>
@@ -518,10 +518,10 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
         {current && (
           <div className="flex flex-col gap-4">
             <input id={`edit-${current.id}`} aria-label="Nome" maxLength={40} value={current.name} onChange={(e) => onUpdate(current.id, { name: e.target.value })}
-              className="min-h-[48px] w-full rounded-[10px] border-[1.5px] border-hair bg-bg px-3 text-lg font-semibold text-ink" />
+              className="min-h-[48px] w-full rounded-lg border-[1.5px] border-line bg-bg px-3 text-lg font-semibold text-ink" />
             <Field label="Gênero">
               <Segmented<Gender> label="Gênero" value={current.gender} onChange={(g) => onUpdate(current.id, { gender: g })}
-                options={[{ value: 'M', label: 'Mulher', className: 'bg-sun text-surface' }, { value: 'H', label: 'Homem', className: 'bg-sea text-surface' }]} />
+                options={[{ value: 'M', label: 'Mulher', className: 'bg-accent text-onaccent' }, { value: 'H', label: 'Homem', className: 'bg-ink text-bg' }]} />
             </Field>
             {d.useLevel && (
               <Field label="Nível" hint={LEVELS.find((l) => l.value === current.level)?.title ?? 'Sem nível marcado'}>
@@ -531,7 +531,7 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
             )}
             <div className="grid grid-cols-2 gap-2">
               <Button kind="danger" onClick={() => { onRemove(current.id); setEditing(null); }}>Remover</Button>
-              <Button kind="primary" className="!text-xl" onClick={() => setEditing(null)}>Pronto</Button>
+              <Button kind="primary" onClick={() => setEditing(null)}>Pronto</Button>
             </div>
           </div>
         )}
@@ -558,8 +558,8 @@ function TiebreakEditor({ value, onChange }: { value: Tiebreak[]; onChange: (v: 
           const on = value.includes(k);
           const i = value.indexOf(k);
           return (
-            <li key={k} className={cx('flex min-h-[48px] items-center gap-2 rounded-[9px] border-[1.5px] px-2.5', on ? 'border-ink' : 'border-hair text-muted')}>
-              <input type="checkbox" aria-label={`Usar ${TIEBREAKS[k]}`} className="h-6 w-6 accent-[var(--sea)]" checked={on} onChange={(e) => onChange(e.target.checked ? [...value, k] : value.filter((x) => x !== k))} />
+            <li key={k} className={cx('flex min-h-[48px] items-center gap-2 rounded-lg border-[1.5px] px-2.5', on ? 'border-ink' : 'border-line text-muted')}>
+              <input type="checkbox" aria-label={`Usar ${TIEBREAKS[k]}`} className="h-6 w-6 accent-[var(--accent)]" checked={on} onChange={(e) => onChange(e.target.checked ? [...value, k] : value.filter((x) => x !== k))} />
               <span className="flex-1 font-semibold">{on ? `${i + 1}. ` : ''}{TIEBREAKS[k]}</span>
               {on && (
                 <>
@@ -592,14 +592,14 @@ function ManualPairs({ players, modality, pairs, onChange }: { players: Player[]
   return (
     <div className="mt-4 flex flex-col gap-3">
       {pairs.map((p, i) => (
-        <div key={i} className="flex flex-col gap-1.5 rounded-xl bg-bg p-2.5">
+        <div key={i} className="flex flex-col gap-1.5 rounded-lg bg-bg p-2.5">
           <div className="flex items-center justify-between">
             <b className="text-sm">Dupla {i + 1}</b>
             <button type="button" aria-label={`Remover dupla ${i + 1}`} className="h-9 w-9 text-xl text-muted" onClick={() => onChange(pairs.filter((_, j) => j !== i))}>×</button>
           </div>
           {([0, 1] as const).map((side) => (
             <select key={side} aria-label={`Dupla ${i + 1}, jogador ${side + 1}`} value={p[side]} onChange={(e) => setAt(i, side, e.target.value)}
-              className="min-h-[48px] w-full rounded-[9px] border-[1.5px] border-hair bg-surface px-2 text-base font-semibold text-ink">
+              className="min-h-[48px] w-full rounded-lg border-[1.5px] border-line bg-surface px-2 text-base font-semibold text-ink">
               <option value="">Escolha…</option>
               {options(p[side], p[side === 0 ? 1 : 0]).map((o) => <option key={o.id} value={o.id}>{o.name || '?'}{o.gender ? ` (${o.gender})` : ''}</option>)}
             </select>

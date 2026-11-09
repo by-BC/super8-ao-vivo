@@ -12,8 +12,8 @@ import { entriesToPlayers, settingsOf, signupSummary, splitEntries } from '../li
 
 const fail = (e: unknown) => errorText[e instanceof ApiFail ? e.code : 'SERVIDOR'];
 const GENDERS = [
-  { value: 'M' as Gender, label: 'Mulher', className: 'bg-sun text-surface' },
-  { value: 'H' as Gender, label: 'Homem', className: 'bg-sea text-surface' },
+  { value: 'M' as Gender, label: 'Mulher', className: 'bg-accent text-onaccent' },
+  { value: 'H' as Gender, label: 'Homem', className: 'bg-ink text-bg' },
 ];
 
 /** Página do torneio enquanto a lista está aberta: a galera se inscreve e quem organiza sorteia. */
@@ -43,7 +43,7 @@ export function SignupView({ code, tour, entries, adminKey, onChanged }: {
 
   async function share() {
     const msg = [
-      `🎾 *${tour.name.toUpperCase()}* · inscrições abertas!`,
+      `🎾 *${tour.name.toUpperCase()}* · inscrições abertas`,
       `Coloca teu nome${gendered ? ', gênero' : ''}${s.askLevel ? ' e nível (A a D)' : ''} aqui:`,
       shareLink(code),
       s.limit ? `_${s.perGender ? `${s.limit} vagas pra cada gênero` : `${s.limit} vagas`}. Depois disso entra na lista de espera._` : '',
@@ -54,13 +54,15 @@ export function SignupView({ code, tour, entries, adminKey, onChanged }: {
 
   return (
     <>
-      <section className={cx('rounded-xl px-4 py-4 shadow-card', s.open ? 'bg-ball text-ballink' : 'bg-surface')}>
-        <span className="text-[11px] font-extrabold uppercase tracking-[.14em]">{s.open ? 'Inscrições abertas' : 'Inscrições fechadas'}</span>
-        <div className="mt-1 font-display text-[30px] font-black uppercase leading-none tabnum">
+      <section className="rounded-lg bg-surface px-4 py-4 shadow-card">
+        <span className={cx('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-[.12em]', s.open ? 'bg-accent text-onaccent' : 'bg-ink text-bg')}>
+          {s.open && <i className="live-dot" aria-hidden />}{s.open ? 'Inscrições abertas' : 'Inscrições fechadas'}
+        </span>
+        <div className="mt-2 font-display text-[30px] font-extrabold leading-none tabnum">
           {confirmed.length} {confirmed.length === 1 ? 'inscrito' : 'inscritos'}
           {waiting.length > 0 && <span className="text-[20px]"> · {waiting.length} na espera</span>}
         </div>
-        <p className="m-0 mt-1 text-sm font-semibold opacity-85">
+        <p className="m-0 mt-1 text-sm font-semibold text-muted">
           {gendered && `${entries.filter((e) => e.gender === 'M').length} M · ${entries.filter((e) => e.gender === 'H').length} H · `}
           {signupSummary(s)}
         </p>
@@ -75,7 +77,7 @@ export function SignupView({ code, tour, entries, adminKey, onChanged }: {
             {mine.level != null && <span className="rounded-full bg-hair px-2 text-sm">Nível {levelLetter(mine.level)}</span>}
           </div>
           {myPlace && (
-            <p className={cx('m-0 mt-1 font-semibold', myPlace.waiting ? 'text-danger' : 'text-sea')}>
+            <p className={cx('m-0 mt-1 font-semibold', myPlace.waiting ? 'text-ink' : 'text-accentink')}>
               {myPlace.waiting ? `Lista de espera · ${myPlace.n}º da fila` : `Confirmado · ${myPlace.n}º da lista`}
             </p>
           )}
@@ -95,7 +97,7 @@ export function SignupView({ code, tour, entries, adminKey, onChanged }: {
             fresh.current = e.id;
             setMine(e);
             setEditing(false);
-            toast(place.waiting ? `Você entrou na lista de espera (${place.position}º).` : 'Inscrição confirmada!');
+            toast(place.waiting ? `Você entrou na lista de espera (${place.position}º).` : 'Inscrição confirmada.');
             await onChanged();
           }} />
       ) : (
@@ -179,7 +181,7 @@ function SignupForm({ code, s, initial, onSaved, onCancel }: {
         <label className="flex flex-col gap-1.5 font-bold">
           Seu nome
           <input id="inscricao-nome" maxLength={40} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Como a galera te chama"
-            className="min-h-[48px] w-full rounded-[10px] border-[1.5px] border-hair bg-bg px-3 text-lg font-semibold text-ink" />
+            className="min-h-[48px] w-full rounded-lg border-[1.5px] border-line bg-bg px-3 text-lg font-semibold text-ink" />
         </label>
         {needGender && (
           <Field label="Joga no">
@@ -195,7 +197,7 @@ function SignupForm({ code, s, initial, onSaved, onCancel }: {
         )}
         <div className={cx('grid gap-2', onCancel ? 'grid-cols-2' : 'grid-cols-1')}>
           {onCancel && <Button onClick={onCancel}>Cancelar</Button>}
-          <Button kind="primary" className="!text-xl" disabled={!ok || busy} onClick={submit}>
+          <Button kind="primary" disabled={!ok || busy} onClick={submit}>
             {busy ? 'Enviando…' : initial ? 'Salvar' : 'Confirmar inscrição'}
           </Button>
         </div>
@@ -209,7 +211,7 @@ function PublicList({ entries, s, mineId }: { entries: PublicEntry[]; s: SignupS
   const groups = gendered
     ? [{ key: 'M', title: 'Mulheres', list: entries.filter((e) => e.gender === 'M') }, { key: 'H', title: 'Homens', list: entries.filter((e) => e.gender === 'H') }]
     : [{ key: 'all', title: 'Jogadores', list: entries }];
-  if (!entries.length) return <Panel title="Lista"><p className="m-0 text-muted">Ninguém ainda. Seja o primeiro!</p></Panel>;
+  if (!entries.length) return <Panel title="Lista"><p className="m-0 text-muted">Ninguém ainda. Seja o primeiro.</p></Panel>;
   const waitIds = new Set(splitEntries(entries, s).waiting.map((e) => e.id));
   return (
     <Panel title="Lista">
@@ -227,7 +229,7 @@ function PublicList({ entries, s, mineId }: { entries: PublicEntry[]; s: SignupS
               </ol>
               {wait.length > 0 && (
                 <>
-                  <h4 className="m-0 mb-1 mt-3 text-xs font-extrabold uppercase tracking-[.12em] text-danger">Lista de espera</h4>
+                  <h4 className="m-0 mb-1 mt-3 text-xs font-extrabold uppercase tracking-[.12em] text-muted">Lista de espera</h4>
                   <ol className="m-0 flex list-none flex-col p-0 opacity-70">
                     {wait.map((e, i) => <EntryRow key={e.id} n={i + 1} name={e.name} me={e.id === mineId} />)}
                   </ol>
@@ -246,7 +248,7 @@ function EntryRow({ n, name, me }: { n: number; name: string; me: boolean }) {
     <li className={cx('flex items-center gap-2 border-b border-hair py-2 text-[17px]', me && 'font-bold')}>
       <span className="w-7 text-right text-sm text-muted tabnum">{n}.</span>
       <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{name}</span>
-      {me && <span className="rounded-full bg-ball px-2 text-[11px] font-extrabold uppercase text-ballink">você</span>}
+      {me && <span className="rounded-full bg-accent px-2 text-[11px] font-extrabold uppercase text-onaccent">você</span>}
     </li>
   );
 }
@@ -291,11 +293,11 @@ function AdminPanel({ code, adminKey, tour, entries, onChanged }: {
             </Button>
           </div>
           <label className="flex min-h-[44px] items-start gap-3 text-[15px]">
-            <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--sea)]" checked={s.askLevel} disabled={busy === 'settings'} onChange={(e) => setSettings({ askLevel: e.target.checked })} />
+            <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--accent)]" checked={s.askLevel} disabled={busy === 'settings'} onChange={(e) => setSettings({ askLevel: e.target.checked })} />
             <span>Perguntar o nível (A a D)<small className="block text-muted">Pra montar duplas e jogos equilibrados.</small></span>
           </label>
           <label className="flex min-h-[44px] items-start gap-3 text-[15px]">
-            <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--sea)]" checked={!!s.limit} disabled={busy === 'settings'} onChange={(e) => setSettings({ limit: e.target.checked ? 16 : null })} />
+            <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--accent)]" checked={!!s.limit} disabled={busy === 'settings'} onChange={(e) => setSettings({ limit: e.target.checked ? 16 : null })} />
             <span>Limitar vagas<small className="block text-muted">Quem passar do limite cai na lista de espera e sobe sozinho se alguém sair.</small></span>
           </label>
           {!!s.limit && (
@@ -305,7 +307,7 @@ function AdminPanel({ code, adminKey, tour, entries, onChanged }: {
               </Field>
               {gendered && (
                 <label className="flex min-h-[44px] items-start gap-3 text-[15px]">
-                  <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--sea)]" checked={s.perGender} onChange={(e) => setSettings({ perGender: e.target.checked })} />
+                  <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--accent)]" checked={s.perGender} onChange={(e) => setSettings({ perGender: e.target.checked })} />
                   <span>Vagas por gênero<small className="block text-muted">Ex.: 8 homens e 8 mulheres no misto.</small></span>
                 </label>
               )}
@@ -328,7 +330,7 @@ function AdminPanel({ code, adminKey, tour, entries, onChanged }: {
                       <b className="leading-tight [overflow-wrap:break-word]">{e.name}</b>
                       {(wait || e.byAdmin) && (
                         <small className="text-[12px] font-semibold leading-tight">
-                          {wait && <span className="text-danger">lista de espera</span>}
+                          {wait && <span className="font-semibold text-ink">lista de espera</span>}
                           {wait && e.byAdmin && ' · '}
                           {e.byAdmin && <span className="text-muted">por você</span>}
                         </small>
@@ -339,7 +341,7 @@ function AdminPanel({ code, adminKey, tour, entries, onChanged }: {
                     {LEVELS.map((l) => (
                       <button key={l.letter} type="button" aria-pressed={e.level === l.value} disabled={busy === e.id}
                         onClick={() => run(e.id, () => api.adminEntry(code, adminKey, e.id, e.name, e.gender, e.level === l.value ? null : l.value))}
-                        className={cx('h-8 w-8 rounded-lg border-[1.5px] font-display text-base font-black', e.level === l.value ? 'border-ink bg-ink text-bg' : 'border-hair text-muted')}>
+                        className={cx('h-8 w-8 rounded border-[1.5px] text-base font-bold', e.level === l.value ? 'border-ink bg-ink text-bg' : 'border-line text-ink')}>
                         {l.letter}
                       </button>
                     ))}
@@ -358,18 +360,18 @@ function AdminPanel({ code, adminKey, tour, entries, onChanged }: {
         <AddPeople code={code} adminKey={adminKey} s={s} onDone={async () => { await load(); await onChanged(); }} />
       </Panel>
 
-      <section className="rounded-xl bg-ink px-4 py-4 text-bg shadow-card">
-        <b className="block font-display text-[24px] font-black uppercase leading-none">{tour.config.formatLater ? 'Montar o jogo' : 'Fechar e sortear'}</b>
+      <section className="rounded-lg bg-ink px-4 py-4 text-bg shadow-card">
+        <b className="block font-display text-[24px] font-extrabold leading-none">{tour.config.formatLater ? 'Montar o jogo' : 'Fechar e sortear'}</b>
         <p className="m-0 mt-1 text-sm opacity-85">
           Entram os {confirmed.length} confirmados{waiting.length ? `; ${waiting.length} da espera ficam de fora` : ''}.
           {s.askLevel && noLevel > 0 && ` ${noLevel} sem nível contam como meio-termo.`}
         </p>
-        <Button kind="primary" block className="mt-3 !text-xl" disabled={!list || confirmed.length < 4} onClick={() => setDrawOpen(true)}>{tour.config.formatLater ? 'Ver sugestões e sortear' : 'Sortear'}</Button>
+        <Button kind="primary" block className="mt-3" disabled={!list || confirmed.length < 4} onClick={() => setDrawOpen(true)}>{tour.config.formatLater ? 'Ver sugestões e sortear' : 'Sortear'}</Button>
       </section>
 
       {list && (
         <DrawSheet open={drawOpen} onClose={() => setDrawOpen(false)} code={code} adminKey={adminKey} tour={tour} confirmed={confirmed}
-          onStarted={async () => { setDrawOpen(false); toast('Sorteio feito. Bora jogar!'); await onChanged(); }} />
+          onStarted={async () => { setDrawOpen(false); toast('Sorteio feito. Bora jogar.'); await onChanged(); }} />
       )}
     </>
   );
@@ -402,7 +404,7 @@ function AddPeople({ code, adminKey, s, onDone }: { code: string; adminKey: stri
     <div className="mt-4 flex flex-col gap-2 border-t border-hair pt-3">
       <b>Adicionar quem não tem celular</b>
       <textarea id="admin-nomes" rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="Um nome ou a lista do grupo"
-        className="w-full rounded-[10px] border-[1.5px] border-hair bg-bg p-3 text-base text-ink" />
+        className="w-full rounded-lg border-[1.5px] border-line bg-bg p-3 text-base text-ink" />
       {gendered && (
         <Segmented<Gender | 'auto'> label="Gênero desses nomes" value={gender ?? 'auto'} onChange={(g) => setGender(g === 'auto' ? null : g)}
           options={[{ value: 'auto', label: 'Pela lista' }, ...GENDERS]} />
@@ -428,7 +430,7 @@ const hm = (min: number) => `${Math.floor(min / 60)}h${String(min % 60).padStart
 function Tick({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint?: string }) {
   return (
     <label className="flex min-h-[44px] items-start gap-3 text-[15px]">
-      <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--sea)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--accent)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span>{title}{hint && <small className="block text-muted">{hint}</small>}</span>
     </label>
   );
@@ -504,9 +506,9 @@ function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }
             const on = picked === x.key;
             return (
               <button key={x.key} type="button" aria-pressed={on} onClick={() => { setCfg(x.config); setPicked(x.key); }}
-                className={cx('flex flex-col gap-1 rounded-[12px] border-[1.5px] px-3 py-2.5 text-left', on ? 'border-ink bg-ball text-ballink' : 'border-hair bg-bg')}>
+                className={cx('flex flex-col gap-1 rounded-lg border-[1.5px] px-3 py-2.5 text-left', on ? 'border-ink bg-surface shadow-[inset_0_0_0_1px_var(--ink)]' : 'border-line bg-bg')}>
                 <span className="flex items-center justify-between gap-2">
-                  <b className="font-display text-[20px] font-black uppercase leading-none">{x.title}</b>
+                  <b className="font-display text-[20px] font-extrabold leading-none">{x.title}</b>
                   <span className={cx('flex-none rounded-full px-2 py-0.5 text-[12px] font-extrabold', on ? 'bg-ink text-bg' : x.fits ? 'bg-tintok' : 'bg-tintwarn')}>~{hm(x.minutes)}</span>
                 </span>
                 <span className={cx('text-[13px] leading-snug', on ? '' : 'text-muted')}>{x.why}</span>
@@ -516,7 +518,7 @@ function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }
           })}
         </div>
 
-        <details className="rounded-[12px] border-[1.5px] border-hair px-3 py-2" open={manual} onToggle={(e) => setManual((e.target as HTMLDetailsElement).open)}>
+        <details className="rounded-lg border-[1.5px] border-line px-3 py-2" open={manual} onToggle={(e) => setManual((e.target as HTMLDetailsElement).open)}>
           <summary className="min-h-[40px] cursor-pointer py-2 font-bold">Ajustar à mão</summary>
           <div className="flex flex-col gap-4 pb-2 pt-1">
             {mods.length > 1 && (
@@ -572,7 +574,7 @@ function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }
         {check.issues.map((i) => <Note key={i.text} kind="warn">{i.text}</Note>)}
         {check.warnings.map((w) => <Note key={w} kind="ok">{w}</Note>)}
         <p className="m-0 text-sm text-muted">Depois do sorteio a inscrição fecha e a página vira a tabela de jogos.</p>
-        <Button kind="primary" block className="!text-xl" disabled={!check.ok || busy} onClick={start}>{busy ? 'Sorteando…' : 'Sortear e começar'}</Button>
+        <Button kind="primary" block disabled={!check.ok || busy} onClick={start}>{busy ? 'Sorteando…' : 'Sortear e começar'}</Button>
       </div>
     </Sheet>
   );

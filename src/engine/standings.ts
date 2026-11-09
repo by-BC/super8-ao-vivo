@@ -42,7 +42,7 @@ export function teamEntities(teams: Team[], players: Player[]): Entity[] {
   return teams.map((t) => {
     const ps = t.players.map((id) => byId.get(id));
     const g = ps[0]?.gender && ps.every((p) => p?.gender === ps[0]?.gender) ? ps[0]!.gender : null;
-    return { key: t.id, ids: [...t.players], label: ps.map((p) => p?.name ?? '?').join(' & '), gender: g };
+    return { key: t.id, ids: [...t.players], label: ps.map((p) => p?.name ?? '?').join(' e '), gender: g };
   });
 }
 

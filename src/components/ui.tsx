@@ -5,11 +5,11 @@ export { cx };
 
 type BtnKind = 'primary' | 'line' | 'ghost' | 'danger' | 'quiet';
 const btnKind: Record<BtnKind, string> = {
-  primary: 'bg-ball text-ballink font-display font-extrabold uppercase tracking-wide text-[22px] shadow-[0_3px_0_rgba(0,0,0,.2)] active:translate-y-0.5 active:shadow-[0_1px_0_rgba(0,0,0,.2)]',
+  primary: 'bg-accent text-onaccent font-bold text-[17px] active:translate-y-px',
   line: 'border-[1.5px] border-ink text-ink font-bold',
-  ghost: 'border-[1.5px] border-dashed border-hair text-ink font-bold',
-  danger: 'bg-danger text-surface font-bold',
-  quiet: 'text-ink font-semibold underline underline-offset-4 decoration-hair',
+  ghost: 'border-[1.5px] border-dashed border-line text-ink font-bold',
+  danger: 'bg-danger text-ondanger font-bold',
+  quiet: 'text-ink font-semibold underline underline-offset-4 decoration-line',
 };
 
 export function Button({ kind = 'line', block, className, ...p }: React.ButtonHTMLAttributes<HTMLButtonElement> & { kind?: BtnKind; block?: boolean }) {
@@ -17,17 +17,17 @@ export function Button({ kind = 'line', block, className, ...p }: React.ButtonHT
     <button
       type="button"
       {...p}
-      className={cx('min-h-[48px] rounded-[10px] px-4 py-2.5 text-base disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0', btnKind[kind], block && 'w-full', className)}
+      className={cx('min-h-[48px] rounded-lg px-4 py-2.5 text-base disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0', btnKind[kind], block && 'w-full', className)}
     />
   );
 }
 
 export function Panel({ title, aside, children, className }: { title?: ReactNode; aside?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={cx('rounded-xl bg-surface p-4 shadow-card', className)}>
+    <section className={cx('rounded-lg bg-surface p-4 shadow-card', className)}>
       {(title || aside) && (
         <div className="mb-3 flex items-center justify-between gap-3">
-          {title && <h2 className="m-0 font-display text-[26px] font-extrabold uppercase leading-none tracking-wide">{title}</h2>}
+          {title && <h2 className="m-0 font-display text-[26px] font-extrabold leading-none">{title}</h2>}
           {aside}
         </div>
       )}
@@ -43,7 +43,7 @@ export function Pill({ children, className }: { children: ReactNode; className?:
 export function GenderDot({ g }: { g: 'H' | 'M' | null | undefined }) {
   if (!g) return null;
   return (
-    <i aria-hidden className={cx('inline-grid h-[18px] w-[18px] flex-none place-items-center rounded-full text-[10px] font-extrabold not-italic text-surface', g === 'H' ? 'bg-sea' : 'bg-sun')}>
+    <i aria-hidden className={cx('inline-grid h-[18px] w-[18px] flex-none place-items-center rounded-full text-[10px] font-extrabold not-italic', g === 'H' ? 'bg-ink text-bg' : 'bg-accent text-onaccent')}>
       {g}
     </i>
   );
@@ -72,12 +72,12 @@ export function Choices<T extends string>({ name, value, options, onChange, cols
             disabled={disabled}
             onClick={() => onChange(o.value)}
             className={cx(
-              'flex min-h-[52px] items-center gap-3 rounded-[10px] border-[1.5px] text-left disabled:opacity-50',
+              'flex min-h-[52px] items-center gap-3 rounded-lg border-[1.5px] text-left disabled:opacity-50',
               compact ? 'px-3 py-2' : 'p-3',
-              on ? 'border-ink bg-surface shadow-[inset_0_0_0_1px_var(--ink)]' : 'border-hair bg-bg',
+              on ? 'border-ink bg-surface shadow-[inset_0_0_0_1px_var(--ink)]' : 'border-line bg-bg',
             )}
           >
-            <span aria-hidden className={cx('grid h-5 w-5 flex-none place-items-center rounded-full border-2', on ? 'border-ink' : 'border-hair')}>
+            <span aria-hidden className={cx('grid h-5 w-5 flex-none place-items-center rounded-full border-2', on ? 'border-ink' : 'border-line')}>
               {on && <i className="block h-2.5 w-2.5 rounded-full bg-ink" />}
             </span>
             <span className="flex min-w-0 flex-col gap-0.5">
@@ -95,7 +95,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
   value: T | null; options: { value: T; label: string; className?: string }[]; onChange: (v: T) => void; label: string;
 }) {
   return (
-    <div role="group" aria-label={label} className="flex overflow-hidden rounded-[9px] border-[1.5px] border-hair">
+    <div role="group" aria-label={label} className="flex overflow-hidden rounded-lg border-[1.5px] border-line">
       {options.map((o) => (
         <button
           key={o.value}
@@ -113,14 +113,14 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 
 export function Stepper({ id, value, min, max, onChange, label }: { id: string; value: number; min: number; max: number; onChange: (n: number) => void; label: string }) {
   return (
-    <div className="flex items-center overflow-hidden rounded-[10px] border-[1.5px] border-hair bg-bg">
+    <div className="flex items-center overflow-hidden rounded-lg border-[1.5px] border-line bg-bg">
       <button type="button" aria-label={`Diminuir ${label}`} className="h-11 w-11 text-2xl disabled:opacity-30" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))}>−</button>
       <input
         id={id}
         type="number"
         inputMode="numeric"
         aria-label={label}
-        className="w-14 border-0 bg-transparent text-center font-display text-[28px] font-black text-ink"
+        className="w-14 border-0 bg-transparent text-center font-body tabnum text-[28px] font-bold text-ink"
         value={value}
         min={min}
         max={max}
@@ -147,7 +147,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 
 export function Note({ kind, children }: { kind: 'warn' | 'ok'; children: ReactNode }) {
-  return <div className={cx('rounded-[10px] px-3.5 py-3 text-[15px] leading-snug', kind === 'warn' ? 'bg-tintwarn' : 'bg-tintok')}>{children}</div>;
+  return <div className={cx('rounded-lg px-3.5 py-3 text-[15px] leading-snug', kind === 'warn' ? 'bg-tintwarn' : 'bg-tintok')}>{children}</div>;
 }
 
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
@@ -171,7 +171,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="m-0 font-display text-2xl font-extrabold uppercase">{title}</h2>
+          <h2 className="m-0 font-display text-2xl font-extrabold">{title}</h2>
           <button type="button" aria-label="Fechar" className="h-10 w-10 text-2xl text-muted" onClick={onClose}>×</button>
         </div>
         {children}
@@ -198,7 +198,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-40 flex flex-col items-center gap-2 px-4">
         {items.map((t) => (
-          <div key={t.id} className="max-w-[min(520px,100%)] rounded-xl bg-ink px-4 py-3 font-semibold text-bg shadow-card">{t.text}</div>
+          <div key={t.id} className="max-w-[min(520px,100%)] rounded-lg bg-ink px-4 py-3 font-semibold text-bg shadow-card">{t.text}</div>
         ))}
       </div>
     </ToastCtx.Provider>
@@ -222,7 +222,7 @@ export function CopySheet({ text, onClose }: { text: string | null; onClose: () 
         readOnly
         value={text ?? ''}
         onFocus={(e) => e.currentTarget.select()}
-        className="min-h-[260px] w-full rounded-[9px] border-[1.5px] border-hair bg-bg p-2.5 text-base text-ink"
+        className="min-h-[260px] w-full rounded-lg border-[1.5px] border-line bg-bg p-2.5 text-base text-ink"
       />
     </Sheet>
   );
