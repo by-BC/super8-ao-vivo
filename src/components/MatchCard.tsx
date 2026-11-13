@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { evaluate, type Match, type Player, type Scoring } from '../engine';
-import { cx, GenderDot } from './ui';
+import { Avatar, cx, GenderDot, RosterCtx } from './ui';
 
 interface Props {
   match: Match;
@@ -112,8 +112,8 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
         <p className="relative m-0 rounded bg-hair px-2 py-1 text-[13px] font-semibold text-ink">{lockedNote}</p>
       )}
       {m.counts?.length ? (
-        <p className="relative m-0 rounded bg-highlight px-2 py-1 text-[13px] font-semibold text-ink">
-          Vale só para {m.counts.map((id) => players.get(id)?.name ?? '?').join(' e ')}
+        <p className="relative m-0 self-start rounded-full bg-selecttint px-2.5 py-0.5 text-[12px] font-bold text-ink">
+          Extra · vale só para {m.counts.map((id) => players.get(id)?.name ?? '?').join(' e ')}
         </p>
       ) : null}
       {side('a')}
@@ -123,10 +123,16 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
   );
 }
 
-export function Name({ p, showGender, muted, mine, size = 'lg' }: { p: Player | undefined; showGender: boolean; muted?: boolean; mine?: boolean; size?: 'lg' | 'md' }) {
+/**
+ * Nome do jogador. Dentro de um torneio vem com o personagem dele (que já diz o gênero);
+ * fora, ou com `avatar={false}`, cai na bolinha H/M quando o gênero importa.
+ */
+export function Name({ p, showGender, muted, mine, size = 'lg', avatar = true }: { p: Player | undefined; showGender: boolean; muted?: boolean; mine?: boolean; size?: 'lg' | 'md'; avatar?: boolean }) {
+  const roster = useContext(RosterCtx);
+  const withAvatar = avatar && !!p && !!roster?.byId.has(p.id);
   return (
-    <span className="inline-flex min-w-0 items-center gap-1.5">
-      {showGender && <GenderDot g={p?.gender} />}
+    <span className="inline-flex min-w-0 items-center gap-2">
+      {withAvatar ? <Avatar id={p!.id} name={p!.name} size={size === 'lg' ? 30 : 24} className={muted ? 'opacity-60' : ''} /> : showGender && <GenderDot g={p?.gender} />}
       <span className={cx('font-bold leading-tight [overflow-wrap:break-word]', size === 'lg' ? 'text-[17px] min-[400px]:text-lg' : 'text-base', muted && 'text-muted', mine && 'rounded-md bg-accenttint px-1.5 text-accentink')}>{p?.name ?? '?'}{mine ? ' (você)' : ''}</span>
     </span>
   );

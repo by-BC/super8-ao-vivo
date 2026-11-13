@@ -22,7 +22,7 @@ function RowItem({ r, players, showGender, media, played, qualifies, compact, on
       </span>
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 flex-col gap-0.5">
-          {r.ids.map((id) => <Name key={id} p={players.get(id)} showGender={showGender} size="md" />)}
+          {r.ids.map((id) => <Name key={id} p={players.get(id)} showGender={showGender} size="md" avatar={false} />)}
         </div>
         {!compact && (
           <span className="text-[13px] font-semibold text-muted tabnum">

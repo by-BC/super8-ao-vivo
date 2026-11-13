@@ -4,7 +4,7 @@ import {
   buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, scheduleMessage,
   scoringLabel, tournamentStatus, type Match, type Player,
 } from '../engine';
-import { MatchCard, Name } from '../components/MatchCard';
+import { MatchCard } from '../components/MatchCard';
 import { PodiumSheet } from '../components/PodiumSheet';
 import { CardSheet } from '../components/CardSheet';
 import { SignupView } from './Signup';
@@ -418,6 +418,7 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
   }, [matches]);
   const hasNextStages = config.format === 'mexicano' || matches.some((m) => m.stage === 'mata');
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [showAllDone, setShowAllDone] = useState<Set<string>>(new Set());
 
   // abre direto na rodada que está rolando e mostra um atalho quando ela sai da tela
   const jumped = useRef(false);
@@ -446,7 +447,12 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
           const allDone = b.ms.every(isDone);
           const label = b.ms[0].stage === 'mata' ? (b.ms[0].label?.replace(/ \d+$/, '') ?? 'Mata') : `R${b.ms[0].round}`;
           return (
-            <a key={b.key} href={`#bloco-${i}`} onClick={(e) => { e.preventDefault(); document.getElementById(`bloco-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+            <a key={b.key} href={`#bloco-${i}`} onClick={(e) => {
+                e.preventDefault();
+                // rodada encerrada: abre ela inteira antes de rolar até lá
+                if (allDone && i !== current) setOpen((o) => new Set(o).add(b.key));
+                window.setTimeout(() => document.getElementById(`bloco-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
+              }}
               className={cx('flex min-h-[38px] flex-none items-center rounded-full border-[1.5px] px-3.5 text-sm font-bold no-underline', i === current ? 'border-transparent bg-select text-onselect' : allDone ? 'border-line bg-surface text-muted' : 'border-line bg-surface text-ink')}>
               {label}{allDone ? ' ✓' : ''}
             </a>
@@ -473,7 +479,44 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
       )}
 
       <div className="flex flex-col gap-7">
-        {blocks.map((b, i) => {
+        {groupDone(blocks.map((b, i) => ({ b, i, collapsed: b.ms.every(isDone) && i !== current && !open.has(b.key) }))).map((g) => {
+          if (g.done) {
+            // rodadas encerradas e recolhidas: um cartão só, com o resultado de cada jogo numa linha
+            const many = g.items.length > 4 && !showAllDone.has(g.items[0].b.key);
+            const shown = many ? g.items.slice(-3) : g.items;
+            return (
+              <section key={`done-${g.items[0].b.key}`} className="overflow-hidden rounded-lg bg-surface shadow-card" aria-label="Rodadas encerradas">
+                <header className="flex items-center gap-2 px-4 pb-1 pt-3">
+                  <span className="text-[11px] font-extrabold uppercase tracking-[.12em] text-muted">
+                    ✓ {g.items.length === 1 ? 'Rodada encerrada' : `${g.items.length} rodadas encerradas`}
+                  </span>
+                  {many && (
+                    <button type="button" onClick={() => setShowAllDone((o) => new Set(o).add(g.items[0].b.key))}
+                      className="ml-auto text-[13px] font-bold text-accentink underline underline-offset-2">Ver todas</button>
+                  )}
+                </header>
+                <ul className="m-0 list-none p-0">
+                  {shown.map(({ b, i }) => (
+                    <li key={b.key} id={`bloco-${i}`} className="scroll-mt-4 border-t border-hair first:border-t-0">
+                      <button type="button" onClick={() => toggle(b.key)} aria-expanded={false} aria-label={`${blockTitle(b.ms[0])}: abrir os jogos`}
+                        className="flex w-full items-start gap-3 px-4 py-2.5 text-left active:bg-hair">
+                        <span className="w-10 flex-none pt-0.5 font-display text-[15px] font-extrabold text-muted">{blockShort(b.ms[0])}</span>
+                        <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                          {b.ms.map((m) => <ResultLine key={m.id} m={m} players={players} config={config} me={me} />)}
+                        </span>
+                        <span aria-hidden className="pt-0.5 text-sm text-muted">▾</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {many && (
+                  <button type="button" onClick={() => setShowAllDone((o) => new Set(o).add(g.items[0].b.key))}
+                    className="w-full border-t border-hair py-2.5 text-sm font-bold text-muted">+ {g.items.length - 3} rodadas anteriores</button>
+                )}
+              </section>
+            );
+          }
+          const { b, i } = g.items[0];
           const first = b.ms[0];
           const allDone = b.ms.every(isDone);
           const playing = new Set(b.ms.flatMap((m) => [...m.a, ...m.b]));
@@ -482,35 +525,19 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
             ? plist.filter((p) => !playing.has(p.id) && divs.some((d) => d.players.some((x) => x.id === p.id))
               && (!groupOf.size || b.ms.some((m) => `${m.division}|${m.grp}` === groupOf.get(p.id))))
             : [];
-          const collapsed = allDone && i !== current && !open.has(b.key);
-          const title = first.stage === 'mata' ? (first.label?.replace(/ \d+$/, '') ?? 'Mata-mata') : `Rodada ${first.round}`;
-          if (collapsed) {
-            return (
-              <section key={b.key} id={`bloco-${i}`} className="scroll-mt-4">
-                <button type="button" onClick={() => toggle(b.key)} aria-expanded={false}
-                  className="flex min-h-[52px] w-full items-center gap-2.5 rounded-lg bg-surface px-4 text-left shadow-card">
-                  <span className="font-display text-2xl font-extrabold text-muted">{title}</span>
-                  <Pill className="border-[1.5px] border-line text-muted">Encerrada</Pill>
-                  <span className="ml-auto text-sm font-bold text-muted">Ver {b.ms.length} jogo{b.ms.length > 1 ? 's' : ''} ▾</span>
-                </button>
-              </section>
-            );
-          }
           return (
             <section key={b.key} id={`bloco-${i}`} className="flex scroll-mt-4 flex-col gap-2.5">
               <header className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-                <h3 className={cx('m-0 font-display text-[28px] font-extrabold leading-none', allDone && 'text-muted')}>
-                  {first.stage === 'mata' ? (first.label?.replace(/ \d+$/, '') ?? 'Mata-mata') : `Rodada ${first.round}`}
-                </h3>
+                <h3 className={cx('m-0 font-display text-[28px] font-extrabold leading-none', allDone && 'text-muted')}>{blockTitle(first)}</h3>
                 {i === current && <Pill className="bg-select text-onselect">Agora</Pill>}
-                {allDone && <button type="button" onClick={() => toggle(b.key)} aria-expanded className="rounded-full border-[1.5px] border-line px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-muted">Encerrada · recolher ▴</button>}
-                {rest.length > 0 && (
-                  <p className="m-0 ml-auto flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
-                    <span className="text-[11px] font-extrabold uppercase tracking-[.12em]">Folga</span>
-                    {rest.map((p) => <Name key={p.id} p={p} showGender={showGender} size="md" />)}
-                  </p>
+                {allDone && (
+                  <>
+                    <span className="text-[12px] font-bold uppercase tracking-wider text-muted">✓ Encerrada</span>
+                    <button type="button" onClick={() => toggle(b.key)} aria-expanded className="ml-auto min-h-[36px] rounded-full px-2 text-[13px] font-bold text-muted underline underline-offset-2">Recolher</button>
+                  </>
                 )}
               </header>
+              {rest.length > 0 && <Folga people={rest} />}
               {i === current && <Costura className="my-1" />}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {b.ms.map((m) => (
@@ -524,6 +551,53 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
         })}
       </div>
     </>
+  );
+}
+
+const blockTitle = (m: Match) => (m.stage === 'mata' ? (m.label?.replace(/ \d+$/, '') ?? 'Mata-mata') : `Rodada ${m.round}`);
+const blockShort = (m: Match) => (m.stage === 'mata' ? (m.label?.replace(/ \d+$/, '').slice(0, 5) ?? 'MM') : `R${m.round}`);
+
+/** Junta rodadas encerradas e recolhidas que vêm uma atrás da outra num grupo só. */
+function groupDone<T extends { collapsed: boolean }>(list: T[]): { done: boolean; items: T[] }[] {
+  const out: { done: boolean; items: T[] }[] = [];
+  for (const x of list) {
+    const last = out[out.length - 1];
+    if (x.collapsed && last?.done) last.items.push(x);
+    else out.push({ done: x.collapsed, items: [x] });
+  }
+  return out;
+}
+
+/** Uma partida encerrada numa linha: dupla, placar e dupla, com o vencedor em destaque. */
+function ResultLine({ m, players, config, me }: { m: Match; players: Map<string, Player>; config: import('../engine').Config; me: string | null }) {
+  const knockout = m.stage === 'mata';
+  const r = evaluate(m.sets, config.scoring, knockout, knockout && m.b.length === 0);
+  const nm = (ids: string[]) => ids.map((id) => players.get(id)?.name ?? '?').join(' e ');
+  if (!m.b.length) return <span className="text-[14px]"><b>{nm(m.a)}</b> <span className="text-muted">avança direto</span></span>;
+  const cls = (s: 'a' | 'b') => cx('min-w-0 [overflow-wrap:anywhere]', r.winner === s ? 'font-bold text-ink' : r.draw ? 'font-semibold' : 'text-muted', me && (s === 'a' ? m.a : m.b).includes(me) && 'underline decoration-accent decoration-2 underline-offset-2');
+  return (
+    <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[14px] leading-tight">
+      <span className={cx(cls('a'), 'text-right')}>{nm(m.a)}</span>
+      <span className="rounded-md bg-bg px-2 py-0.5 font-display text-[15px] font-extrabold tabnum">{formatScore(m.sets, config.scoring).replace(' x ', '–')}</span>
+      <span className={cls('b')}>{nm(m.b)}</span>
+    </span>
+  );
+}
+
+/** Quem folga na rodada: os personagens empilhados e os nomes numa linha; toque pra ver todos. */
+function Folga({ people }: { people: Player[] }) {
+  const [all, setAll] = useState(false);
+  const names = people.map((p) => p.name);
+  const preview = names.slice(0, 3).join(', ') + (names.length > 3 ? ` e mais ${names.length - 3}` : '');
+  return (
+    <button type="button" onClick={() => setAll((v) => !v)} aria-expanded={all}
+      className="flex min-h-[40px] items-center gap-2.5 self-start rounded-full bg-surface py-1 pl-1.5 pr-3 text-left shadow-card">
+      <span className="flex -space-x-2">{people.slice(0, 5).map((p) => <Avatar key={p.id} id={p.id} name={p.name} size={26} />)}</span>
+      <span className="text-[13px] leading-snug text-muted">
+        <b className="font-extrabold uppercase tracking-[.1em] text-ink">Folga</b>{' '}
+        {all ? names.join(', ') : preview}
+      </span>
+    </button>
   );
 }
 
