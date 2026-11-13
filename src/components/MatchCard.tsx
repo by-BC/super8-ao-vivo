@@ -56,7 +56,7 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
     : r.progress === 'desempate'
       ? ['Game de desempate', 'bg-highlight text-ink']
       : r.started
-        ? [r.progress ? `Em jogo · ${r.progress}` : 'Em jogo', 'bg-accent text-onaccent']
+        ? [r.progress ? `Em jogo · ${r.progress}` : 'Em jogo', 'bg-select text-onselect']
         : ['A jogar', 'shadow-[inset_0_0_0_1.5px_var(--line)]'];
   const multi = scoring.type === 'melhor3';
   const lastIdx = Math.max(0, m.sets.length - 1);
@@ -89,7 +89,7 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
           <output aria-label={`${label}: ${score}`} className={cx('min-w-[1.1em] text-center font-display text-[48px] font-extrabold leading-none tabnum max-[380px]:text-[40px]', lost && 'text-muted')}>{score}</output>
           {scoreable && (
             <button type="button" aria-label={`Game para ${label}`} disabled={r.done} onClick={() => onPoint(s, 1)}
-              className="h-[52px] w-[52px] rounded-full bg-accent text-3xl font-semibold leading-none text-onaccent active:translate-y-px disabled:opacity-25 max-[380px]:h-12 max-[380px]:w-12">+</button>
+              className="h-[52px] w-[52px] rounded-full bg-score text-3xl font-semibold leading-none text-onscore active:translate-y-px disabled:opacity-25 max-[380px]:h-12 max-[380px]:w-12">+</button>
           )}
         </div>
       </div>
@@ -127,7 +127,7 @@ export function Name({ p, showGender, muted, mine, size = 'lg' }: { p: Player | 
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5">
       {showGender && <GenderDot g={p?.gender} />}
-      <span className={cx('font-bold leading-tight [overflow-wrap:break-word]', size === 'lg' ? 'text-[17px] min-[400px]:text-lg' : 'text-base', muted && 'text-muted', mine && 'rounded bg-accent px-1.5 text-onaccent')}>{p?.name ?? '?'}{mine ? ' (você)' : ''}</span>
+      <span className={cx('font-bold leading-tight [overflow-wrap:break-word]', size === 'lg' ? 'text-[17px] min-[400px]:text-lg' : 'text-base', muted && 'text-muted', mine && 'rounded-md bg-accenttint px-1.5 text-accentink')}>{p?.name ?? '?'}{mine ? ' (você)' : ''}</span>
     </span>
   );
 }

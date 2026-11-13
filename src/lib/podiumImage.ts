@@ -1,5 +1,6 @@
 import type { Podium } from '../engine';
-import { SYMBOL_R, SYMBOL_SEAM, SYMBOL_STROKE } from './brandPaths';
+import { avatarColor, avatarInk, initialsOf } from './avatar';
+import { MONO_BALL, MONO_EIGHT, MONO_MATRIX, MONO_RAYS, MONO_RAY_STROKE, MONO_SEAM, MONO_STROKE } from './brandPaths';
 
 export type ImgFormat = 'story' | 'feed';
 
@@ -10,26 +11,39 @@ export interface PodiumInfo {
   code: string;
 }
 
-/** Cores da marca (guia da marca → Cores). As artes são sempre sobre cacau, como o pódio do app. */
+/**
+ * Cores da marca "Clube de sol" nas artes. Os nomes antigos ficam como papéis:
+ * `cocoa` = fundo escuro (verde coqueiro), `butter` = texto claro (creme), `eletrico` = destaque (coral),
+ * `raised` = degrau/realce sobre o fundo escuro.
+ */
 export const C = {
-  butter: '#fbe38e',
-  cocoa: '#3a2218',
-  eletrico: '#2b5bff',
-  raised: '#5a3829',
+  butter: '#fff6ea',
+  cocoa: '#1f5c52',
+  eletrico: '#e37a63',
+  raised: '#2b7064',
   white: '#ffffff',
-  butterSoft: 'rgba(251,227,142,.78)',
+  butterSoft: 'rgba(255,246,234,.8)',
+  areia: '#f4e7d3',
+  creme: '#fff6ea',
+  coral: '#e37a63',
+  coralForte: '#bf5440',
+  pessego: '#f6b8a5',
+  turquesa: '#4dbbb5',
+  coqueiro: '#1f5c52',
+  profundo: '#1e3557',
+  dourado: '#f2c45a',
 };
-export const DISPLAY = '"Baloo 2", ui-rounded, system-ui, sans-serif';
-export const BODY = 'Barlow, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+export const DISPLAY = 'Outfit, system-ui, sans-serif';
+export const BODY = '"DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 type Ctx = CanvasRenderingContext2D;
 
 export async function fontsReady() {
   try {
     await Promise.all([
-      document.fonts.load(`800 120px "Baloo 2"`),
-      document.fonts.load('700 30px Barlow'),
-      document.fonts.load('600 30px Barlow'),
+      document.fonts.load('800 120px Outfit'),
+      document.fonts.load('700 30px "DM Sans"'),
+      document.fonts.load('600 30px "DM Sans"'),
     ]);
     await document.fonts.ready;
   } catch {
@@ -88,24 +102,80 @@ export function pill(ctx: Ctx, x: number, y: number, w: number, h: number) {
 }
 
 /**
- * O símbolo: a bola com a costura em 8, o mesmo desenho do app.
- * `claro`: bola azul e costura manteiga (sobre manteiga). `band`: bola manteiga e costura azul (sobre cacau).
+ * O monograma (o 8 que lança a bola), centrado em (cx, cy) com "raio" r (ocupa 2r).
+ * `band`: traço creme, para fundo escuro. `claro`: traço azul profundo, para fundo claro.
  */
 export function ball(ctx: Ctx, cx: number, cy: number, r: number, tone: 'claro' | 'band' = 'band') {
-  const s = r / SYMBOL_R;
+  const s = (2 * r) / 64;
   ctx.save();
   ctx.translate(cx - 32 * s, cy - 32 * s);
   ctx.scale(s, s);
-  ctx.beginPath();
-  ctx.arc(32, 32, SYMBOL_R, 0, Math.PI * 2);
-  ctx.fillStyle = tone === 'claro' ? C.eletrico : C.butter;
-  ctx.fill();
-  ctx.clip();
-  ctx.strokeStyle = tone === 'claro' ? C.butter : C.eletrico;
-  ctx.lineWidth = SYMBOL_STROKE;
+  ctx.transform(MONO_MATRIX.s, 0, 0, MONO_MATRIX.s, MONO_MATRIX.e, MONO_MATRIX.f);
+  ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.stroke(new Path2D(SYMBOL_SEAM));
+  ctx.strokeStyle = C.dourado;
+  ctx.lineWidth = MONO_RAY_STROKE;
+  ctx.stroke(new Path2D(MONO_RAYS));
+  ctx.strokeStyle = tone === 'claro' ? C.profundo : C.creme;
+  ctx.lineWidth = MONO_STROKE;
+  ctx.stroke(new Path2D(MONO_EIGHT));
+  ctx.beginPath();
+  ctx.arc(MONO_BALL.x, MONO_BALL.y, MONO_BALL.r, 0, Math.PI * 2);
+  ctx.fillStyle = C.coral;
+  ctx.fill();
+  ctx.strokeStyle = C.creme;
+  ctx.lineWidth = 1.6;
+  ctx.stroke(new Path2D(MONO_SEAM));
   ctx.restore();
+}
+
+/** Avatar redondo com as iniciais e borda creme. */
+export function avatar(ctx: Ctx, name: string, cx: number, cy: number, r: number, ring = C.creme) {
+  const bg = avatarColor(name);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.lineWidth = Math.max(4, r * 0.09);
+  ctx.strokeStyle = ring;
+  ctx.stroke();
+  ctx.fillStyle = avatarInk(bg);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 ${Math.round(r * 0.78)}px ${DISPLAY}`;
+  ctx.fillText(initialsOf(name), cx, cy + r * 0.04);
+  ctx.restore();
+}
+
+/** Confete deterministico (mesmo torneio, mesma arte). */
+function confetti(ctx: Ctx, seed: string, W: number, y0: number, y1: number, n: number) {
+  let h = hash(seed);
+  const rnd = () => { h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0; h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0; return (h >>> 0) / 4294967296; };
+  const colors = [C.dourado, C.coral, C.turquesa, C.creme];
+  for (let i = 0; i < n; i++) {
+    ctx.save();
+    ctx.translate(rnd() * W, y0 + rnd() * (y1 - y0));
+    ctx.rotate(rnd() * Math.PI);
+    ctx.globalAlpha = 0.55 + rnd() * 0.45;
+    ctx.fillStyle = colors[Math.floor(rnd() * colors.length)];
+    const w = 10 + rnd() * 14;
+    roundRect(ctx, -w / 2, -4, w, 8, 4);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/** Onda de areia no pé da arte. */
+function sandWave(ctx: Ctx, W: number, H: number, y: number) {
+  ctx.beginPath();
+  ctx.moveTo(0, y + 30);
+  ctx.bezierCurveTo(W * 0.25, y - 30, W * 0.55, y + 60, W, y - 10);
+  ctx.lineTo(W, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.fillStyle = C.areia;
+  ctx.fill();
 }
 
 /** Linha da marca no topo das artes: símbolo + SUPER 8 AO VIVO, e a data embaixo. */
@@ -123,28 +193,16 @@ export function brandRow(ctx: Ctx, x: number, y: number, date: string) {
   spacing(ctx, 0);
 }
 
-/** Bloco azul com o 8 gigante da Baloo 2 vazado em cacau, girado -18° (forma de arte, não é costura). */
-function eightBlock(ctx: Ctx, x: number, y: number, w: number, h: number, size: number) {
-  ctx.save();
-  roundRect(ctx, x, y, w, h, 32);
-  ctx.fillStyle = C.eletrico;
-  ctx.fill();
-  ctx.clip();
-  ctx.translate(x + w * 0.46, y + h * 0.56);
-  ctx.rotate((-18 * Math.PI) / 180);
-  ctx.fillStyle = C.cocoa;
-  ctx.textAlign = 'center';
-  ctx.font = `800 ${size}px ${DISPLAY}`;
-  ctx.fillText('8', 0, size * 0.36);
-  ctx.restore();
-}
-
 const LAYOUT = {
-  feed: { w: 1080, h: 1350, top: 72, base: 1200, steps: [410, 300, 240], stepW: [380, 300, 290], name: 92, head: 220, nameMax: [72, 54], ball: 58, block: { x: 760, y: -40, w: 380, h: 470 }, eight: 640, foot: 88 },
-  story: { w: 1080, h: 1920, top: 250, base: 1590, steps: [520, 370, 290], stepW: [400, 310, 300], name: 104, head: 250, nameMax: [80, 58], ball: 66, block: { x: 740, y: -40, w: 400, h: 700 }, eight: 820, foot: 110 },
+  feed: { w: 1080, h: 1350, top: 72, base: 1130, steps: [330, 250, 200], stepW: [340, 290, 290], name: 88, head: 150, nameMax: [64, 50], av: [92, 74], foot: 1270, wave: 1090 },
+  story: { w: 1080, h: 1920, top: 250, base: 1560, steps: [440, 330, 270], stepW: [350, 300, 300], name: 100, head: 180, nameMax: [72, 54], av: [104, 82], foot: 1640, wave: 1500 },
 } as const;
 
-/** Arte de campeões (story 1080x1920 ou post 1080x1350): fundo cacau, o 8 gigante e o pódio com a bola no 1º. */
+/**
+ * Tela de vitória (story 1080x1920 ou post 1080x1350): fundo verde coqueiro, confete, o monograma
+ * como marca d'água, o pódio dourado/creme/coral com avatar de iniciais em cima de cada degrau
+ * e a onda de areia no pé.
+ */
 export async function renderPodium(p: Podium, info: PodiumInfo, format: ImgFormat): Promise<Blob> {
   await fontsReady();
   const L = LAYOUT[format];
@@ -157,63 +215,73 @@ export async function renderPodium(p: Podium, info: PodiumInfo, format: ImgForma
   ctx.textBaseline = 'alphabetic';
   const X = 72;
 
-  ctx.fillStyle = C.cocoa;
+  // fundo: verde com um brilho de sol no alto
+  ctx.fillStyle = C.coqueiro;
   ctx.fillRect(0, 0, W, H);
-  eightBlock(ctx, L.block.x, L.block.y, L.block.w, L.block.h, L.eight);
+  const glow = ctx.createRadialGradient(W * 0.82, L.top + 40, 20, W * 0.82, L.top + 40, W * 0.75);
+  glow.addColorStop(0, 'rgba(242,196,90,.28)');
+  glow.addColorStop(1, 'rgba(242,196,90,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.globalAlpha = 0.09;
+  ball(ctx, W - 150, L.top + 170, 260, 'band');
+  ctx.restore();
+  confetti(ctx, info.code + p.division, W, L.top + 260, L.base - L.steps[0] - 140, format === 'story' ? 34 : 24);
 
   // ---------- topo: marca, nome do torneio, divisão ----------
   brandRow(ctx, X, L.top, info.date);
-  const leftW = L.block.x - X - 40;
-  let y = L.top + 120;
-  ctx.fillStyle = C.butter;
+  let y = L.top + 116;
+  ctx.fillStyle = C.creme;
   ctx.textAlign = 'left';
-  const nameSize = fit(ctx, [info.name], 800, DISPLAY, L.name, leftW, 44);
-  y += nameSize * 0.78;
+  const nameSize = fit(ctx, [info.name], 800, DISPLAY, L.name, W - X * 2, 44);
+  y += nameSize * 0.8;
   ctx.fillText(info.name, X, y);
   y += 26;
   if (p.label) {
-    ctx.font = `700 28px ${BODY}`;
-    spacing(ctx, 5);
+    ctx.font = `700 26px ${BODY}`;
+    spacing(ctx, 4);
     const t = p.label.toUpperCase();
     const tw = ctx.measureText(t).width + 48;
-    pill(ctx, X, y, tw, 54);
-    ctx.strokeStyle = C.butter;
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    ctx.fillStyle = C.butter;
-    ctx.fillText(t, X + 26, y + 37);
+    pill(ctx, X, y, tw, 52);
+    ctx.fillStyle = 'rgba(255,246,234,.14)';
+    ctx.fill();
+    ctx.fillStyle = C.creme;
+    ctx.fillText(t, X + 26, y + 35);
     spacing(ctx, 0);
-    y += 54;
+    y += 52;
   }
 
-  // ---------- CAMPEÃS: embaixo do bloco azul, largura toda ----------
-  ctx.fillStyle = C.butter;
-  const headSize = fit(ctx, [p.headline], 800, DISPLAY, L.head, W - X * 2, 90);
-  const headY = Math.max(y + 24, L.block.y + L.block.h + 24) + headSize * 0.74;
-  ctx.fillText(p.headline, X - 6, headY);
-  y = headY + 30;
+  // ---------- CAMPEÃ(S): dourado, com a final embaixo ----------
+  ctx.fillStyle = C.dourado;
+  const headSize = fit(ctx, [p.headline], 800, DISPLAY, L.head, W - X * 2, 80);
+  const headY = y + 40 + headSize * 0.8;
+  ctx.fillText(p.headline, X - 4, headY);
   if (p.final) {
-    ctx.font = `700 34px ${BODY}`;
-    spacing(ctx, 2);
+    const fy = headY + 28;
+    ctx.font = `700 32px ${BODY}`;
+    spacing(ctx, 1);
     const t = `Final ${p.final}`;
     const tw = ctx.measureText(t).width + 56;
-    pill(ctx, X, y, tw, 64);
+    pill(ctx, X, fy, tw, 60);
     ctx.fillStyle = C.raised;
     ctx.fill();
-    ctx.fillStyle = C.butter;
-    ctx.fillText(t, X + 30, y + 44);
+    ctx.fillStyle = C.creme;
+    ctx.fillText(t, X + 28, fy + 41);
     spacing(ctx, 0);
   }
 
-  // ---------- pódio 2-1-3, chapado ----------
+  // ---------- onda de areia e pódio 2-1-3 ----------
+  sandWave(ctx, W, H, L.wave);
   const base = L.base;
   const n = Math.min(3, p.places.length);
   const order = n === 3 ? [1, 0, 2] : n === 2 ? [1, 0] : [0];
-  const gap = 20;
+  const gap = 16;
   const widths = order.map((idx) => L.stepW[Math.min(idx, 2)]);
   const total = widths.reduce((a, b) => a + b, 0) + gap * (n - 1);
   const xs: number[] = [];
   order.reduce((x, _idx, col) => { xs.push(x); return x + widths[col] + gap; }, (W - total) / 2);
+  const fills = [C.dourado, C.creme, C.pessego];
 
   order.forEach((idx, col) => {
     const place = p.places[idx];
@@ -222,45 +290,69 @@ export async function renderPodium(p: Podium, info: PodiumInfo, format: ImgForma
     const w = widths[col];
     const x = xs[col];
     const top = base - h;
-    const ink = first ? C.cocoa : C.butter;
 
-    topRounded(ctx, x, top, w, h, 24);
-    ctx.fillStyle = first ? C.butter : C.raised;
+    topRounded(ctx, x, top, w, h, 36);
+    ctx.fillStyle = fills[Math.min(idx, 2)];
     ctx.fill();
 
+    // avatar(es) em cima do degrau
+    const r = L.av[first ? 0 : 1];
+    const cy = top - r * 0.35;
+    if (place.names.length > 1) {
+      avatar(ctx, place.names[0], x + w / 2 - r * 0.62, cy, r * 0.82);
+      avatar(ctx, place.names[1], x + w / 2 + r * 0.62, cy, r * 0.82);
+    } else {
+      avatar(ctx, place.names[0] ?? '?', x + w / 2, cy, r);
+    }
+    if (first) {
+      // raios do sol sobre o campeão
+      ctx.save();
+      ctx.strokeStyle = C.dourado;
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 9;
+      for (const a of [-130, -90, -50]) {
+        const t = (a * Math.PI) / 180;
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2 + Math.cos(t) * (r + 24), cy + Math.sin(t) * (r + 24));
+        ctx.lineTo(x + w / 2 + Math.cos(t) * (r + 52), cy + Math.sin(t) * (r + 52));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     ctx.textAlign = 'center';
-    ctx.fillStyle = ink;
-    const posSize = first ? 112 : 84;
-    const posY = top + (first ? L.ball + 18 : 28) + posSize * 0.78;
+    ctx.fillStyle = C.profundo;
+    const posSize = first ? 92 : 72;
+    const posY = top + r * 0.65 + 14 + posSize * 0.8;
     ctx.font = `800 ${posSize}px ${DISPLAY}`;
     ctx.fillText(`${place.pos}º`, x + w / 2, posY);
 
     const lines = place.names;
-    let size = fit(ctx, lines, 800, DISPLAY, L.nameMax[first ? 0 : 1], w - 40, 26);
-    // cabe na altura do degrau: posição, nomes e pontos
-    const room = top + h - 26 - (place.pts ? 46 : 0) - (posY + 18);
-    if (lines.length * size * 1.02 > room) size = Math.max(26, Math.floor(room / (lines.length * 1.02)));
-    ctx.font = `800 ${size}px ${DISPLAY}`;
-    const lh = size * 1.02;
-    let ny = posY + 18 + size * 0.8;
+    let size = fit(ctx, lines, 700, DISPLAY, L.nameMax[first ? 0 : 1], w - 40, 26);
+    const room = top + h - 30 - (place.pts ? 58 : 0) - (posY + 14);
+    if (lines.length * size * 1.04 > room) size = Math.max(24, Math.floor(room / (lines.length * 1.04)));
+    ctx.font = `700 ${size}px ${DISPLAY}`;
+    const lh = size * 1.04;
+    let ny = posY + 14 + size * 0.82;
     lines.forEach((line) => { ctx.fillText(line, x + w / 2, ny); ny += lh; });
     if (place.pts) {
-      ctx.font = `600 28px ${BODY}`;
-      ctx.globalAlpha = 0.85;
-      ctx.fillText(place.pts, x + w / 2, ny - lh + 46);
-      ctx.globalAlpha = 1;
+      ctx.font = `700 26px ${BODY}`;
+      const t = place.pts;
+      const tw = ctx.measureText(t).width + 36;
+      const py = ny - lh + 26;
+      pill(ctx, x + w / 2 - tw / 2, py, tw, 44);
+      ctx.fillStyle = 'rgba(255,255,255,.7)';
+      ctx.fill();
+      ctx.fillStyle = C.profundo;
+      ctx.fillText(t, x + w / 2, py + 31);
     }
-    // a bola em cima do 1º lugar: a costura da arte
-    if (first) ball(ctx, x + w / 2, top, L.ball, 'claro');
   });
 
-  // ---------- rodapé ----------
-  ctx.fillStyle = C.butterSoft;
+  // ---------- rodapé, na areia ----------
+  ctx.fillStyle = C.profundo;
   ctx.textAlign = 'center';
-  ctx.font = `600 28px ${BODY}`;
-  spacing(ctx, 1);
-  ctx.fillText(`Ao vivo em ${info.site} · código ${info.code}`, W / 2, base + L.foot);
-  spacing(ctx, 0);
+  ctx.font = `600 27px ${BODY}`;
+  ctx.fillText(`Ao vivo em ${info.site} · código ${info.code}`, W / 2, L.foot);
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png'));
 }

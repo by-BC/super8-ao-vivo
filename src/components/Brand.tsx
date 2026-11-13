@@ -1,30 +1,28 @@
-import { useId } from 'react';
-import { EIGHT_24, EIGHT_48, SYMBOL_R as R, SYMBOL_SEAM as SEAM, SYMBOL_STROKE } from '../lib/brandPaths';
+import { MONO_BALL as B, MONO_EIGHT, MONO_RAYS, MONO_RAY_STROKE, MONO_SEAM, MONO_STROKE, MONO_TRANSFORM } from '../lib/brandPaths';
 import { cx } from './ui';
 
 /*
- * Peças da marca (guia da marca → Símbolo e Costura).
- * O 8 da costura é sempre o mesmo desenho, inclinado -18°: não redesenhe à mão.
+ * Peças da marca "Clube de sol": o monograma é o 8 desenhado como a trajetória da bola,
+ * lançando a bola coral com os raios do sol. Sempre o mesmo desenho (src/lib/brandPaths.ts).
  */
 
 /**
- * A bola com a costura em 8. Só duas combinações:
- * - `band`: em cima da faixa cacau, bola manteiga e costura azul (`onBand` é atalho);
- * - `claro`: em cima de manteiga ou creme, bola azul e costura manteiga;
- * - `auto` (padrão): segue o tema — `claro` no Dia, `band` na Noite.
+ * Monograma. `onBand` (ou tone="band"): traço creme, para cima da faixa verde.
+ * `claro`: traço azul profundo. `auto` (padrão) segue o tema.
  */
 export function Simbolo({ size = 40, onBand, tone = 'auto', className, title }: {
   size?: number; onBand?: boolean; tone?: 'auto' | 'band' | 'claro'; className?: string; title?: string;
 }) {
-  const id = useId().replace(/:/g, '');
   const t = onBand ? 'band' : tone;
-  const ball = t === 'band' ? 'var(--band-ink)' : t === 'claro' ? 'var(--accent)' : 'var(--symbol-ball)';
-  const seam = t === 'band' ? 'var(--accent)' : t === 'claro' ? 'var(--butter)' : 'var(--symbol-seam)';
+  const line = t === 'band' ? 'var(--band-ink)' : t === 'claro' ? 'var(--profundo)' : 'var(--mono-line)';
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true} className={cx('block flex-none', className)}>
-      <defs><clipPath id={`b${id}`}><circle cx="32" cy="32" r={R} /></clipPath></defs>
-      <circle cx="32" cy="32" r={R} style={{ fill: ball }} />
-      <path d={SEAM} clipPath={`url(#b${id})`} strokeWidth={SYMBOL_STROKE} strokeLinejoin="round" style={{ fill: 'none', stroke: seam }} />
+      <g transform={MONO_TRANSFORM}>
+        <path d={MONO_RAYS} fill="none" stroke="var(--dourado)" strokeWidth={MONO_RAY_STROKE} strokeLinecap="round" />
+        <path d={MONO_EIGHT} fill="none" style={{ stroke: line }} strokeWidth={MONO_STROKE} strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={B.x} cy={B.y} r={B.r} fill="var(--coral)" />
+        <path d={MONO_SEAM} fill="none" stroke="var(--creme)" strokeWidth={1.6} strokeLinecap="round" />
+      </g>
     </svg>
   );
 }
@@ -33,16 +31,23 @@ export function Simbolo({ size = 40, onBand, tone = 'auto', className, title }: 
 export function Costura({ className }: { className?: string }) {
   return (
     <div className={cx('costura', className)} role="separator">
-      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="mx-2"><path d={EIGHT_24} /></svg>
+      <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden className="mx-2">
+        <g transform={MONO_TRANSFORM}>
+          <path d={MONO_EIGHT} style={{ strokeWidth: 7 }} />
+          <circle cx={B.x} cy={B.y} r={B.r} fill="var(--coral)" stroke="none" />
+        </g>
+      </svg>
     </div>
   );
 }
 
-/** Carregando: o 8 se costurando, com o que está acontecendo embaixo. */
+/** Carregando: o 8 sendo desenhado, com o que está acontecendo embaixo. */
 export function Carregando({ label, className }: { label: string; className?: string }) {
   return (
     <div className={cx('carregando flex flex-col items-center gap-2 py-8 text-accent', className)} role="status">
-      <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden><path pathLength={100} d={EIGHT_48} /></svg>
+      <svg width="44" height="44" viewBox="0 0 64 64" aria-hidden>
+        <g transform={MONO_TRANSFORM}><path pathLength={100} d={MONO_EIGHT} style={{ strokeWidth: 6 }} /></g>
+      </svg>
       <span className="text-sm font-medium text-muted">{label}</span>
     </div>
   );

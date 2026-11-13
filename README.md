@@ -109,25 +109,31 @@ sequenceDiagram
 O que **não** está coberto: quem tem o PIN pode lançar placar errado de propósito (o PIN é para gente de confiança), e o código de 6 letras
 deixa o torneio visível para quem souber ou adivinhar o código.
 
-## Identidade visual
+## Identidade visual: Clube de sol
 
-"Praia de dia": três cores, na proporção 60 / 30 / 10.
+O beach tennis como clube social: divertido, ensolarado e com personalidade. A ideia é a galera gostar de
+compartilhar o resultado, então as cartinhas e as telas de vitória são parte da identidade, não um extra.
 
 | Cor | Hex | Uso |
 | --- | --- | --- |
-| Manteiga | `#FBE38E` | fundo do app, texto sobre a faixa cacau, 1º lugar |
-| Cacau | `#3A2218` | texto, faixa do topo, pódio e artes |
-| Azul elétrico | `#2B5BFF` | a bola, o botão principal, o + do placar, "Venceu", ao vivo |
+| Areia Clara | `#F4E7D3` | fundo do app, onda de areia nas artes |
+| Creme Solar | `#FFF6EA` | cartões, texto sobre fundo escuro |
+| Azul Profundo | `#1E3557` | texto |
+| Coral Saque | `#E37A63` | a bola, ilustrações; nos botões vira `#BF5440` pra branco passar no contraste |
+| Verde Coqueiro | `#1F5C52` | faixa do topo, botão + do placar, fundo das telas de vitória |
+| Turquesa Maré | `#4DBBB5` | seleção: rodada atual, "em jogo", raridade turquesa da cartinha |
+| Dourado Sol | `#F2C45A` | conquista: 1º lugar, título de campeão, raios do sol |
 
-- Fontes: **Baloo 2 ExtraBold** só em logo, título, placar e pódio; **Barlow** no resto (as duas pelo Google Fonts).
-- Símbolo: a bola com a costura em 8, inclinada −18°. A costura aparece pouco: no símbolo, no ícone, no divisor da
-  rodada atual, no carregando e na bola em cima do 1º lugar.
-- Tema Noite automático (modo escuro do celular), com as mesmas cores invertidas.
-- Os tokens ficam em `src/index.css` (variáveis CSS) e `tailwind.config.js`; o desenho do 8 em `src/lib/brandPaths.ts`;
-  o símbolo, o divisor e o carregando em `src/components/Brand.tsx`; ícone do app e favicon em `public/`.
-- As artes de compartilhar seguem as mesmas cores. O pódio e a cartinha são cor chapada; o pôster com foto é a exceção:
-  a foto ocupa a tela e se dissolve num fundo feito dela mesma (borrado e tingido de cacau), com o nome dos campeões por cima
-  e vice/3º num painel de vidro fosco. O desfoque é feito encolhendo e esticando a imagem, que funciona até no Safari antigo.
+- Fontes: **Outfit** (600–800) em título, placar e pódio; **DM Sans** na interface (as duas pelo Google Fonts).
+- **Monograma:** o 8 desenhado como a trajetória da bola, aberto em cima, lançando a bola coral com três raios de sol.
+  Um desenho só (`src/lib/brandPaths.ts`) para símbolo, divisor, carregando, ícone do app e artes.
+- **Interface:** cartões creme com cantos de 16px e sombra leve, ícones próprios de traço arredondado
+  (`src/components/Icons.tsx`) e avatar de iniciais com cor fixa por nome, igual no app e nas artes (`src/lib/avatar.ts`).
+- **Artes de compartilhar:** tela de vitória em verde coqueiro com confete, pódio dourado/creme/pêssego com avatar em cima
+  de cada degrau e onda de areia no pé; pôster com a foto se dissolvendo num fundo feito dela mesma; cartinha colecionável
+  em três raridades (dourada pro campeão, creme pro vice, turquesa pro resto).
+- Tema Noite automático (modo escuro do celular): fundo azul-noite, coral e turquesa mais claros pra manter o contraste.
+- Os tokens ficam em `src/index.css` (variáveis CSS) e `tailwind.config.js`.
 
 ## Estrutura
 
@@ -142,7 +148,7 @@ src/engine/       motor puro, sem React e sem rede (testado com Vitest)
   importer.ts     leitura da lista colada do WhatsApp
   whatsapp.ts     mensagens prontas para o grupo
 src/lib/          Supabase, chamadas RPC, fila offline, tempo real, tela acesa, artes em canvas
-src/components/   placar, ranking, pódio, peças da marca
+src/components/   placar, ranking, pódio, peças da marca, ícones
 src/pages/        Início, Novo torneio (e edição), Torneio, Telão
 supabase/         migrations do banco
 docs/             imagens do README

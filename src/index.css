@@ -2,60 +2,81 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Identidade "praia de dia": manteiga 60%, cacau 30%, azul elétrico 10%.
-   Os valores vêm do guia da marca (tokens.json). Tema Noite segue o modo escuro do celular. */
+/* Identidade "Clube de sol": o beach tennis como clube social, ensolarado e com personalidade.
+   Areia e creme no fundo, azul profundo no texto, coral para ação, verde coqueiro para placar e faixa,
+   turquesa para seleção e dourado para conquista. Tema Noite segue o modo escuro do celular. */
 :root {
-  --butter: #fbe38e;
-  --cocoa: #3a2218;
-  --eletrico: #2b5bff;
+  --areia: #f4e7d3;
+  --creme: #fff6ea;
+  --coral: #e37a63;
+  --turquesa: #4dbbb5;
+  --coqueiro: #1f5c52;
+  --profundo: #1e3557;
+  --dourado: #f2c45a;
 
-  --bg: var(--butter);
-  --surface: #fff5cc;
-  --highlight: #f7d466;
-  --band: var(--cocoa);
-  --band-raised: #5a3829;
-  --band-ink: var(--butter);
-  --podium-first: var(--butter);
-  --podium-first-ink: var(--cocoa);
-  --ink: var(--cocoa);
-  --muted: #6e5040;
-  --hair: #e9cb6e;
-  --line: #8f6e59;
-  --accent: var(--eletrico);
+  --bg: var(--areia);
+  --surface: var(--creme);
+  --highlight: #f9e2a6;
+  --band: var(--coqueiro);
+  --band-raised: #2b7064;
+  --band-ink: var(--creme);
+  --podium-first: var(--dourado);
+  --podium-first-ink: var(--profundo);
+  --ink: var(--profundo);
+  --muted: #5b6678;
+  --hair: #e8d7bc;
+  --line: #8f7a5c;
+  /* coral mais fechado nos botões: branco sobre o coral puro não passa no contraste */
+  --accent: #bf5440;
   --on-accent: #ffffff;
-  --accent-ink: #1f45d9;
+  --accent-ink: #a84a36;
+  --score: var(--coqueiro);
+  --on-score: #ffffff;
+  --select: var(--turquesa);
+  --on-select: var(--profundo);
+  --select-tint: #d5efec;
+  --accent-tint: #f9ddd5;
+  --pessego: #f6b8a5;
   --danger: #b42318;
   --on-danger: #ffffff;
   --tint-warn: rgba(180, 35, 24, 0.1);
-  --tint-ok: var(--highlight);
-  --shadow: 0 1px 0 #3a22181f, 0 8px 18px -12px #3a221880;
-  --focus-ring: 0 0 0 2px #fbe38e, 0 0 0 4px #3a2218;
+  --tint-ok: #e3f3f1;
+  --shadow: 0 1px 2px rgba(30, 53, 87, 0.06), 0 10px 24px -14px rgba(30, 53, 87, 0.35);
+  --focus-ring: 0 0 0 2px var(--creme), 0 0 0 4px var(--profundo);
   --costura-traco: 2.5px;
-  --symbol-ball: var(--eletrico);
-  --symbol-seam: var(--butter);
+  --mono-line: var(--profundo);
+  --mono-ball: var(--coral);
+  --mono-sun: var(--dourado);
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #24140d;
-    --surface: var(--cocoa);
-    --highlight: #4f3022;
-    --band: #140b07;
-    --band-raised: #4a2c1f;
-    --ink: var(--butter);
-    --muted: #d6be84;
-    --hair: #4e3123;
-    --line: #a88b68;
-    --accent: #3864ff;
-    --accent-ink: #9db3ff;
+    --bg: #0f1e2e;
+    --surface: #172b3f;
+    --highlight: #3b3522;
+    --band: #0b1622;
+    --band-raised: #1f3349;
+    --ink: var(--creme);
+    --muted: #b7c0cc;
+    --hair: #24394f;
+    --line: #6f8197;
+    --accent: #e37a63;
+    --on-accent: #10202f;
+    --accent-ink: #f0a08f;
+    --score: var(--turquesa);
+    --on-score: #0f1e2e;
+    --select: var(--turquesa);
+    --on-select: #0f1e2e;
+    --select-tint: #19414a;
+    --accent-tint: #3a2a2e;
     --danger: #ff8e7f;
-    --on-danger: #24140d;
+    --on-danger: #0f1e2e;
     --tint-warn: rgba(255, 142, 127, 0.14);
+    --tint-ok: #19414a;
     --shadow: 0 1px 0 #00000066, 0 10px 22px -14px #000000d9;
-    --focus-ring: 0 0 0 2px #24140d, 0 0 0 4px #fbe38e;
-    --symbol-ball: var(--butter);
-    --symbol-seam: var(--accent);
+    --focus-ring: 0 0 0 2px #0f1e2e, 0 0 0 4px var(--creme);
+    --mono-line: var(--creme);
     color-scheme: dark;
   }
 }
@@ -68,7 +89,7 @@ body {
 
 body {
   margin: 0;
-  font-family: Barlow, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;

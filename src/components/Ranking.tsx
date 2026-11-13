@@ -1,7 +1,6 @@
 import { evaluate, knockoutChampion, type Config, type Match, type Player, type Podium, type PodiumPlace, type RankingSection, type Row, type Team } from '../engine';
 import { Name } from './MatchCard';
-import { Simbolo } from './Brand';
-import { cx, Pill } from './ui';
+import { Avatar, cx, Pill } from './ui';
 
 const fmt = (n: number, media: boolean) => (media ? n.toFixed(1).replace('.', ',') : String(n));
 
@@ -10,10 +9,13 @@ function RowItem({ r, players, showGender, media, played, qualifies, compact, on
 }) {
   const tap = onPlayer && r.ids.length === 1 && r.j > 0 ? () => onPlayer(r.ids[0]) : undefined;
   return (
-    <li className={cx('grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-hair px-2.5 py-3', played && r.pos === 1 && 'rounded-lg border-transparent bg-highlight', tap && 'cursor-pointer active:bg-hair')}
+    <li className={cx('grid grid-cols-[40px_auto_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-hair px-2.5 py-3', played && r.pos === 1 && 'rounded-lg border-transparent bg-highlight', tap && 'cursor-pointer active:bg-hair')}
       onClick={tap} role={tap ? 'button' : undefined} tabIndex={tap ? 0 : undefined} aria-label={tap ? `Cartinha de ${r.label}` : undefined}
       onKeyDown={tap ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(); } } : undefined}>
-      <span className="font-display text-[26px] font-extrabold leading-none tabnum">{played ? `${r.pos}º` : '–'}</span>
+      <span className={cx('grid h-10 w-10 place-items-center rounded-xl font-display text-[20px] font-extrabold leading-none tabnum', played && r.pos === 1 ? 'bg-dourado text-profundo' : played && r.pos <= 3 ? 'bg-surface text-ink' : '')}>{played ? `${r.pos}º` : '–'}</span>
+      <span className="flex -space-x-2">
+        {r.ids.map((id) => <Avatar key={id} name={players.get(id)?.name ?? '?'} size={r.ids.length > 1 ? 34 : 42} />)}
+      </span>
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 flex-col gap-0.5">
           {r.ids.map((id) => <Name key={id} p={players.get(id)} showGender={showGender} size="md" />)}
@@ -33,7 +35,7 @@ function RowItem({ r, players, showGender, media, played, qualifies, compact, on
   );
 }
 
-/** Pódio 2-1-3 do resultado final: fundo cacau, 1º em manteiga com a bola em cima. Feito pra virar print. */
+/** Pódio 2-1-3 do resultado final: fundo verde coqueiro, degraus dourado/creme/pêssego com avatar. Feito pra virar print. */
 export function ResultPodium({ podium: p }: { podium: Podium }) {
   const first = p.places[0];
   const order = p.places.length >= 3 ? [p.places[1], first, p.places[2]] : p.places.length === 2 ? [p.places[1], first] : [first];
@@ -41,8 +43,10 @@ export function ResultPodium({ podium: p }: { podium: Podium }) {
     const top = pl === first;
     return (
       <li key={pl.pos + pl.names.join()} className={cx('relative flex min-w-0 flex-col items-center gap-0.5 rounded-t-lg px-2 pb-4 text-center',
-        top ? 'min-h-[176px] bg-podium pt-8 text-podiumink' : pl.pos === 2 ? 'min-h-[132px] bg-bandraised pt-3' : 'min-h-[112px] bg-bandraised pt-3')}>
-        {top && <span className="absolute -top-[22px] left-1/2 -translate-x-1/2"><Simbolo size={44} tone="claro" /></span>}
+        top ? 'min-h-[176px] bg-podium pt-9 text-podiumink' : pl.pos === 2 ? 'min-h-[136px] bg-creme pt-8 text-profundo' : 'min-h-[118px] bg-pessego pt-8 text-profundo')}>
+        <span className="absolute -top-[26px] left-1/2 flex -translate-x-1/2 -space-x-3">
+          {pl.names.map((n, i) => <Avatar key={n + i} name={n} size={top ? 52 : 44} className="ring-[3px] ring-[var(--creme)]" />)}
+        </span>
         <span className={cx('font-display font-extrabold leading-none tabnum', top ? 'text-[52px]' : 'text-[38px]')}>{pl.pos}º</span>
         <span className="flex flex-col text-[15px] font-bold leading-tight [overflow-wrap:anywhere]">
           {pl.names.map((n, i) => <span key={n + i}>{n}</span>)}
@@ -57,7 +61,7 @@ export function ResultPodium({ podium: p }: { podium: Podium }) {
         <span className="text-[12px] font-bold uppercase tracking-[.12em]">Resultado final{p.label ? ` · ${p.label}` : ''}</span>
         <Pill className="bg-bandraised text-bandink">Fechado</Pill>
       </div>
-      <h2 className="m-0 mb-9 mt-1 font-display text-[44px] font-extrabold leading-none">{p.headline}</h2>
+      <h2 className="m-0 mb-12 mt-1 font-display text-[44px] font-extrabold leading-none text-dourado">{p.headline}</h2>
       <ol className={cx('m-0 grid list-none items-end gap-2 p-0', order.length === 3 ? 'grid-cols-[1fr_1.15fr_1fr]' : order.length === 2 ? 'mx-auto w-full max-w-[420px] grid-cols-[1fr_1.15fr]' : 'mx-auto w-full max-w-[240px] grid-cols-1')}>
         {order.map(step)}
       </ol>

@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { avatarColor, avatarInk, initialsOf } from '../lib/avatar';
+
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 export { cx };
 
@@ -38,6 +40,17 @@ export function Panel({ title, aside, children, className }: { title?: ReactNode
 
 export function Pill({ children, className }: { children: ReactNode; className?: string }) {
   return <span className={cx('whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider tabnum', className ?? 'bg-hair')}>{children}</span>;
+}
+
+/** Avatar redondo com as iniciais (a mesma cor do nome nas artes). */
+export function Avatar({ name, size = 36, className }: { name: string; size?: number; className?: string }) {
+  const bg = avatarColor(name);
+  return (
+    <span aria-hidden className={cx('inline-grid flex-none place-items-center rounded-full font-display font-bold leading-none ring-2 ring-[var(--surface)]', className)}
+      style={{ width: size, height: size, background: bg, color: avatarInk(bg), fontSize: Math.round(size * 0.4) }}>
+      {initialsOf(name)}
+    </span>
+  );
 }
 
 export function GenderDot({ g }: { g: 'H' | 'M' | null | undefined }) {

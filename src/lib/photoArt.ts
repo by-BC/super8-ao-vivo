@@ -1,5 +1,5 @@
 import type { PlayerCard, Podium } from '../engine';
-import { ball, BODY, brandRow, C, DISPLAY, fit, fontsReady, roundRect, spacing, type ImgFormat, type PodiumInfo } from './podiumImage';
+import { avatar, ball, BODY, brandRow, C, DISPLAY, fit, fontsReady, roundRect, spacing, type ImgFormat, type PodiumInfo } from './podiumImage';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -72,12 +72,12 @@ function fadedPhoto(img: HTMLImageElement, w: number, h: number, focus: number, 
   return canvas;
 }
 
-/** Cacau com transparência: rgba a partir do hex da marca. */
+/** Verde coqueiro escurecido, com transparência: o véu das artes com foto. */
 function cocoa(a: number) {
-  return `rgba(58,34,24,${a})`;
+  return `rgba(16,48,44,${a})`;
 }
 
-/** Painel de vidro fosco: a foto borrada por trás, um véu claro e um fio manteiga na borda. */
+/** Painel de vidro fosco: a foto borrada por trás, um véu claro e um fio creme na borda. */
 function glass(ctx: Ctx, img: HTMLImageElement, focus: number, W: number, H: number, x: number, y: number, w: number, h: number, r: number) {
   ctx.save();
   roundRect(ctx, x, y, w, h, r);
@@ -92,14 +92,14 @@ function glass(ctx: Ctx, img: HTMLImageElement, focus: number, W: number, H: num
   ctx.fillRect(x, y, w, h);
   ctx.restore();
   roundRect(ctx, x + 1, y + 1, w - 2, h - 2, r);
-  ctx.strokeStyle = 'rgba(251,227,142,.38)';
+  ctx.strokeStyle = 'rgba(255,246,234,.38)';
   ctx.lineWidth = 2;
   ctx.stroke();
 }
 
 /**
  * Pôster com a foto dos campeões, estilo capa: a foto ocupa a tela e se dissolve num fundo feito
- * dela mesma (borrado e tingido de cacau). O nome dos campeões entra por cima da parte de baixo,
+ * dela mesma (borrado e tingido de verde coqueiro). O nome dos campeões entra por cima da parte de baixo,
  * e vice/3º ficam num painel de vidro fosco. A foto fica só no aparelho.
  */
 export async function renderPhotoPoster(p: Podium, info: PodiumInfo, format: ImgFormat, photo: HTMLImageElement, focus: number): Promise<Blob> {
@@ -127,7 +127,7 @@ export async function renderPhotoPoster(p: Podium, info: PodiumInfo, format: Img
   const fadeTop = story ? 180 : 220;
   ctx.drawImage(fadedPhoto(photo, W, ph, focus, fadeTop, Math.round(ph * 0.42)), 0, py);
 
-  // 3. véu de cacau por baixo, onde entra o texto
+  // 3. véu verde por baixo, onde entra o texto
   const veil = ctx.createLinearGradient(0, py + ph * 0.45, 0, H);
   veil.addColorStop(0, cocoa(0));
   veil.addColorStop(0.45, cocoa(0.55));
@@ -180,10 +180,10 @@ export async function renderPhotoPoster(p: Podium, info: PodiumInfo, format: Img
       rest.forEach((pl, i) => {
         const cx = X + 36 + i * colW;
         if (i > 0) {
-          ctx.fillStyle = 'rgba(251,227,142,.25)';
+          ctx.fillStyle = 'rgba(255,246,234,.25)';
           ctx.fillRect(cx - 18, panelY + 34, 2, panelH - 68);
         }
-        ctx.fillStyle = C.butter;
+        ctx.fillStyle = C.dourado;
         ctx.font = `800 72px ${DISPLAY}`;
         ctx.fillText(`${pl.pos}º`, cx, panelY + 108);
         const numW = ctx.measureText(`${pl.pos}º`).width + 22;
@@ -210,7 +210,7 @@ export async function renderPhotoPoster(p: Podium, info: PodiumInfo, format: Img
   ctx.shadowColor = 'rgba(0,0,0,.45)';
   ctx.shadowBlur = 40;
   ctx.shadowOffsetY = 8;
-  ctx.fillStyle = C.butter;
+  ctx.fillStyle = C.dourado;
   let y = top;
   for (let i = lines.length - 1; i >= 0; i--) {
     ctx.fillText(lines[i], X - 4, y);
@@ -226,7 +226,7 @@ export async function renderPhotoPoster(p: Podium, info: PodiumInfo, format: Img
   const pillH = 70;
   const pillY = y - nameSize * 0.62 - pillH + 10;
   roundRect(ctx, X, pillY, tw + 56, pillH, pillH / 2);
-  ctx.fillStyle = 'rgba(43,91,255,.88)';
+  ctx.fillStyle = 'rgba(191,84,64,.92)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,.35)';
   ctx.lineWidth = 2;
@@ -238,11 +238,11 @@ export async function renderPhotoPoster(p: Podium, info: PodiumInfo, format: Img
   return toPng(canvas);
 }
 
-/** Cores de cada carta: campeão em manteiga (como o 1º do pódio), vice em cacau, o resto em azul. */
+/** Raridade da carta colecionável: campeão em dourado, vice em creme, o resto em turquesa. */
 const TIERS = {
-  ouro: { fill: C.butter, ink: C.cocoa, accent: C.eletrico, ball: 'claro' as const },
-  prata: { fill: C.raised, ink: C.butter, accent: C.butter, ball: 'band' as const },
-  azul: { fill: C.eletrico, ink: C.white, accent: C.butter, ball: 'band' as const },
+  ouro: { fill: C.dourado, ink: C.profundo, accent: C.coralForte, ball: 'claro' as const, edge: '#fbe2a3' },
+  prata: { fill: C.creme, ink: C.profundo, accent: C.coqueiro, ball: 'claro' as const, edge: '#ffffff' },
+  azul: { fill: C.turquesa, ink: C.profundo, accent: C.creme, ball: 'claro' as const, edge: '#9edcd7' },
 };
 
 function shield(ctx: Ctx, x: number, y: number, w: number, h: number, c: number) {
@@ -257,9 +257,6 @@ function shield(ctx: Ctx, x: number, y: number, w: number, h: number, c: number)
   ctx.closePath();
 }
 
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]).join('').toUpperCase();
-}
 
 /** Cartinha do jogador (story 1080x1920), com foto opcional. Cor chapada, sem brilho. */
 export async function renderPlayerCard(card: PlayerCard, info: PodiumInfo, photo: HTMLImageElement | null, focus: number): Promise<Blob> {
@@ -270,6 +267,11 @@ export async function renderPlayerCard(card: PlayerCard, info: PodiumInfo, photo
   const T = TIERS[card.tier];
 
   ctx.fillStyle = C.cocoa;
+  ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, 980, 60, W / 2, 980, 900);
+  glow.addColorStop(0, card.tier === 'ouro' ? 'rgba(242,196,90,.35)' : 'rgba(77,187,181,.28)');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 
   // topo
@@ -316,19 +318,15 @@ export async function renderPlayerCard(card: PlayerCard, info: PodiumInfo, photo
     drawCover(ctx, photo, px, py, pw, ph, focus);
     ctx.restore();
   } else {
-    ctx.fillStyle = T.ink;
-    ctx.globalAlpha = 0.14;
-    ctx.textAlign = 'center';
-    fit(ctx, [initials(card.name)], 800, DISPLAY, 340, pw - 20, 120);
-    ctx.fillText(initials(card.name), px + pw / 2, py + ph * 0.7);
-    ctx.globalAlpha = 1;
+    // sem foto: o avatar de iniciais, igual ao do ranking
+    avatar(ctx, card.name, px + pw / 2, py + ph * 0.48, pw * 0.42, T.edge);
   }
   ctx.restore();
 
   // moldura
-  ctx.strokeStyle = T.ink;
-  ctx.globalAlpha = 0.3;
-  ctx.lineWidth = 4;
+  ctx.strokeStyle = T.edge;
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = 6;
   shield(ctx, x0 + 18, y0 + 18, cw - 36, ch - 36, 52);
   ctx.stroke();
   ctx.globalAlpha = 1;

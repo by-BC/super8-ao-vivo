@@ -10,13 +10,14 @@ import { CardSheet } from '../components/CardSheet';
 import { SignupView } from './Signup';
 import { Check, TiebreakEditor } from './Create';
 import { Bracket, RankingSections, ResultPodium } from '../components/Ranking';
-import { Button, copyText, CopySheet, cx, Note, Panel, Pill, Sheet, useToast } from '../components/ui';
+import { Avatar, Button, copyText, CopySheet, cx, Note, Panel, Pill, Sheet, useToast } from '../components/ui';
 import { api, ApiFail, errorText } from '../lib/api';
 import { getSaved, upsertSaved } from '../lib/local';
 import { go, shareLink } from '../lib/router';
 import { useTournament } from '../lib/useTournament';
 import { useWakeLock } from '../lib/useWakeLock';
 import { Carregando, Costura, Simbolo } from '../components/Brand';
+import { IconInfo, IconJogos, IconRanking } from '../components/Icons';
 
 type Tab = 'jogos' | 'ranking' | 'info';
 
@@ -337,9 +338,12 @@ export function TournamentPage({ code }: { code: string }) {
         <div className="mx-auto flex max-w-[760px] gap-1 pt-2" role="tablist">
           {(['jogos', 'ranking', 'info'] as Tab[]).map((k) => (
             <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => { setTab(k); window.scrollTo(0, 0); }}
-              className={cx('flex min-h-[52px] flex-1 flex-col items-center justify-center rounded-lg px-1 text-[15px] font-bold leading-tight', tab === k ? 'bg-ink text-bg' : 'text-muted')}>
-              {k === 'jogos' ? 'Jogos' : k === 'ranking' ? 'Ranking' : 'Info'}
-              {k === 'jogos' && <span className={cx('mt-0.5 rounded-full px-2 text-[11px] tabnum', tab === k ? 'bg-accent text-onaccent' : 'bg-hair')}>{done}/{real.length}</span>}
+              className={cx('relative flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[13px] font-bold leading-tight', tab === k ? 'bg-accenttint text-accentink' : 'text-muted')}>
+              {k === 'jogos' ? <IconJogos /> : k === 'ranking' ? <IconRanking /> : <IconInfo />}
+              <span className="flex items-center gap-1">
+                {k === 'jogos' ? 'Jogos' : k === 'ranking' ? 'Ranking' : 'Info'}
+                {k === 'jogos' && <span className={cx('rounded-full px-1.5 text-[10px] tabnum', tab === k ? 'bg-accent text-onaccent' : 'bg-hair text-ink')}>{done}/{real.length}</span>}
+              </span>
             </button>
           ))}
         </div>
@@ -436,7 +440,7 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
           const label = b.ms[0].stage === 'mata' ? (b.ms[0].label?.replace(/ \d+$/, '') ?? 'Mata') : `R${b.ms[0].round}`;
           return (
             <a key={b.key} href={`#bloco-${i}`} onClick={(e) => { e.preventDefault(); document.getElementById(`bloco-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-              className={cx('flex min-h-[38px] flex-none items-center rounded-full border-[1.5px] px-3.5 text-sm font-bold no-underline', i === current ? 'border-transparent bg-accent text-onaccent' : allDone ? 'border-line bg-surface text-muted' : 'border-line bg-surface text-ink')}>
+              className={cx('flex min-h-[38px] flex-none items-center rounded-full border-[1.5px] px-3.5 text-sm font-bold no-underline', i === current ? 'border-transparent bg-select text-onselect' : allDone ? 'border-line bg-surface text-muted' : 'border-line bg-surface text-ink')}>
               {label}{allDone ? ' ✓' : ''}
             </a>
           );
@@ -491,7 +495,7 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
                 <h3 className={cx('m-0 font-display text-[28px] font-extrabold leading-none', allDone && 'text-muted')}>
                   {first.stage === 'mata' ? (first.label?.replace(/ \d+$/, '') ?? 'Mata-mata') : `Rodada ${first.round}`}
                 </h3>
-                {i === current && <Pill className="bg-accent text-onaccent">Agora</Pill>}
+                {i === current && <Pill className="bg-select text-onselect">Agora</Pill>}
                 {allDone && <button type="button" onClick={() => toggle(b.key)} aria-expanded className="rounded-full border-[1.5px] border-line px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-muted">Encerrada · recolher ▴</button>}
                 {rest.length > 0 && (
                   <p className="m-0 ml-auto flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
@@ -732,6 +736,7 @@ function MeCard({ me, matches, players, config, onPick }: {
   return (
     <section className="flex flex-col gap-2 rounded-lg bg-surface px-4 py-3 shadow-card" aria-label={`Jogos de ${name}`}>
       <div className="flex items-center gap-2">
+        <Avatar name={name} size={30} />
         <span className="text-xs font-extrabold uppercase tracking-[.12em] text-muted">{next ? (now ? 'Você joga agora' : 'Seu próximo jogo') : 'Seus jogos'}</span>
         <button type="button" onClick={onPick} className="ml-auto text-sm font-bold text-muted underline underline-offset-2">Não é {name}?</button>
       </div>
@@ -769,7 +774,7 @@ function MeSheet({ open, players, me, onClose, onPick }: { open: boolean; player
         {list.map((p) => (
           <li key={p.id}>
             <button type="button" onClick={() => onPick(p.id)} aria-pressed={me === p.id}
-              className={cx('min-h-[48px] w-full rounded-lg border-[1.5px] px-3 text-left font-bold', me === p.id ? 'border-ink bg-ink text-bg' : 'border-line')}>{p.name}</button>
+              className={cx('flex min-h-[52px] w-full items-center gap-2 rounded-lg border-[1.5px] px-2.5 text-left font-bold', me === p.id ? 'border-ink bg-ink text-bg' : 'border-line')}><Avatar name={p.name} size={32} />{p.name}</button>
           </li>
         ))}
       </ul>
