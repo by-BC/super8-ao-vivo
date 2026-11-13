@@ -6,6 +6,8 @@ export interface Player {
   gender: Gender | null;
   /** Nível: 4 = A (profissional), 3 = B, 2 = C, 1 = D (iniciante). Usado para equilibrar duplas e jogos. */
   level?: number;
+  /** Saiu no meio do torneio: os jogos que fez continuam valendo, mas não entra nas próximas rodadas. */
+  left?: boolean;
 }
 
 /** mista: H+M · mesmo_genero: H+H contra H+H e M+M contra M+M · livre: qualquer combinação */

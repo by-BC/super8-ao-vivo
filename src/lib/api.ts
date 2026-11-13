@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 export type ApiErrorCode =
   | 'NAO_ENCONTRADO' | 'PIN_INVALIDO' | 'PIN_FORMATO' | 'BLOQUEADO' | 'SEM_PERMISSAO' | 'DADOS_INVALIDOS'
   | 'CONFLITO' | 'JA_GERADO' | 'MUITAS_TENTATIVAS' | 'REDE' | 'SERVIDOR'
-  | 'INSCRICAO_FECHADA' | 'NOME_REPETIDO' | 'NOME_INVALIDO' | 'GENERO_FALTANDO' | 'NIVEL_FALTANDO' | 'LOTADO';
+  | 'INSCRICAO_FECHADA' | 'NOME_REPETIDO' | 'NOME_INVALIDO' | 'GENERO_FALTANDO' | 'NIVEL_FALTANDO' | 'LOTADO' | 'SEM_FUNCAO';
 
 export class ApiFail extends Error {
   constructor(public code: ApiErrorCode, public extra?: Record<string, unknown>) {
@@ -30,6 +30,7 @@ export const errorText: Record<ApiErrorCode, string> = {
   GENERO_FALTANDO: 'Escolha se você joga no feminino ou no masculino.',
   NIVEL_FALTANDO: 'Escolha seu nível, de A a D.',
   LOTADO: 'A lista chegou no máximo de inscritos.',
+  SEM_FUNCAO: 'Essa edição precisa de uma atualização no banco que ainda não foi aplicada.',
 };
 
 export interface SignupSettings {
@@ -135,6 +136,18 @@ export const api = {
 
   adminReset: (code: string, adminKey: string, config: Config, data: TournamentData, matches: NewMatch[]) =>
     call<object>('s8_admin_reset', { p_code: code, p_admin_key: adminKey, p_config: config, p_data: data, p_matches: strip(matches) }),
+
+  /** Edita mantendo as partidas de p_keep. Sem a função no banco (migração não aplicada) devolve SEM_FUNCAO. */
+  adminEdit: async (code: string, adminKey: string, a: { name: string; config: Config; data: TournamentData; keep: string[]; matches: NewMatch[]; wipe: boolean; expected: number }) => {
+    const res = await supabase.rpc('s8_admin_edit', {
+      p_code: code, p_admin_key: adminKey, p_name: a.name, p_config: a.config, p_data: a.data,
+      p_keep: a.keep, p_matches: strip(a.matches), p_wipe: a.wipe, p_expected: a.expected,
+    }).then((r) => r, () => null);
+    if (!res) throw new ApiFail('REDE');
+    if (res.error) throw new ApiFail(res.error.code === 'PGRST202' ? 'SEM_FUNCAO' : res.error.code ? 'SERVIDOR' : 'REDE');
+    if (!res.data || res.data.ok !== true) throw new ApiFail((res.data?.error as ApiErrorCode) ?? 'SERVIDOR', res.data ?? undefined);
+    return res.data as { ok: true };
+  },
 
   adminCheck: (code: string, adminKey: string) => call<object>('s8_admin_check', { p_code: code, p_admin_key: adminKey }),
 

@@ -12,3 +12,4 @@ export * from './podium';
 export * from './card';
 export * from './levels';
 export * from './suggest';
+export * from './edit';

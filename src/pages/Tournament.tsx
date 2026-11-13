@@ -164,7 +164,8 @@ export function TournamentPage({ code }: { code: string }) {
   const finished = status === 'encerrado';
   const real = t.matches.filter((m) => !(m.stage === 'mata' && m.b.length === 0));
   const done = real.filter((m) => evaluate(m.sets, config.scoring, m.stage === 'mata').done).length;
-  const step = canScore ? nextStep(plist, teams, config, t.serverMatches, 1) : null;
+  const active = plist.filter((p) => !p.left);
+  const step = canScore ? nextStep(active, teams, config, t.serverMatches, 1) : null;
   const sections = rankingSections(plist, teams, config, t.matches);
   const ctx = { name: tour.name, link: shareLink(code), code, players: plist, teams, config, matches: t.matches };
   const divs = divisionsOf(plist, config.modality);
@@ -200,7 +201,7 @@ export function TournamentPage({ code }: { code: string }) {
 
   async function generate() {
     if (!credential || generating) return;
-    const fresh = nextStep(plist, teams, config, t.serverMatches, randomSeed());
+    const fresh = nextStep(active, teams, config, t.serverMatches, randomSeed());
     if (!fresh) return;
     setGenerating(true);
     try {
@@ -344,7 +345,7 @@ export function TournamentPage({ code }: { code: string }) {
         </div>
       </nav>
 
-      <MeSheet open={meOpen} players={plist} me={meId} onClose={() => setMeOpen(false)} onPick={(id) => { setMe(id); setMeOpen(false); }} />
+      <MeSheet open={meOpen} players={active} me={meId} onClose={() => setMeOpen(false)} onPick={(id) => { setMe(id); setMeOpen(false); }} />
       <PinSheet open={pinOpen} code={code} onClose={() => setPinOpen(false)} onUnlocked={(token) => { setSaved(upsertSaved({ code, token })); setPinOpen(false); toast('Pronto: você pode lançar placar.'); }} />
       <ShareSheet open={shareOpen} code={code} name={tour.name} onClose={() => setShareOpen(false)} onCopy={share} />
       <CopySheet text={copyFallback} onClose={() => setCopyFallback(null)} />
@@ -600,7 +601,7 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
             <div>
               <b>Editar torneio</b>
               <p className="m-0 text-[13px] text-muted">
-                Jogadores (incluir, tirar, gênero, nível), formato, tipo de partida, games, quadras, rodadas, grupos e duplas. Salva e sorteia de novo no mesmo código{anyScore ? ', apagando os placares' : ''}.
+                Jogadores (incluir, tirar, gênero, nível), formato, tipo de partida, games, quadras, rodadas, grupos e duplas. Os placares ficam sempre que dá; antes de salvar o app mostra o que muda.
               </p>
               <Button kind="primary" className="mt-2" block onClick={() => go(`/t/${code}/editar`)}>Editar jogadores e regras</Button>
             </div>
@@ -691,8 +692,9 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
                   <b>{anyScore ? 'Isso apaga os placares que já foram lançados.' : 'A chave atual vai ser trocada por um sorteio novo.'}</b>
                   <div className="grid grid-cols-2 gap-2">
                     <Button kind="danger" disabled={busy} onClick={async () => {
-                      const built = buildInitial(tour.data.players, config, randomSeed());
-                      if (await run(() => api.adminReset(code, adminKey, config, { players: tour.data.players, teams: built.teams }, built.matches), 'Chave sorteada de novo.')) setConfirmReset(false);
+                      const ps = tour.data.players.filter((p) => !p.left);
+                      const built = buildInitial(ps, config, randomSeed());
+                      if (await run(() => api.adminReset(code, adminKey, config, { players: ps, teams: built.teams }, built.matches), 'Chave sorteada de novo.')) setConfirmReset(false);
                     }}>{anyScore ? 'Apagar e sortear' : 'Sortear'}</Button>
                     <Button onClick={() => setConfirmReset(false)}>Cancelar</Button>
                   </div>

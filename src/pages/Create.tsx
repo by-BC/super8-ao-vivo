@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   buildInitial, DEFAULT_CONFIG, gamesPerMatch, individualUnits, isIndividual, LEVELS, levelLetter, matchesPerRound, parsePlayerList, randomSeed, scoringLabel,
-  suggestRounds, summarize, validateSetup, type Config, type Format, type Gender, type Modality, type PairingMethod,
+  planEdit, suggestRounds, summarize, validateSetup, type Config, type Match, type Format, type Gender, type Modality, type PairingMethod,
   type Player, type RankingBase, type ScoringType, type SetupArea, type Tiebreak,
 } from '../engine';
 import { signupSummary } from '../lib/signup';
@@ -92,12 +92,13 @@ interface EditCtx {
   code: string;
   adminKey: string;
   tour: TournamentRow;
+  matches: Match[];
   anyScore: boolean;
 }
 
 /** Monta o rascunho a partir de um torneio que já existe. */
 function draftFrom(t: TournamentRow): Draft {
-  const players = t.data.players.map((p) => ({ ...p }));
+  const players = t.data.players.filter((p) => !p.left).map((p) => ({ ...p }));
   const m = t.config.modality;
   const genders = new Set(players.map((p) => p.gender));
   const tipo: Tipo = m === 'mesmo_genero' && genders.size === 1 ? (genders.has('M') ? 'so_f' : 'so_m') : tipoOf(m);
@@ -117,11 +118,11 @@ function draftFrom(t: TournamentRow): Draft {
 /** Rota #/t/CODIGO/editar: só para o organizador (quem tem a chave neste aparelho). */
 export function EditPage({ code }: { code: string }) {
   const adminKey = getSaved(code)?.adminKey;
-  const [state, setState] = useState<{ tour: TournamentRow; anyScore: boolean } | 'erro' | null>(null);
+  const [state, setState] = useState<{ tour: TournamentRow; matches: Match[]; anyScore: boolean } | 'erro' | null>(null);
   useEffect(() => {
     if (!adminKey) return;
     api.get(code)
-      .then((r) => setState({ tour: r.tournament, anyScore: r.matches.some((x) => x.sets.length > 0) }))
+      .then((r) => setState({ tour: r.tournament, matches: r.matches, anyScore: r.matches.some((x) => x.sets.length > 0) }))
       .catch(() => setState('erro'));
   }, [code, adminKey]);
   if (!adminKey || state === 'erro') {
@@ -133,7 +134,7 @@ export function EditPage({ code }: { code: string }) {
     );
   }
   if (!state) return <Carregando label="Abrindo o torneio…" className="pt-16" />;
-  return <CreatePage edit={{ code, adminKey, tour: state.tour, anyScore: state.anyScore }} />;
+  return <CreatePage edit={{ code, adminKey, tour: state.tour, matches: state.matches, anyScore: state.anyScore }} />;
 }
 
 export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
@@ -168,6 +169,10 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
   }, [suggested, d.roundsTouched, c.format]);
 
   const check = useMemo(() => validateSetup(players, c, d.manual), [players, c, d.manual]);
+  const [editSeed] = useState(() => randomSeed());
+  const plan = useMemo(() => (edit && check.ok
+    ? planEdit({ config: edit.tour.config, players: edit.tour.data.players, teams: edit.tour.data.teams }, edit.matches, { config: c, players, manual: d.manual }, editSeed)
+    : null), [edit, check.ok, c, players, d.manual, editSeed]);
   const summary = useMemo(() => summarize(players, c), [players, c]);
   const courtSplit = useMemo(
     () => (isIndividual(c.format) ? individualUnits(players, c) : matchesPerRound(players, c).map((x) => ({ ...x, grp: null as string | null }))),
@@ -196,12 +201,21 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
   };
 
   async function save(e: EditCtx) {
+    if (!plan) return;
     const config: Config = { ...c, formatLater: false, ranking: { ...c.ranking, sorteio: e.tour.config.ranking.sorteio ?? randomSeed() } };
-    const built = buildInitial(players, config, randomSeed(), d.manual);
     const name = d.name.trim();
-    if (name !== e.tour.name) await api.adminUpdate(e.code, e.adminKey, name, e.tour.data, e.tour.version);
-    await api.adminReset(e.code, e.adminKey, config, { players, teams: built.teams }, built.matches);
-    toast('Torneio atualizado e sorteado de novo.');
+    try {
+      await api.adminEdit(e.code, e.adminKey, {
+        name, config, data: { players: plan.players, teams: plan.teams }, keep: plan.keep, matches: plan.matches,
+        wipe: plan.mode === 'tudo', expected: e.tour.version,
+      });
+    } catch (x) {
+      // banco sem a função nova: refazer tudo ainda funciona pelo caminho antigo
+      if (!(x instanceof ApiFail && x.code === 'SEM_FUNCAO' && plan.mode === 'tudo')) throw x;
+      if (name !== e.tour.name) await api.adminUpdate(e.code, e.adminKey, name, e.tour.data, e.tour.version);
+      await api.adminReset(e.code, e.adminKey, config, { players: plan.players, teams: plan.teams }, plan.matches);
+    }
+    toast(plan.mode === 'nada' ? 'Torneio atualizado. Os placares ficaram.' : plan.mode === 'resto' ? 'Torneio atualizado. As rodadas jogadas ficaram.' : 'Torneio atualizado e sorteado de novo.');
     go(`/t/${e.code}`);
   }
 
@@ -224,7 +238,8 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
       try { sessionStorage.setItem('s8:novo', JSON.stringify({ code: r.code, pin: d.pin })); } catch { /* ok */ }
       go(`/t/${r.code}`);
     } catch (e) {
-      toast(errorText[e instanceof ApiFail ? e.code : 'SERVIDOR']);
+      const code = e instanceof ApiFail ? e.code : 'SERVIDOR';
+      toast(edit && code === 'CONFLITO' ? 'Alguém lançou placar enquanto você editava. Abra a edição de novo.' : errorText[code]);
     } finally {
       setBusy(false);
     }
@@ -258,9 +273,8 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
         {step === 0 && (
           <>
             {edit && (
-              <Note kind={edit.anyScore ? 'warn' : 'ok'}>
-                Mude o que quiser: jogadores, formato, partida, ranking, quadras. No fim o app <b>sorteia de novo</b> no mesmo código
-                {edit.anyScore ? ' e os placares já lançados são apagados.' : '.'} Pra só trocar o critério do ranking ou corrigir nomes, use a aba Info: lá não apaga nada.
+              <Note kind="ok">
+                Mude o que quiser: jogadores, formato, partida, ranking, quadras. O app guarda os placares sempre que dá: no fim ele mostra o que fica e o que é sorteado de novo, antes de salvar.
               </Note>
             )}
             {!edit && <Panel title="Como a galera entra">
@@ -453,7 +467,7 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
               </Note>
             ))}
             {!nameOk && <Note kind="warn">Dê um nome ao torneio.</Note>}
-            {edit?.anyScore && <Note kind="warn">Ao salvar, os placares lançados até agora são apagados e a chave é sorteada de novo.</Note>}
+            {plan && <EditPlanNote plan={plan} rounds={c.rounds} format={c.format} />}
           </>
         )}
       </main>
@@ -465,12 +479,32 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
           {step < STEPS.length - 1 ? (
             <Button kind="primary" className="flex-none" onClick={() => goStep(1)}>Continuar</Button>
           ) : (
-            <Button kind="primary" className="flex-none" disabled={!ready || busy} onClick={create}>{busy ? (edit ? 'Salvando…' : 'Criando…') : edit ? (edit.anyScore ? 'Salvar e sortear' : 'Salvar') : viaLink ? 'Abrir inscrição' : 'Criar'}</Button>
+            <Button kind="primary" className="flex-none" disabled={!ready || busy} onClick={create}>{busy ? (edit ? 'Salvando…' : 'Criando…') : edit ? (plan?.mode === 'tudo' && plan.lostScored ? 'Apagar e sortear' : 'Salvar') : viaLink ? 'Abrir inscrição' : 'Criar'}</Button>
           )}
         </div>
       </nav>
     </>
   );
+}
+
+function EditPlanNote({ plan, rounds, format }: { plan: import('../engine').EditPlan; rounds: number; format: Format }) {
+  if (plan.mode === 'nada') return <Note kind="ok"><b>A tabela não muda.</b> Todos os placares ficam como estão.</Note>;
+  if (plan.mode === 'resto') {
+    return (
+      <>
+        <Note kind="ok">
+          <b>Ficam as rodadas 1 a {plan.keptUpTo}</b>, com os {plan.keptScored} placares lançados.{' '}
+          {format === 'mexicano'
+            ? 'A próxima rodada sai pelo botão Gerar rodada, já com as mudanças.'
+            : plan.matches.length ? `Da rodada ${plan.keptUpTo + 1} à ${rounds} o app sorteia de novo com as mudanças.` : ''}
+        </Note>
+        {plan.leftNames.length > 0 && <Note kind="ok">{plan.leftNames.join(', ')} {plan.leftNames.length > 1 ? 'saem' : 'sai'} das próximas rodadas, mas os jogos que já {plan.leftNames.length > 1 ? 'fizeram' : 'fez'} continuam valendo.</Note>}
+        {format === 'rodizio' && rounds <= plan.keptUpTo && <Note kind="warn">Já foram {plan.keptUpTo} rodadas. Aumente as rodadas no passo Formato pra ter jogos novos.</Note>}
+      </>
+    );
+  }
+  if (!plan.lostScored) return <Note kind="ok">Ainda não tem placar lançado: o app sorteia a tabela de novo.</Note>;
+  return <Note kind="warn"><b>Vai refazer a tabela inteira</b> porque {plan.reason}. Os {plan.lostScored} placares lançados são apagados.</Note>;
 }
 
 export function Check({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint?: string }) {
