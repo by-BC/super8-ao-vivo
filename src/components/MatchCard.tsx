@@ -9,15 +9,21 @@ interface Props {
   scoring: Scoring;
   canScore: boolean;
   showGender: boolean;
+  /** Torneio encerrado: placar travado até o árbitro tocar em "Corrigir". */
+  locked?: boolean;
+  /** Aviso mostrado enquanto corrige um jogo de torneio encerrado. */
+  lockedNote?: string;
   onPoint: (side: 'a' | 'b', delta: 1 | -1) => void;
 }
 
-export function MatchCard({ match: m, number, players, scoring, canScore, showGender, onPoint }: Props) {
+export function MatchCard({ match: m, number, players, scoring, canScore, showGender, locked = false, lockedNote, onPoint }: Props) {
   const knockout = m.stage === 'mata';
   const bye = knockout && m.b.length === 0;
   const r = evaluate(m.sets, scoring, knockout, bye);
   const wasDone = useRef(r.done);
   const [pop, setPop] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const scoreable = canScore && (!locked || editing);
 
   useEffect(() => {
     if (r.done && !wasDone.current) {
@@ -74,12 +80,12 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
               {m.sets.slice(0, lastIdx).map((st, i) => <span key={i}>{st[idx]}</span>)}
             </span>
           )}
-          {canScore && (
+          {scoreable && (
             <button type="button" aria-label={`Tirar um game de ${label}`} disabled={score <= 0 && !(multi && m.sets.length > 1)} onClick={() => onPoint(s, -1)}
               className="h-9 w-9 rounded-full border-[1.5px] border-line text-xl leading-none disabled:opacity-25 max-[380px]:h-8 max-[380px]:w-8">−</button>
           )}
           <output aria-label={`${label}: ${score}`} className={cx('min-w-[1.1em] text-center font-display text-[48px] font-extrabold leading-none tabnum max-[380px]:text-[40px]', lost && 'text-muted')}>{score}</output>
-          {canScore && (
+          {scoreable && (
             <button type="button" aria-label={`Game para ${label}`} disabled={r.done} onClick={() => onPoint(s, 1)}
               className="h-[52px] w-[52px] rounded-full bg-accent text-3xl font-semibold leading-none text-onaccent active:translate-y-px disabled:opacity-25 max-[380px]:h-12 max-[380px]:w-12">+</button>
           )}
@@ -93,7 +99,16 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
       <header className="relative flex items-center gap-2 px-1 text-xs font-extrabold uppercase tracking-[.12em] text-muted">
         <span className="min-w-0 truncate">{head}</span>
         <span className={cx('ml-auto whitespace-nowrap rounded-full px-2 py-0.5 tracking-[.08em]', status[1])}>{status[0]}</span>
+        {canScore && (locked || editing) && (
+          <button type="button" onClick={() => setEditing((e) => !e)} aria-pressed={editing}
+            className={cx('whitespace-nowrap rounded-full px-2 py-0.5 font-extrabold tracking-[.08em]', editing ? 'bg-accent text-onaccent' : 'shadow-[inset_0_0_0_1.5px_var(--line)] text-ink')}>
+            {editing ? 'Pronto' : 'Corrigir'}
+          </button>
+        )}
       </header>
+      {editing && lockedNote && (
+        <p className="relative m-0 rounded bg-hair px-2 py-1 text-[13px] font-semibold text-ink">{lockedNote}</p>
+      )}
       {m.counts?.length ? (
         <p className="relative m-0 rounded bg-highlight px-2 py-1 text-[13px] font-semibold text-ink">
           Vale só para {m.counts.map((id) => players.get(id)?.name ?? '?').join(' e ')}

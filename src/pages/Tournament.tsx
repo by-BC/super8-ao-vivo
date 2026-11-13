@@ -217,9 +217,9 @@ export function TournamentPage({ code }: { code: string }) {
             ))}
           </div>
         )}
-        {!canScore && tab === 'jogos' && !finished && (
+        {!canScore && tab === 'jogos' && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-4 py-3 shadow-card">
-            <span className="text-[15px]">Você está assistindo. Para lançar placar, entre com o PIN.</span>
+            <span className="text-[15px]">{finished ? 'Precisa corrigir algum placar? Entre com o PIN.' : 'Você está assistindo. Para lançar placar, entre com o PIN.'}</span>
             <Button onClick={() => setPinOpen(true)}>Sou árbitro</Button>
           </div>
         )}
@@ -374,6 +374,7 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
     for (const m of matches) if (m.grp && m.stage === 'rodada') for (const id of [...m.a, ...m.b]) g.set(id, `${m.division}|${m.grp}`);
     return g;
   }, [matches]);
+  const hasNextStages = config.format === 'mexicano' || matches.some((m) => m.stage === 'mata');
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggle = (k: string) => setOpen((o) => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
@@ -445,7 +446,8 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
               {i === current && <Costura className="my-1" />}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {b.ms.map((m) => (
-                  <MatchCard key={m.id} match={m} number={numbers.get(m.id) ?? 0} players={players} scoring={config.scoring} canScore={canScore && !finished} showGender={showGender}
+                  <MatchCard key={m.id} match={m} number={numbers.get(m.id) ?? 0} players={players} scoring={config.scoring} canScore={canScore} locked={finished} showGender={showGender}
+                    lockedNote={hasNextStages && m.stage !== 'mata' ? 'Atenção: mudar esse placar atualiza o ranking, mas não refaz as rodadas ou o mata-mata que já foram gerados.' : undefined}
                     onPoint={(side, delta) => onPoint(m.id, side, delta)} />
                 ))}
               </div>
