@@ -26,3 +26,12 @@ describe('personagens', () => {
     for (const p of ps) expect(b.get(p.id)).toBe(a.get(p.id));
   });
 });
+
+describe('seletor de personagem', () => {
+  it('mostra só o gênero do jogador', async () => {
+    const { charactersFor } = await import('./avatar');
+    expect(charactersFor('M')).toEqual(WOMEN);
+    expect(charactersFor('H')).toEqual(MEN);
+    expect(charactersFor(null)).toHaveLength(WOMEN.length + MEN.length);
+  });
+});

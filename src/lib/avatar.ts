@@ -56,3 +56,8 @@ export function characterRoster(players: Who[]): Roster {
   for (const p of players) { const c = byId.get(p.id); if (c !== undefined) byName.set(p.name, c); }
   return { byId, byName };
 }
+
+/** Personagens que aparecem no seletor: só do gênero do jogador (sem gênero, todos). */
+export function charactersFor(gender: 'H' | 'M' | null | undefined): number[] {
+  return gender === 'M' ? WOMEN : gender === 'H' ? MEN : CHARACTERS.map((_, i) => i);
+}

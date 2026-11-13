@@ -6,7 +6,7 @@ import {
 } from '../engine';
 import { signupSummary } from '../lib/signup';
 import { Avatar, Button, Choices, cx, Field, GenderDot, Note, Panel, Segmented, Sheet, Stepper, useToast } from '../components/ui';
-import { assignCharacters } from '../lib/avatar';
+import { assignCharacters, charactersFor } from '../lib/avatar';
 import { CHARACTERS } from '../lib/characters';
 import { api, ApiFail, errorText, type TournamentRow } from '../lib/api';
 import { Carregando } from '../components/Brand';
@@ -627,7 +627,8 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
             <input id={`edit-${current.id}`} aria-label="Nome" maxLength={40} value={current.name} onChange={(e) => onUpdate(current.id, { name: e.target.value })}
               className="min-h-[48px] w-full rounded-lg border-[1.5px] border-line bg-bg px-3 text-lg font-semibold text-ink" />
             <Field label="Gênero">
-              <Segmented<Gender> label="Gênero" value={current.gender} onChange={(g) => onUpdate(current.id, { gender: g })}
+              <Segmented<Gender> label="Gênero" value={current.gender}
+                onChange={(g) => onUpdate(current.id, { gender: g, avatar: current.avatar !== undefined && charactersFor(g).includes(current.avatar) ? current.avatar : undefined })}
                 options={[{ value: 'M', label: 'Mulher', className: 'bg-accent text-onaccent' }, { value: 'H', label: 'Homem', className: 'bg-ink text-bg' }]} />
             </Field>
             <div>
@@ -635,7 +636,8 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
               <small className="block text-muted">{current.avatar === undefined ? 'O app escolhe um do gênero. Toque pra trocar.' : 'Escolhido por você.'}</small>
             </div>
             <div className="-mt-2 grid grid-cols-5 gap-2" role="group" aria-label="Personagem">
-              {CHARACTERS.map((c, ci) => {
+              {charactersFor(current.gender).map((ci) => {
+                const c = CHARACTERS[ci];
                 const on = (current.avatar ?? auto.get(current.id)) === ci;
                 return (
                   <button key={c.id} type="button" title={c.label} aria-label={c.label} aria-pressed={on}

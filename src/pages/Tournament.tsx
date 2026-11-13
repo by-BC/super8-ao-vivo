@@ -16,7 +16,7 @@ import { getSaved, upsertSaved } from '../lib/local';
 import { go, shareLink } from '../lib/router';
 import { useTournament } from '../lib/useTournament';
 import { useWakeLock } from '../lib/useWakeLock';
-import { characterRoster } from '../lib/avatar';
+import { characterRoster, charactersFor } from '../lib/avatar';
 import { CHARACTERS } from '../lib/characters';
 import { Carregando, Costura, Simbolo } from '../components/Brand';
 import { IconInfo, IconJogos, IconRanking } from '../components/Icons';
@@ -684,7 +684,7 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
                       </div>
                       {pick === p.id && (
                         <div className="grid grid-cols-5 gap-2 rounded-lg bg-bg p-2.5" role="group" aria-label={`Escolher personagem de ${p.name}`}>
-                          {CHARACTERS.map((c, ci) => (
+                          {charactersFor(p.gender).map((ci) => ({ c: CHARACTERS[ci], ci })).map(({ c, ci }) => (
                             <button key={c.id} type="button" title={c.label} aria-label={c.label} aria-pressed={p.avatar === ci}
                               onClick={() => { setNames(names.map((x) => (x.id === p.id ? { ...x, avatar: ci } : x))); setPick(null); }}
                               className={cx('grid place-items-center rounded-full p-0.5', p.avatar === ci && 'ring-[3px] ring-[var(--accent)]')}>
