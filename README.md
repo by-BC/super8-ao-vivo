@@ -1,75 +1,146 @@
-![Super 8 · sistema de beach tênis](docs/banner.jpg)
+<p align="center">
+  <img src="docs/banner.jpg" alt="Super 8 · sistema de beach tênis" width="100%">
+</p>
 
-# Super 8 ao vivo 🎾
+<p align="center">
+  <b>Sorteio, placar e ranking do play de beach tennis, ao vivo no celular de todo mundo.</b><br>
+  Sem cadastro, sem senha, sem app pra instalar: um código no grupo do WhatsApp e a quadra inteira acompanha.
+</p>
 
-[![Deploy](https://github.com/by-BC/super8-ao-vivo/actions/workflows/deploy.yml/badge.svg)](https://github.com/by-BC/super8-ao-vivo/actions/workflows/deploy.yml)
-![React](https://img.shields.io/badge/React-18-2B5BFF) ![TypeScript](https://img.shields.io/badge/TypeScript-5-2B5BFF) ![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Realtime-3A2218) ![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-3A2218)
+<p align="center">
+  <a href="https://by-bc.github.io/super8-ao-vivo/"><b>▶ Abrir o app</b></a> ·
+  <a href="#um-play-em-cinco-telas">Como funciona</a> ·
+  <a href="#por-dentro">Por dentro</a> ·
+  <a href="#rodando-localmente">Rodar local</a>
+</p>
 
-Sorteio, placar e ranking de torneios de beach tennis, **ao vivo no celular de todo mundo**.
-Quem organiza cria o torneio e recebe um **código** (tipo `VD22NV`). Quem tem o código acompanha;
-quem tem o **PIN de árbitro** lança placar. Sem login, sem instalar nada: o link vai no grupo do WhatsApp e pronto.
+<p align="center">
+  <a href="https://github.com/by-BC/super8-ao-vivo/actions/workflows/deploy.yml"><img src="https://github.com/by-BC/super8-ao-vivo/actions/workflows/deploy.yml/badge.svg" alt="Deploy"></a>
+  <img src="https://img.shields.io/badge/React-18-1E3557" alt="React 18">
+  <img src="https://img.shields.io/badge/TypeScript-5-1E3557" alt="TypeScript 5">
+  <img src="https://img.shields.io/badge/Supabase-Postgres%20%2B%20Realtime-1F5C52" alt="Supabase">
+  <img src="https://img.shields.io/badge/testes-51%20passando-4DBBB5" alt="51 testes">
+  <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-FE9202" alt="MIT">
+</p>
 
-**No ar:** https://by-bc.github.io/super8-ao-vivo/
+---
 
-![Telas: próximo jogo de quem está no celular, placar com desfazer, ranking e arte do pódio](docs/telas.png)
+## A regra de ouro
 
-## Por que existe
+> **Nada pode atrapalhar o jogo.**
 
-Num play com rodízio, alguém precisa sortear as duplas, anotar placar de várias quadras e fazer a conta do ranking no fim.
-O app faz isso no celular que todo mundo já tem na mão, com uma regra de ouro: **nada pode atrapalhar o jogo**
-(sem cadastro, sem senha, funciona com internet ruim na quadra).
+Num play com rodízio alguém sorteia as duplas, alguém anota o placar de cada quadra e, no fim, alguém faz a conta do ranking
+no papel. O Super 8 tira esse trabalho de uma pessoa só e põe no celular que todo mundo já tem na mão.
+Cada decisão do projeto passa por essa regra: se exige login, atrasa a quadra ou some com um ponto quando a internet cai, não entra.
 
-## Pensado pra celular, na quadra
-
-- **Desfazer ponto:** cada game lançado mostra um aviso com *Desfazer* por alguns segundos. Dedo grosso na areia não estraga o placar.
-- **Tela sempre acesa** pro árbitro e no modo telão (Wake Lock API), sem precisar desbloquear a cada ponto.
-- **"Sou eu":** cada um escolhe o próprio nome e vê no topo o próximo jogo, a quadra, o parceiro e os adversários. Os jogos dele ficam destacados.
-- **Abre na rodada que está rolando**, com atalho *Rodada atual* quando ela sai da tela.
-- **Sem internet não perde ponto:** o toque entra numa fila no aparelho e sobe quando a conexão volta.
-- **Corrigir placar depois do fim:** cada jogo tem *Corrigir* pra quem tem o PIN; ranking e pódio se recalculam sozinhos.
-
-## O organizador mexe em tudo, sem perder placar
-
-Depois de criado, o organizador **edita o torneio inteiro** (jogadores, gênero, nível, formato, partida, ranking,
-quadras, rodadas, grupos, duplas) e o app decide o que dá pra manter, mostrando antes de salvar:
-
-| Mudança | O que acontece |
-|---|---|
-| Nome, tipo de partida, games, critério do ranking, desempate, nível, nome de jogador | **Nada muda na tabela.** Todos os placares ficam. |
-| Rodízio ou mexicano: entrou ou saiu gente, mais rodadas, mais quadras | **Ficam as rodadas já jogadas**; o app sorteia de novo só daí pra frente. Quem saiu continua com os jogos que fez. |
-| Formato, tipo de torneio, grupos, duplas fixas | Refaz a tabela inteira e avisa quantos placares somem. |
-
-A regra mora numa função pura (`src/engine/edit.ts`) com testes, e o banco confere de novo na hora de gravar:
-se alguém lançou placar numa partida que ia sair enquanto o organizador editava, nada é gravado.
-
-## O que dá pra configurar
-
-| Grupo | Opções |
-|---|---|
-| Tipo | **Misto** (H+M) · **Feminino e masculino** (cada um com sua chave e seu ranking, no mesmo código) · **Só feminino** · **Só masculino** · **Livre** |
-| Formato | **Rodízio / Super 8** (parceiro novo a cada rodada, ranking individual) · **Duplas fixas** todos contra todos · **Grupos + mata-mata** · **Mexicano** (1º e 4º contra 2º e 3º, rodada a rodada) |
-| Duplas | Sorteio · Equilibrado por nível A–D (forte com mais fraco) · Manual |
-| Partida | Total fixo de games, com empate · Primeiro a X games · Set de 4 ou 6 com tie-break · Melhor de 3 com match tie-break de 10 |
-| Ranking | Games feitos · Vitória 3, empate 1, derrota 0 · Média por partida · Rei e Rainha da areia · ordem de desempate escolhida |
-| Logística | Quadras, rodadas (com sugestão), grupos, classificados, rodízio em 2 grupos com final cruzada, jogo extra pra igualar partidas |
-
-Mais: **inscrição pelo link** (nome, gênero e nível A–D, vagas e lista de espera), **formato decidido depois** (o app sugere
-formatos que cabem no número de inscritos, nas quadras e no tempo), **lista colada do WhatsApp em qualquer formato**,
-mensagem pronta do ranking pro grupo, QR code, **modo telão** pra TV na beira da quadra, **arte dos campeões** com ou sem foto
-e **cartinha de cada jogador**, no formato story ou post.
-
-## Stack e decisões
-
-| Peça | Escolha | Por quê |
+| Quem | Tem o quê | Pode o quê |
 |---|---|---|
-| Front | React 18 + TypeScript + Vite + Tailwind | Leve, sem servidor próprio; publicado no GitHub Pages |
-| Motor | TypeScript puro em `src/engine` | Sorteio, pontuação, ranking e edição sem React nem rede: dá pra testar tudo com Vitest |
-| Banco | Supabase (Postgres) com funções `security definer` | Sem login: o PIN e a chave do organizador são conferidos dentro do banco |
-| Tempo real | Canal Realtime só com aviso de "mudou" | Quem recebe sempre relê do banco, então aviso falso não engana ninguém |
-| Concorrência | Trava otimista por versão em cada partida | Dois árbitros apertando + juntos dão +2, não +1 |
-| Artes | Canvas no próprio celular | A foto nunca sai do aparelho |
+| 🏟️ **Galera** | o código de 6 letras (ex.: `VD22NV`) | acompanhar jogos, ranking e pódio ao vivo |
+| 🎾 **Árbitro** | o PIN | lançar e corrigir placar |
+| 📋 **Organizador** | a chave guardada no celular de quem criou | editar o torneio inteiro, trocar o PIN, sortear de novo |
 
-## Como o placar fica certo com vários celulares
+---
+
+## Um play em cinco telas
+
+<table>
+  <tr>
+    <td align="center" width="20%"><img src="docs/play/1-lista.webp" alt="Lista de jogadores com personagens" width="170"></td>
+    <td align="center" width="20%"><img src="docs/play/2-formato.webp" alt="Escolha do formato" width="170"></td>
+    <td align="center" width="20%"><img src="docs/play/3-jogos.webp" alt="Próximo jogo de quem está no celular" width="170"></td>
+    <td align="center" width="20%"><img src="docs/play/4-placar.webp" alt="Placar com desfazer" width="170"></td>
+    <td align="center" width="20%"><img src="docs/play/5-ranking.webp" alt="Pódio e artes" width="170"></td>
+  </tr>
+  <tr>
+    <td valign="top"><b>1. Cola a lista</b><br><sub>Do jeito que veio do WhatsApp: com vírgula, numerada, com emoji, "Mulheres:" e "Homens:". Cada um ganha um personagem.</sub></td>
+    <td valign="top"><b>2. Escolhe o formato</b><br><sub>Rodízio, duplas fixas, grupos + mata-mata ou mexicano. O app sugere rodadas e mostra quantos jogos cada um faz.</sub></td>
+    <td valign="top"><b>3. Cada um se acha</b><br><sub>"Sou eu" mostra o próximo jogo, a quadra, o parceiro e os adversários. A tela abre na rodada que está rolando.</sub></td>
+    <td valign="top"><b>4. Placar no dedo</b><br><sub>Um toque por game, com desfazer. A tela não apaga pro árbitro e o ponto não se perde sem internet.</sub></td>
+    <td valign="top"><b>5. Pódio e story</b><br><sub>Ranking ao vivo, pódio no fim e arte pronta pro story: dos campeões, com foto, e a cartinha de cada um.</sub></td>
+  </tr>
+</table>
+
+---
+
+## O ponto não se perde
+
+<img src="docs/demo-placar.gif" alt="Lançando games e desfazendo o último" width="300" align="right">
+
+Quadra de areia tem sol na tela, mão suada e 4G fraco. Por isso o placar foi o ponto mais cuidado do app:
+
+- **Desfazer** — cada game lançado mostra "+1 game: Fê e Edu · Desfazer" por alguns segundos.
+- **Sem internet** — o toque aparece na hora e fica numa fila no aparelho; quando a conexão volta, sobe sozinho.
+- **Dois árbitros, nenhum ponto perdido** — cada partida tem trava de versão: dois + ao mesmo tempo dão +2, não +1.
+- **Tela acesa** — pro árbitro e no modo telão a tela não bloqueia no meio do jogo.
+- **Corrigir depois do fim** — quem tem o PIN toca em *Corrigir*; ranking e pódio se recalculam sozinhos.
+- **Ao vivo de verdade** — canal em tempo real; se ele cair, a tela consulta o servidor a cada 15 segundos.
+
+<br clear="right">
+
+---
+
+## Feito pra virar story
+
+<p align="center">
+  <img src="docs/artes.webp" alt="Pódio em story e post e cartinhas dourada, creme e turquesa" width="100%">
+</p>
+
+Quando o torneio acaba, o app monta as artes **no próprio celular** (canvas, a foto nunca sai do aparelho):
+o pódio em story ou post com confete e o personagem de cada um, o pôster com a foto do grupo se dissolvendo num fundo feito dela mesma,
+e a **cartinha colecionável** de cada jogador, com nota e números do torneio, em três raridades: dourada pro campeão, creme pro vice e turquesa pro resto.
+
+<p align="center">
+  <img src="docs/personagens.webp" alt="Os 21 personagens" width="100%">
+</p>
+
+**21 personagens** (10 mulheres e 11 homens) fazem as vezes de foto de perfil, sem guardar foto de ninguém.
+Cada jogador recebe um do próprio gênero, sem repetir em sequência; o organizador pode escolher outro.
+
+---
+
+## Do jeito do seu play
+
+| | |
+|---|---|
+| **Tipo** | Misto · Feminino e masculino (cada um com sua chave e seu ranking, no mesmo código) · Só feminino · Só masculino · Livre |
+| **Formato** | **Rodízio / Super 8** (parceiro novo a cada rodada) · **Duplas fixas** todos contra todos · **Grupos + mata-mata** · **Mexicano** (1º e 4º contra 2º e 3º) |
+| **Duplas** | Sorteio · Equilibrado por nível A–D (forte com mais fraco) · Manual |
+| **Partida** | Total de games, com empate · Primeiro a X · Set de 4 ou 6 com tie-break · Melhor de 3 com match tie-break de 10 |
+| **Ranking** | Games feitos · Vitória 3, empate 1 · Média por partida · Rei e Rainha da areia · ordem de desempate escolhida |
+| **Quadra** | Quadras, rodadas sugeridas, grupos, classificados, rodízio em 2 grupos com final cruzada, jogo extra pra igualar partidas |
+| **Entrada** | Lista colada · Inscrição pelo link com nível, vagas e lista de espera · Formato decidido depois, com sugestões pela lista |
+| **Telão** | Modo TV pra beira da quadra, com a rodada atual e o ranking, ao vivo |
+
+### O organizador muda o que quiser, sem perder placar
+
+Depois de criado, dá pra mexer em jogadores, gênero, nível, formato, partida, ranking, quadras, rodadas, grupos e duplas.
+Antes de salvar, o app mostra o que fica:
+
+| Mudou… | Acontece |
+|---|---|
+| nome, partida, games, ranking, desempate, nível, nome de jogador | **A tabela não muda.** Todos os placares ficam. |
+| rodízio/mexicano: entrou ou saiu gente, mais rodadas, mais quadras | **Ficam as rodadas jogadas**; só daí pra frente é sorteado de novo. Quem saiu mantém os jogos que fez. |
+| formato, tipo, grupos, duplas fixas | Refaz a tabela inteira e avisa antes quantos placares somem. |
+
+---
+
+## Por dentro
+
+```mermaid
+flowchart LR
+  subgraph Celular["📱 Celular (React + Vite, GitHub Pages)"]
+    UI[Telas] --> Motor["Motor puro<br/>src/engine"]
+    UI --> Fila["Fila offline<br/>localStorage"]
+    UI --> Canvas["Artes<br/>canvas"]
+  end
+  Fila -->|"RPC s8_* (PIN ou chave)"| DB[("Supabase<br/>schema super8")]
+  DB -->|"aviso: mudou"| RT(("Realtime"))
+  RT --> UI
+  UI -->|relê| DB
+```
+
+<details>
+<summary><b>Como o placar fica certo com vários celulares</b></summary>
 
 ```mermaid
 sequenceDiagram
@@ -90,79 +161,73 @@ sequenceDiagram
   B->>DB: busca o torneio de novo
 ```
 
-- **Sem ponto perdido:** a gravação usa trava de versão. Dois árbitros apertando + juntos dão +2, não +1.
-- **Sem internet na quadra:** o toque aparece na hora e fica numa fila no aparelho. Quando a conexão volta, a fila sobe sozinha.
-- **Aviso falso não engana:** o canal de tempo real é público, então ele só avisa que algo mudou; quem recebe sempre lê o placar no banco.
-- **Se o tempo real cair**, a tela consulta o servidor a cada 15 segundos e quando o celular volta para o app.
+O canal de tempo real é público, então ele só avisa *que* algo mudou; quem recebe sempre lê o placar no banco. Aviso falso não engana ninguém.
+</details>
 
-## Segurança
+<details>
+<summary><b>Decisões de stack</b></summary>
 
-- As tabelas ficam no schema `super8`, que **não é exposto** pela API. O app só chama as funções `public.s8_*`
+| Peça | Escolha | Por quê |
+|---|---|---|
+| Front | React 18 + TypeScript + Vite + Tailwind | Leve, sem servidor próprio; publicado no GitHub Pages |
+| Motor | TypeScript puro em `src/engine` | Sorteio, pontuação, ranking e edição sem React nem rede: dá pra testar tudo com Vitest |
+| Banco | Supabase (Postgres) com funções `security definer` | Sem login: PIN e chave do organizador são conferidos dentro do banco |
+| Tempo real | Canal Realtime só com aviso de "mudou" | Quem recebe relê do banco |
+| Concorrência | Trava otimista por versão em cada partida | Dois árbitros juntos não perdem ponto |
+| Edição | `planEdit` puro + `s8_admin_edit` | O app decide o que manter; o banco recusa se alguém lançou placar no meio |
+| Artes | Canvas no celular | A foto nunca sai do aparelho |
+</details>
+
+<details>
+<summary><b>Segurança</b></summary>
+
+- As tabelas ficam no schema `super8`, que **não é exposto** pela API. O app só chama funções `public.s8_*`
   (`security definer`, `search_path` vazio), que validam a entrada e conferem permissão antes de qualquer escrita.
-- **PIN** guardado com bcrypt (custo 12). Na 8ª tentativa errada em 15 minutos o torneio bloqueia novas entradas por 15 minutos.
+- **PIN** com bcrypt (custo 12). Na 8ª tentativa errada em 15 minutos, o torneio bloqueia novas entradas por 15 minutos.
 - Quem acerta o PIN recebe um token aleatório de 192 bits que vale 3 dias; o banco guarda só o SHA-256 dele.
-- **Chave do organizador** (192 bits) fica só no aparelho de quem criou; é ela que permite editar o torneio, trocar o PIN e sortear de novo.
-  Trocar o PIN derruba na hora todo mundo que entrou com o PIN antigo.
+- **Chave do organizador** (192 bits) fica só no aparelho de quem criou. Trocar o PIN derruba na hora quem entrou com o antigo.
 - Freio contra criação em massa: no máximo 30 torneios por minuto no servidor todo.
+- **Limpeza automática** às 3h (Brasília): sai o torneio jogado e parado há 6 horas, e qualquer um esquecido há 30 dias.
 
-- **Limpeza automática:** todo dia às 3h da manhã (horário de Brasília) sai do banco o torneio que já foi jogado e está parado há 6 horas,
-  e qualquer torneio ou inscrição esquecido há 30 dias (job `super8-limpeza-3h` no pg_cron). Torneio sorteado e ainda não jogado não é apagado na madrugada.
+O que **não** está coberto: quem tem o PIN pode lançar placar errado de propósito (o PIN é pra gente de confiança),
+e o código de 6 letras deixa o torneio visível pra quem souber ou adivinhar.
+</details>
 
-O que **não** está coberto: quem tem o PIN pode lançar placar errado de propósito (o PIN é para gente de confiança), e o código de 6 letras
-deixa o torneio visível para quem souber ou adivinhar o código.
-
-## Identidade visual: Clube de sol
-
-O beach tennis como clube social: divertido, ensolarado e com personalidade. A ideia é a galera gostar de
-compartilhar o resultado, então as cartinhas e as telas de vitória são parte da identidade, não um extra.
-
-| Cor | Hex | Uso |
-| --- | --- | --- |
-| Areia Clara | `#F4E7D3` | fundo do app, onda de areia nas artes |
-| Creme Solar | `#FFF6EA` | cartões, texto sobre fundo escuro |
-| Azul Profundo | `#1E3557` | texto |
-| Coral Saque | `#E37A63` | a bola, ilustrações; nos botões vira `#BF5440` pra branco passar no contraste |
-| Verde Coqueiro | `#1F5C52` | faixa do topo, botão + do placar, fundo das telas de vitória |
-| Turquesa Maré | `#4DBBB5` | seleção: rodada atual, "em jogo", raridade turquesa da cartinha |
-| Dourado Sol | `#F2C45A` | conquista: 1º lugar, título de campeão, raios do sol |
-
-- Fontes: **Outfit** (600–800) em título, placar e pódio; **DM Sans** na interface (as duas pelo Google Fonts).
-- **Logo oficial:** o S em duas faixas, laranja e branca, segurando a bola, com o "SUPER8" em itálico e "Sistema de beach tênis"
-  embaixo. Ficam em `public/marca`: o símbolo pra fundo escuro (`simbolo.webp`), a versão com a faixa em azul profundo
-  pra fundo claro (`simbolo-claro.webp`) e a logo completa, de letras brancas, só pra fundo escuro (`logo.webp`).
-  O ícone do app e o favicon são o símbolo sobre quadrado escuro.
-- **Interface:** cartões creme com cantos de 16px e sombra leve, ícones próprios de traço arredondado
-  (`src/components/Icons.tsx`) e avatar de iniciais com cor fixa por nome, igual no app e nas artes (`src/lib/avatar.ts`).
-- **Personagens:** 21 ilustrações de praia (10 mulheres, 11 homens, com raquete, viseira, boné e óculos) fazem
-  as vezes de foto de perfil, sem guardar foto de ninguém. Ficam em `public/avatares` (WebP, ~20 KB cada) e são as mesmas
-  no app e nas artes. Cada jogador recebe uma do próprio gênero automaticamente, sem repetir em sequência;
-  o organizador pode escolher outra (`src/lib/characters.ts`).
-- **Clima de praia:** folha de coqueiro na faixa do topo, onda de areia no pé dos cartões de destaque, degradê creme→pêssego,
-  coroa no 1º do ranking e faixa turquesa/coral em cada lado do placar. Tudo decorativo, clarinho e longe do placar.
-- **Artes de compartilhar:** tela de vitória em verde coqueiro com confete, pódio dourado/creme/pêssego com o personagem de cada um em cima
-  do degrau e onda de areia no pé; pôster com a foto se dissolvendo num fundo feito dela mesma; cartinha colecionável
-  em três raridades (dourada pro campeão, creme pro vice, turquesa pro resto).
-- Tema Noite automático (modo escuro do celular): fundo azul-noite, coral e turquesa mais claros pra manter o contraste.
-- Os tokens ficam em `src/index.css` (variáveis CSS) e `tailwind.config.js`.
-
-## Estrutura
+<details>
+<summary><b>Estrutura do código</b></summary>
 
 ```
-src/engine/       motor puro, sem React e sem rede (testado com Vitest)
+src/engine/       motor puro, sem React e sem rede (Vitest)
   schedule.ts     rodízio (quadrado latino, método do círculo e busca local), duplas, grupos, quadras
   mexicano.ts     rodadas montadas pelo ranking
-  knockout.ts     chave do mata-mata com folga, cabeças de chave e cruzamento de grupos
-  scoring.ts      tipos de partida, game de desempate no mata-mata
+  knockout.ts     mata-mata com folga, cabeças de chave e cruzamento de grupos
+  scoring.ts      tipos de partida e game de desempate
   standings.ts    ranking e desempates
   edit.ts         o que fica e o que é sorteado de novo quando o organizador edita
   importer.ts     leitura da lista colada do WhatsApp
-  whatsapp.ts     mensagens prontas para o grupo
-src/lib/          Supabase, chamadas RPC, fila offline, tempo real, tela acesa, artes em canvas
-src/components/   placar, ranking, pódio, peças da marca, ícones
-src/pages/        Início, Novo torneio (e edição), Torneio, Telão
+  whatsapp.ts     mensagens prontas pro grupo
+src/lib/          Supabase, RPC, fila offline, tempo real, tela acesa, personagens, artes em canvas
+src/components/   placar, ranking, pódio, marca, ícones, enfeites de praia
+src/pages/        Início, Novo torneio (e edição), Torneio, Telão, Inscrição
 supabase/         migrations do banco
-docs/             imagens do README
+public/marca      logo oficial · public/avatares  os 21 personagens
 ```
+</details>
+
+---
+
+## Identidade
+
+<p align="center">
+  <img src="docs/paleta.webp" alt="Paleta: Areia Clara, Creme Solar, Azul Profundo, Coral Saque, Verde Coqueiro, Turquesa Maré, Dourado Sol e o laranja da logo" width="100%">
+</p>
+
+**Clube de sol:** o beach tennis como clube social, divertido e ensolarado.
+A **logo oficial** é o S em duas faixas, laranja e branca, segurando a bola. Títulos em **Outfit**, interface em **DM Sans**.
+Cartões creme com cantos macios, ícones próprios, folha de coqueiro e onda de areia como enfeite, sempre longe do placar.
+Tema Noite automático quando o celular está no modo escuro.
+
+---
 
 ## Rodando localmente
 
@@ -170,23 +235,28 @@ docs/             imagens do README
 npm install
 cp .env.example .env.local   # URL e chave anon do seu projeto Supabase
 npm run dev                  # http://localhost:5173/super8-ao-vivo/
-npm test                     # motor: formatos, pontuação, ranking, edição, importação da lista
+npm test                     # motor e personagens: 51 testes
 ```
 
-**Banco:** aplique as migrations de `supabase/migrations/`, na ordem (SQL Editor ou `supabase db push`). Elas criam o schema `super8`,
-as tabelas e as funções `public.s8_*`; nada fora disso é alterado.
+**Banco:** aplique as migrations de `supabase/migrations/` na ordem (SQL Editor ou `supabase db push`).
+Elas criam o schema `super8`, as tabelas e as funções `public.s8_*`; nada fora disso é alterado.
 
-**Publicação:** a cada push na `main`, o workflow `.github/workflows/deploy.yml` roda os testes, gera o build e publica na branch `gh-pages`.
-A URL e a chave anon do Supabase ficam em `.env.production`; elas são públicas de qualquer jeito (vão no JavaScript do site),
-o que protege o banco são as funções `s8_*` e o RLS fechado no schema `super8`.
+**Publicação:** cada push na `main` roda os testes, gera o build e publica na branch `gh-pages`.
+A URL e a chave anon ficam em `.env.production`: são públicas de qualquer jeito; quem protege o banco são as funções `s8_*` e o RLS fechado.
 
-## Próximos passos
+---
 
-- Ranking da temporada: somar os plays da semana num histórico por jogador
-- Recuperar a chave do organizador em outro celular sem precisar copiar à mão
-- Testes de tela (criar, lançar ponto, desfazer, encerrar) rodando no CI
-- Disputa de 3º lugar no mata-mata
+## Próximas jogadas
 
-## Licença
+- [ ] **Liga da quinta:** somar os plays da semana num ranking da temporada
+- [ ] Levar a chave do organizador pra outro celular sem copiar à mão
+- [ ] Cada jogador escolher o próprio personagem
+- [ ] Testes de tela (criar, lançar ponto, desfazer, encerrar) no CI
+- [ ] Disputa de 3º lugar no mata-mata
 
-MIT © Bruno Candido
+---
+
+<p align="center">
+  Feito por <a href="https://github.com/by-BC">Bruno Candido</a> · <a href="https://www.linkedin.com/in/brnocandido">LinkedIn</a><br>
+  <sub>Licença MIT</sub>
+</p>
