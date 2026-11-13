@@ -8,10 +8,13 @@ describe('personagens', () => {
     const m = assignCharacters(ps);
     for (const p of ps) expect((p.gender === 'M' ? WOMEN : MEN)).toContain(m.get(p.id));
   });
-  it('até 5 por gênero, ninguém repete', () => {
-    const m = assignCharacters(ps.slice(0, 10));
-    const women = ps.slice(0, 10).filter((p) => p.gender === 'M').map((p) => m.get(p.id));
-    expect(new Set(women).size).toBe(women.length);
+  it('até 10 mulheres e 11 homens, ninguém repete', () => {
+    const big = Array.from({ length: 21 }, (_, i) => ({ id: `q${String(i).padStart(2, '0')}`, name: `Q${i}`, gender: (i < 10 ? 'M' : 'H') as 'H' | 'M' }));
+    const m = assignCharacters(big);
+    const women = big.filter((p) => p.gender === 'M').map((p) => m.get(p.id));
+    const men = big.filter((p) => p.gender === 'H').map((p) => m.get(p.id));
+    expect(new Set(women).size).toBe(10);
+    expect(new Set(men).size).toBe(11);
   });
   it('a escolha do organizador vale', () => {
     const m = assignCharacters([{ ...ps[0], avatar: 7 }, ...ps.slice(1)]);

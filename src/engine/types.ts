@@ -8,7 +8,7 @@ export interface Player {
   level?: number;
   /** Saiu no meio do torneio: os jogos que fez continuam valendo, mas não entra nas próximas rodadas. */
   left?: boolean;
-  /** Personagem escolhido pelo organizador (0–9); sem isso o app sorteia um do gênero. */
+  /** Personagem escolhido pelo organizador (índice em src/lib/characters.ts); sem isso o app sorteia um do gênero. */
   avatar?: number;
 }
 

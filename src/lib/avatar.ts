@@ -1,3 +1,5 @@
+import { CHARACTERS, MEN, WOMEN } from './characters';
+
 /** Avatar de iniciais: cor fixa por nome, igual no app e nas artes. */
 const COLORS = ['#4dbbb5', '#e37a63', '#f2c45a', '#1e3557', '#2b7064'];
 
@@ -21,9 +23,7 @@ export function avatarInk(bg: string): string {
 /* Personagens (as "fotos de perfil" desenhadas)                       */
 /* ------------------------------------------------------------------ */
 
-/** Índices dos personagens: 0–4 mulheres, 5–9 homens (ver characters.ts). */
-export const WOMEN = [0, 1, 2, 3, 4];
-export const MEN = [5, 6, 7, 8, 9];
+export { MEN, WOMEN };
 
 interface Who { id: string; name: string; gender: 'H' | 'M' | null; avatar?: number }
 
@@ -34,7 +34,7 @@ interface Who { id: string; name: string; gender: 'H' | 'M' | null; avatar?: num
  */
 export function assignCharacters(players: Who[]): Map<string, number> {
   const out = new Map<string, number>();
-  const valid = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= 9;
+  const valid = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n < CHARACTERS.length;
   for (const p of players) if (valid(p.avatar)) out.set(p.id, p.avatar);
   const groups: [Who[], number[]][] = [
     [players.filter((p) => p.gender === 'M'), WOMEN],
