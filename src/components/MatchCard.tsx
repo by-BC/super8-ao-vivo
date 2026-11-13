@@ -70,7 +70,7 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
     const score = m.sets[lastIdx]?.[idx] ?? 0;
     const label = ids.map((id) => players.get(id)?.name ?? '?').join(' e ');
     return (
-      <div className={cx('relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg py-2 pl-2 pr-1.5 transition-colors', won && 'bg-highlight', draw && 'bg-hair', pop && (won || draw) && 'pop')}>
+      <div className={cx('relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg py-2 pl-3.5 pr-1.5 transition-colors before:absolute before:inset-y-2 before:left-0 before:w-[5px] before:rounded-full', s === 'a' ? 'before:bg-turquesa' : 'before:bg-coral', won && 'bg-highlight', draw && 'bg-hair', pop && (won || draw) && 'pop')}>
         <div className="flex min-w-0 flex-col gap-0.5">
           {ids.map((id) => <Name key={id} p={players.get(id)} showGender={showGender} muted={!!lost} mine={!!me && id === me} />)}
           {won && <span className="mt-1 self-start rounded-full bg-accent px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-[.12em] text-onaccent">Venceu</span>}

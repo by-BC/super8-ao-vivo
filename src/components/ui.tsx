@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { avatarColor, avatarInk, initialsOf } from '../lib/avatar';
+import { avatarColor, avatarInk, initialsOf, type Roster } from '../lib/avatar';
+import { CHARACTER_URLS } from '../lib/characters';
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 export { cx };
@@ -42,13 +43,21 @@ export function Pill({ children, className }: { children: ReactNode; className?:
   return <span className={cx('whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider tabnum', className ?? 'bg-hair')}>{children}</span>;
 }
 
-/** Avatar redondo com as iniciais (a mesma cor do nome nas artes). */
-export function Avatar({ name, size = 36, className }: { name: string; size?: number; className?: string }) {
+/** Quem é quem no torneio aberto: o personagem de cada jogador (por id e por nome). */
+export const RosterCtx = createContext<Roster | null>(null);
+
+/**
+ * Avatar redondo: o personagem do jogador sobre a cor do nome (a mesma das artes).
+ * Fora de um torneio, ou sem personagem, mostra as iniciais.
+ */
+export function Avatar({ name, id, character, size = 36, className }: { name: string; id?: string; character?: number; size?: number; className?: string }) {
+  const roster = useContext(RosterCtx);
+  const ch = character ?? (id ? roster?.byId.get(id) : undefined) ?? roster?.byName.get(name);
   const bg = avatarColor(name);
   return (
-    <span aria-hidden className={cx('inline-grid flex-none place-items-center rounded-full font-display font-bold leading-none ring-2 ring-[var(--surface)]', className)}
+    <span aria-hidden className={cx('inline-grid flex-none place-items-center overflow-hidden rounded-full font-display font-bold leading-none ring-2 ring-[var(--surface)]', className)}
       style={{ width: size, height: size, background: bg, color: avatarInk(bg), fontSize: Math.round(size * 0.4) }}>
-      {initialsOf(name)}
+      {ch !== undefined ? <img src={CHARACTER_URLS[ch]} alt="" width={size} height={size} className="block h-full w-full" draggable={false} /> : initialsOf(name)}
     </span>
   );
 }

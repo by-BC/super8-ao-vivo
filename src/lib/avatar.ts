@@ -16,3 +16,43 @@ export function avatarColor(name: string): string {
 export function avatarInk(bg: string): string {
   return bg === '#1e3557' || bg === '#2b7064' ? '#fff6ea' : '#1e3557';
 }
+
+/* ------------------------------------------------------------------ */
+/* Personagens (as "fotos de perfil" desenhadas)                       */
+/* ------------------------------------------------------------------ */
+
+/** Índices dos personagens: 0–4 mulheres, 5–9 homens (ver characters.ts). */
+export const WOMEN = [0, 1, 2, 3, 4];
+export const MEN = [5, 6, 7, 8, 9];
+
+interface Who { id: string; name: string; gender: 'H' | 'M' | null; avatar?: number }
+
+/**
+ * Personagem de cada jogador. Quem o organizador escolheu fica com o escolhido; o resto
+ * recebe um do próprio gênero, em rodízio pela lista ordenada (vizinhos não repetem),
+ * começando de um ponto que depende do grupo (torneios diferentes não ficam iguais).
+ */
+export function assignCharacters(players: Who[]): Map<string, number> {
+  const out = new Map<string, number>();
+  const valid = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= 9;
+  for (const p of players) if (valid(p.avatar)) out.set(p.id, p.avatar);
+  const groups: [Who[], number[]][] = [
+    [players.filter((p) => p.gender === 'M'), WOMEN],
+    [players.filter((p) => p.gender === 'H'), MEN],
+    [players.filter((p) => !p.gender), [...WOMEN, ...MEN]],
+  ];
+  for (const [list, pool] of groups) {
+    const free = list.filter((p) => !out.has(p.id)).sort((a, b) => a.id.localeCompare(b.id));
+    const start = hashName(list.map((p) => p.id).sort().join('|')) % pool.length;
+    free.forEach((p, i) => out.set(p.id, pool[(start + i) % pool.length]));
+  }
+  return out;
+}
+
+export interface Roster { byId: Map<string, number>; byName: Map<string, number> }
+export function characterRoster(players: Who[]): Roster {
+  const byId = assignCharacters(players);
+  const byName = new Map<string, number>();
+  for (const p of players) { const c = byId.get(p.id); if (c !== undefined) byName.set(p.name, c); }
+  return { byId, byName };
+}

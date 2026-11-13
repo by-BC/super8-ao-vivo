@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, scheduleMessage,
   scoringLabel, tournamentStatus, type Match, type Player,
@@ -10,14 +10,17 @@ import { CardSheet } from '../components/CardSheet';
 import { SignupView } from './Signup';
 import { Check, TiebreakEditor } from './Create';
 import { Bracket, RankingSections, ResultPodium } from '../components/Ranking';
-import { Avatar, Button, copyText, CopySheet, cx, Note, Panel, Pill, Sheet, useToast } from '../components/ui';
+import { Avatar, Button, copyText, CopySheet, cx, Note, Panel, Pill, RosterCtx, Sheet, useToast } from '../components/ui';
 import { api, ApiFail, errorText } from '../lib/api';
 import { getSaved, upsertSaved } from '../lib/local';
 import { go, shareLink } from '../lib/router';
 import { useTournament } from '../lib/useTournament';
 import { useWakeLock } from '../lib/useWakeLock';
+import { characterRoster } from '../lib/avatar';
+import { CHARACTERS } from '../lib/characters';
 import { Carregando, Costura, Simbolo } from '../components/Brand';
 import { IconInfo, IconJogos, IconRanking } from '../components/Icons';
+import { Folha, OndaAreia } from '../components/Decor';
 
 type Tab = 'jogos' | 'ranking' | 'info';
 
@@ -94,6 +97,7 @@ export function TournamentPage({ code }: { code: string }) {
   }, [t.lastError]);
 
   const players = useMemo(() => new Map<string, Player>((tour?.data.players ?? []).map((p) => [p.id, p])), [tour]);
+  const roster = useMemo(() => characterRoster(tour?.data.players ?? []), [tour]);
 
   if (t.state === 'carregando') return <Shell code={code}><Carregando label="Carregando o torneio…" /></Shell>;
   if (t.state === 'nao_encontrado') {
@@ -115,8 +119,9 @@ export function TournamentPage({ code }: { code: string }) {
 
   const { config } = tour;
   const header = (
-    <header className="bg-band text-bandink">
-      <div className="gutter mx-auto flex max-w-[760px] items-center gap-3 py-4">
+    <header className="relative overflow-hidden bg-band text-bandink">
+      <Folha className="absolute -right-6 -top-8 h-36 w-36 rotate-[200deg] opacity-[.13]" />
+      <div className="gutter relative mx-auto flex max-w-[760px] items-center gap-3 py-4">
         <a href="#/" aria-label="Início" className="flex-none"><Simbolo onBand size={40} /></a>
         <div className="min-w-0 flex-1">
           <h1 className="m-0 font-display text-[clamp(24px,7.5vw,32px)] font-extrabold leading-[.92] [overflow-wrap:break-word]">{tour.name}</h1>
@@ -178,7 +183,7 @@ export function TournamentPage({ code }: { code: string }) {
   const shownMatches = group === 'todos' ? byDivision : byDivision.filter((m) => m.grp === group || !m.grp);
   const shownPlayers = division === 'todos' ? plist : divs.find((d) => d.id === division)!.players;
   const pods = podiums(plist, teams, config, t.matches).filter((p) => division === 'todos' || p.division === division);
-  const artInfo = { name: tour.name, date: new Date(tour.createdAt).toLocaleDateString('pt-BR'), site: `${location.host}${location.pathname.replace(/\/$/, '')}` || 'super8 ao vivo', code };
+  const artInfo = { charOf: (n: string) => roster.byName.get(n), name: tour.name, date: new Date(tour.createdAt).toLocaleDateString('pt-BR'), site: `${location.host}${location.pathname.replace(/\/$/, '')}` || 'super8 ao vivo', code };
   const openCard = (id: string | null) => { setCardId(id); setCardOpen(true); };
   const shownSections = sections.filter((s) => (division === 'todos' || s.division === division) && (group === 'todos' || s.kind !== 'grupo' || s.id.endsWith(`-${group}`)));
 
@@ -220,7 +225,7 @@ export function TournamentPage({ code }: { code: string }) {
   }
 
   return (
-    <>
+    <RosterCtx.Provider value={roster}>
       {header}
 
       <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-[calc(96px+env(safe-area-inset-bottom,0px))] pt-4">
@@ -268,7 +273,8 @@ export function TournamentPage({ code }: { code: string }) {
             {pods.map((p) => <ResultPodium key={p.division} podium={p} />)}
             {pods.length > 0 && (
               <button type="button" onClick={() => setPodiumOpen(true)}
-                className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3.5 text-left shadow-card">
+                className="sol relative flex items-center gap-3 overflow-hidden rounded-lg px-4 pb-6 pt-3.5 text-left shadow-card">
+                <OndaAreia />
                 <span aria-hidden className="flex h-12 w-10 flex-none items-end justify-center gap-[3px] rounded-md bg-band px-1.5 pb-1.5">
                   <i className="block h-4 w-2 rounded-t-sm bg-bandraised" /><i className="block h-7 w-2 rounded-t-sm bg-podium" /><i className="block h-3 w-2 rounded-t-sm bg-bandraised" />
                 </span>
@@ -281,7 +287,8 @@ export function TournamentPage({ code }: { code: string }) {
             )}
             {done > 0 && (
               <button type="button" onClick={() => openCard(null)}
-                className="flex items-center gap-3 rounded-lg bg-surface px-4 py-3.5 text-left shadow-card">
+                className="sol relative flex items-center gap-3 overflow-hidden rounded-lg px-4 pb-6 pt-3.5 text-left shadow-card">
+                <OndaAreia />
                 <span aria-hidden className="grid h-12 w-10 flex-none place-items-center rounded-md bg-accent font-display text-xl font-extrabold text-onaccent [clip-path:polygon(18%_0,82%_0,100%_14%,100%_80%,50%_100%,0_80%,0_14%)]">87</span>
                 <span className="min-w-0 flex-1">
                   <b className="block font-display text-[22px] font-extrabold leading-none">Minha cartinha</b>
@@ -358,7 +365,7 @@ export function TournamentPage({ code }: { code: string }) {
         groups={divs.map((d) => ({ label: divs.length > 1 ? d.label : 'Jogadores', players: d.players }))}
         makeCard={(id) => playerCard(plist, teams, config, t.matches, id)} />
       {welcomeSheet}
-    </>
+    </RosterCtx.Provider>
   );
 }
 
@@ -527,6 +534,8 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
   const toast = useToast();
   const { config } = tour;
   const [names, setNames] = useState<Player[] | null>(null);
+  const [pick, setPick] = useState<string | null>(null);
+  const roster = useContext(RosterCtx) ?? { byId: new Map<string, number>(), byName: new Map<string, number>() };
   const [newPin, setNewPin] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const [keyInput, setKeyInput] = useState('');
@@ -657,19 +666,40 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
             </div>
 
             <div>
-              <b>Corrigir nomes</b>
+              <b>Nomes e personagens</b>
               {names === null ? (
-                <Button className="mt-2" block onClick={() => setNames(tour.data.players.map((p) => ({ ...p })))}>Editar nomes</Button>
+                <Button className="mt-2" block onClick={() => setNames(tour.data.players.filter((p) => !p.left).map((p) => ({ ...p })))}>Editar nomes e personagens</Button>
               ) : (
                 <div className="mt-2 flex flex-col gap-2">
+                  <p className="m-0 text-[13px] text-muted">Toque no boneco pra escolher o personagem de cada um.</p>
                   {names.map((p, i) => (
-                    <input key={p.id} id={`edit-${p.id}`} aria-label={`Nome ${i + 1}`} value={p.name} maxLength={40}
-                      onChange={(e) => setNames(names.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)))}
-                      className="min-h-[44px] rounded-lg border-[1.5px] border-line bg-bg px-3 font-semibold text-ink" />
+                    <div key={p.id} className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <button type="button" aria-label={`Personagem de ${p.name}`} aria-expanded={pick === p.id} onClick={() => setPick(pick === p.id ? null : p.id)} className="rounded-full">
+                          <Avatar name={p.name} character={p.avatar ?? roster.byId.get(p.id)} size={44} className={pick === p.id ? 'ring-[3px] ring-[var(--accent)]' : ''} />
+                        </button>
+                        <input id={`edit-${p.id}`} aria-label={`Nome ${i + 1}`} value={p.name} maxLength={40}
+                          onChange={(e) => setNames(names.map((x) => (x.id === p.id ? { ...x, name: e.target.value } : x)))}
+                          className="min-h-[44px] min-w-0 flex-1 rounded-lg border-[1.5px] border-line bg-bg px-3 font-semibold text-ink" />
+                      </div>
+                      {pick === p.id && (
+                        <div className="grid grid-cols-5 gap-2 rounded-lg bg-bg p-2.5" role="group" aria-label={`Escolher personagem de ${p.name}`}>
+                          {CHARACTERS.map((c, ci) => (
+                            <button key={c.id} type="button" title={c.label} aria-label={c.label} aria-pressed={p.avatar === ci}
+                              onClick={() => { setNames(names.map((x) => (x.id === p.id ? { ...x, avatar: ci } : x))); setPick(null); }}
+                              className={cx('grid place-items-center rounded-full p-0.5', p.avatar === ci && 'ring-[3px] ring-[var(--accent)]')}>
+                              <Avatar name={p.name} character={ci} size={46} />
+                            </button>
+                          ))}
+                          <button type="button" onClick={() => { setNames(names.map((x) => (x.id === p.id ? { ...x, avatar: undefined } : x))); setPick(null); }}
+                            className="col-span-5 min-h-[40px] rounded-lg text-sm font-bold text-muted underline underline-offset-2">Deixar o app escolher</button>
+                        </div>
+                      )}
+                    </div>
                   ))}
                   <div className="grid grid-cols-2 gap-2">
                     <Button kind="primary" disabled={busy || names.some((p) => !p.name.trim())}
-                      onClick={async () => { if (await run(() => api.adminUpdate(code, adminKey, tour.name, { ...tour.data, players: names.map((p) => ({ ...p, name: p.name.trim() })) }, tour.version), 'Nomes salvos.')) setNames(null); }}>Salvar</Button>
+                      onClick={async () => { if (await run(() => api.adminUpdate(code, adminKey, tour.name, { ...tour.data, players: tour.data.players.map((p) => { const n = names.find((x) => x.id === p.id); return n ? { ...n, name: n.name.trim() } : p; }) }, tour.version), 'Nomes e personagens salvos.')) setNames(null); }}>Salvar</Button>
                     <Button onClick={() => setNames(null)}>Cancelar</Button>
                   </div>
                 </div>
@@ -734,15 +764,17 @@ function MeCard({ me, matches, players, config, onPick }: {
   const now = next && firstPending && (next.stage === firstPending.stage && next.round === firstPending.round);
   const name = players.get(me)?.name ?? '?';
   return (
-    <section className="flex flex-col gap-2 rounded-lg bg-surface px-4 py-3 shadow-card" aria-label={`Jogos de ${name}`}>
-      <div className="flex items-center gap-2">
-        <Avatar name={name} size={30} />
+    <section className="sol relative flex flex-col gap-2 overflow-hidden rounded-lg px-4 pb-7 pt-3 shadow-card" aria-label={`Jogos de ${name}`}>
+      <Folha className="absolute -right-5 -top-6 h-28 w-28 rotate-[205deg] text-dourado opacity-40" />
+      <OndaAreia />
+      <div className="relative flex items-center gap-2">
+        <Avatar id={me} name={name} size={30} />
         <span className="text-xs font-extrabold uppercase tracking-[.12em] text-muted">{next ? (now ? 'Você joga agora' : 'Seu próximo jogo') : 'Seus jogos'}</span>
         <button type="button" onClick={onPick} className="ml-auto text-sm font-bold text-muted underline underline-offset-2">Não é {name}?</button>
       </div>
       {next ? (
         <>
-          <p className="m-0 font-display text-2xl font-extrabold leading-tight">
+          <p className="relative m-0 font-display text-2xl font-extrabold leading-tight">
             {next.stage === 'mata' ? next.label : `Rodada ${next.round}`} · Quadra {next.court}
           </p>
           {(() => {
@@ -750,16 +782,16 @@ function MeCard({ me, matches, players, config, onPick }: {
             const other = next.a.includes(me) ? next.b : next.a;
             const partner = mySide.filter((id) => id !== me);
             return (
-              <p className="m-0 text-[15px]">
+              <p className="relative m-0 text-[15px]">
                 {partner.length ? <>Com <b>{nm(partner)}</b> contra </> : 'Contra '}<b>{nm(other)}</b>
               </p>
             );
           })()}
           <button type="button" onClick={() => document.getElementById(`jogo-${next.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-            className={cx('min-h-[44px] rounded-lg font-bold', now ? 'bg-accent text-onaccent' : 'border-[1.5px] border-line')}>Ver o jogo</button>
+            className={cx('relative min-h-[44px] rounded-lg font-bold', now ? 'bg-accent text-onaccent' : 'border-[1.5px] border-line bg-surface')}>Ver o jogo</button>
         </>
       ) : (
-        <p className="m-0 text-[15px]">{mine.length ? `Você já jogou ${played} ${played === 1 ? 'partida' : 'partidas'}. Confira sua posição no Ranking.` : 'Ainda não tem jogo seu na tabela.'}</p>
+        <p className="relative m-0 text-[15px]">{mine.length ? `Você já jogou ${played} ${played === 1 ? 'partida' : 'partidas'}. Confira sua posição no Ranking.` : 'Ainda não tem jogo seu na tabela.'}</p>
       )}
     </section>
   );
@@ -774,7 +806,7 @@ function MeSheet({ open, players, me, onClose, onPick }: { open: boolean; player
         {list.map((p) => (
           <li key={p.id}>
             <button type="button" onClick={() => onPick(p.id)} aria-pressed={me === p.id}
-              className={cx('flex min-h-[52px] w-full items-center gap-2 rounded-lg border-[1.5px] px-2.5 text-left font-bold', me === p.id ? 'border-ink bg-ink text-bg' : 'border-line')}><Avatar name={p.name} size={32} />{p.name}</button>
+              className={cx('flex min-h-[52px] w-full items-center gap-2 rounded-lg border-[1.5px] px-2.5 text-left font-bold', me === p.id ? 'border-ink bg-ink text-bg' : 'border-line')}><Avatar id={p.id} name={p.name} size={32} />{p.name}</button>
           </li>
         ))}
       </ul>

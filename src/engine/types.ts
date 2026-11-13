@@ -8,6 +8,8 @@ export interface Player {
   level?: number;
   /** Saiu no meio do torneio: os jogos que fez continuam valendo, mas não entra nas próximas rodadas. */
   left?: boolean;
+  /** Personagem escolhido pelo organizador (0–9); sem isso o app sorteia um do gênero. */
+  avatar?: number;
 }
 
 /** mista: H+M · mesmo_genero: H+H contra H+H e M+M contra M+M · livre: qualquer combinação */

@@ -1,3 +1,4 @@
+import { Folha } from '../components/Decor';
 import { useState } from 'react';
 import { Button, Note, Panel, Pill } from '../components/ui';
 import { listSaved } from '../lib/local';
@@ -9,8 +10,9 @@ const roleLabel = { organizador: 'Organizador', arbitro: 'Árbitro', publico: 'A
 
 export function Hero({ title, accent, sub, small }: { title: string; accent?: string; sub?: string; small?: boolean }) {
   return (
-    <header className="bg-band text-bandink">
-      <div className="gutter mx-auto flex max-w-[760px] items-center gap-4 py-6">
+    <header className="relative overflow-hidden bg-band text-bandink">
+      <Folha className="absolute -right-8 -top-10 h-44 w-44 rotate-[200deg] opacity-[.13]" />
+      <div className="gutter relative mx-auto flex max-w-[760px] items-center gap-4 py-6">
         <a href="#/" aria-label="Início" className="flex-none"><Simbolo onBand size={small ? 44 : 64} /></a>
         <div className="min-w-0">
           <h1 className={`m-0 font-display font-extrabold leading-[.95] ${small ? 'text-[32px]' : 'text-[clamp(40px,11vw,60px)]'} [overflow-wrap:anywhere]`}>{title}</h1>

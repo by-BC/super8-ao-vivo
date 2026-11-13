@@ -37,6 +37,7 @@
   --select-tint: #d5efec;
   --accent-tint: #f9ddd5;
   --pessego: #f6b8a5;
+  --sol-end: #fde3cf;
   --danger: #b42318;
   --on-danger: #ffffff;
   --tint-warn: rgba(180, 35, 24, 0.1);
@@ -70,6 +71,7 @@
     --on-select: #0f1e2e;
     --select-tint: #19414a;
     --accent-tint: #3a2a2e;
+    --sol-end: #22394f;
     --danger: #ff8e7f;
     --on-danger: #0f1e2e;
     --tint-warn: rgba(255, 142, 127, 0.14);
@@ -115,6 +117,11 @@ h3 {
 
 .tabnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* cartão de destaque: creme esquentando pra pêssego, como fim de tarde */
+.sol {
+  background-image: linear-gradient(135deg, var(--surface) 45%, var(--sol-end));
 }
 
 /* cartão de partida: chapado, sem textura */

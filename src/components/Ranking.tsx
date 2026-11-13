@@ -1,6 +1,7 @@
 import { evaluate, knockoutChampion, type Config, type Match, type Player, type Podium, type PodiumPlace, type RankingSection, type Row, type Team } from '../engine';
 import { Name } from './MatchCard';
 import { Avatar, cx, Pill } from './ui';
+import { Coroa } from './Decor';
 
 const fmt = (n: number, media: boolean) => (media ? n.toFixed(1).replace('.', ',') : String(n));
 
@@ -12,9 +13,12 @@ function RowItem({ r, players, showGender, media, played, qualifies, compact, on
     <li className={cx('grid grid-cols-[40px_auto_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-hair px-2.5 py-3', played && r.pos === 1 && 'rounded-lg border-transparent bg-highlight', tap && 'cursor-pointer active:bg-hair')}
       onClick={tap} role={tap ? 'button' : undefined} tabIndex={tap ? 0 : undefined} aria-label={tap ? `Cartinha de ${r.label}` : undefined}
       onKeyDown={tap ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(); } } : undefined}>
-      <span className={cx('grid h-10 w-10 place-items-center rounded-xl font-display text-[20px] font-extrabold leading-none tabnum', played && r.pos === 1 ? 'bg-dourado text-profundo' : played && r.pos <= 3 ? 'bg-surface text-ink' : '')}>{played ? `${r.pos}º` : '–'}</span>
+      <span className={cx('relative grid h-10 w-10 place-items-center rounded-xl font-display text-[20px] font-extrabold leading-none tabnum', played && r.pos === 1 ? 'bg-dourado text-profundo' : played && r.pos === 2 ? 'bg-creme text-profundo' : played && r.pos === 3 ? 'bg-pessego text-profundo' : '')}>
+        {played && r.pos === 1 && <Coroa className="absolute -top-3 left-1/2 h-4 w-6 -translate-x-1/2" />}
+        {played ? `${r.pos}º` : '–'}
+      </span>
       <span className="flex -space-x-2">
-        {r.ids.map((id) => <Avatar key={id} name={players.get(id)?.name ?? '?'} size={r.ids.length > 1 ? 34 : 42} />)}
+        {r.ids.map((id) => <Avatar key={id} id={id} name={players.get(id)?.name ?? '?'} size={r.ids.length > 1 ? 34 : 42} />)}
       </span>
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 flex-col gap-0.5">

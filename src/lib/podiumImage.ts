@@ -1,10 +1,13 @@
 import type { Podium } from '../engine';
 import { avatarColor, avatarInk, initialsOf } from './avatar';
+import { CHARACTER_URLS } from './characters';
 import { MONO_BALL, MONO_EIGHT, MONO_MATRIX, MONO_RAYS, MONO_RAY_STROKE, MONO_SEAM, MONO_STROKE } from './brandPaths';
 
 export type ImgFormat = 'story' | 'feed';
 
 export interface PodiumInfo {
+  /** personagem de cada nome (o mesmo do app) */
+  charOf?: (name: string) => number | undefined;
   name: string;
   date: string;
   site: string;
@@ -129,14 +132,37 @@ export function ball(ctx: Ctx, cx: number, cy: number, r: number, tone: 'claro' 
   ctx.restore();
 }
 
-/** Avatar redondo com as iniciais e borda creme. */
-export function avatar(ctx: Ctx, name: string, cx: number, cy: number, r: number, ring = C.creme) {
+let charImgs: HTMLImageElement[] | null = null;
+/** Carrega os 10 personagens uma vez, pra desenhar no canvas sem esperar. */
+export async function charactersReady(): Promise<void> {
+  if (charImgs) return;
+  const imgs = CHARACTER_URLS.map((u) => { const i = new Image(); i.src = u; return i; });
+  await Promise.all(imgs.map((i) => i.decode().catch(() => undefined)));
+  charImgs = imgs;
+}
+
+/** Avatar redondo com borda creme: o personagem (se tiver) ou as iniciais. */
+export function avatar(ctx: Ctx, name: string, cx: number, cy: number, r: number, ring = C.creme, character?: number) {
   const bg = avatarColor(name);
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = bg;
   ctx.fill();
+  const img = character !== undefined ? charImgs?.[character] : undefined;
+  if (img && img.complete && img.naturalWidth) {
+    ctx.save();
+    ctx.clip();
+    ctx.drawImage(img, cx - r, cy - r, 2 * r, 2 * r);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.lineWidth = Math.max(4, r * 0.09);
+    ctx.strokeStyle = ring;
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
   ctx.lineWidth = Math.max(4, r * 0.09);
   ctx.strokeStyle = ring;
   ctx.stroke();
@@ -205,6 +231,7 @@ const LAYOUT = {
  */
 export async function renderPodium(p: Podium, info: PodiumInfo, format: ImgFormat): Promise<Blob> {
   await fontsReady();
+  await charactersReady();
   const L = LAYOUT[format];
   const W = L.w;
   const H = L.h;
@@ -299,10 +326,10 @@ export async function renderPodium(p: Podium, info: PodiumInfo, format: ImgForma
     const r = L.av[first ? 0 : 1];
     const cy = top - r * 0.35;
     if (place.names.length > 1) {
-      avatar(ctx, place.names[0], x + w / 2 - r * 0.62, cy, r * 0.82);
-      avatar(ctx, place.names[1], x + w / 2 + r * 0.62, cy, r * 0.82);
+      avatar(ctx, place.names[0], x + w / 2 - r * 0.62, cy, r * 0.82, C.creme, info.charOf?.(place.names[0]));
+      avatar(ctx, place.names[1], x + w / 2 + r * 0.62, cy, r * 0.82, C.creme, info.charOf?.(place.names[1]));
     } else {
-      avatar(ctx, place.names[0] ?? '?', x + w / 2, cy, r);
+      avatar(ctx, place.names[0] ?? '?', x + w / 2, cy, r, C.creme, info.charOf?.(place.names[0] ?? ''));
     }
     if (first) {
       // raios do sol sobre o campeão

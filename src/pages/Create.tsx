@@ -5,7 +5,9 @@ import {
   type Player, type RankingBase, type ScoringType, type SetupArea, type Tiebreak,
 } from '../engine';
 import { signupSummary } from '../lib/signup';
-import { Button, Choices, cx, Field, GenderDot, Note, Panel, Segmented, Sheet, Stepper, useToast } from '../components/ui';
+import { Avatar, Button, Choices, cx, Field, GenderDot, Note, Panel, Segmented, Sheet, Stepper, useToast } from '../components/ui';
+import { assignCharacters } from '../lib/avatar';
+import { CHARACTERS } from '../lib/characters';
 import { api, ApiFail, errorText, type TournamentRow } from '../lib/api';
 import { Carregando } from '../components/Brand';
 import { getSaved, loadDraft, saveDraft, upsertSaved } from '../lib/local';
@@ -570,6 +572,7 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
         { key: 'x', title: 'Sem gênero', list: d.players.filter((p) => !p.gender) },
       ];
   const current = d.players.find((p) => p.id === editing) ?? null;
+  const auto = useMemo(() => assignCharacters(d.players), [d.players]);
 
   return (
     <Panel title={`Jogadores · ${only ? d.players.filter((p) => p.gender === only).length : d.players.length}`}>
@@ -586,7 +589,8 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
             <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
               {g.list.map((p) => (
                 <li key={p.id} className="flex items-center overflow-hidden rounded-full border-[1.5px] border-line bg-bg">
-                  <button type="button" onClick={() => setEditing(p.id)} className="flex min-h-[40px] items-center gap-1.5 px-3 text-[15px] font-semibold text-ink">
+                  <button type="button" onClick={() => setEditing(p.id)} className="flex min-h-[40px] items-center gap-1.5 pl-1 pr-3 text-[15px] font-semibold text-ink">
+                    <Avatar name={p.name || '?'} character={p.avatar ?? auto.get(p.id)} size={30} />
                     {p.name || 'sem nome'}
                     {d.useLevel && <span className="rounded-full bg-hair px-1.5 text-[11px] font-bold">{levelLetter(p.level) ?? '?'}</span>}
                   </button>
@@ -626,6 +630,22 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
               <Segmented<Gender> label="Gênero" value={current.gender} onChange={(g) => onUpdate(current.id, { gender: g })}
                 options={[{ value: 'M', label: 'Mulher', className: 'bg-accent text-onaccent' }, { value: 'H', label: 'Homem', className: 'bg-ink text-bg' }]} />
             </Field>
+            <div>
+              <b className="text-[15px]">Personagem</b>
+              <small className="block text-muted">{current.avatar === undefined ? 'O app escolhe um do gênero. Toque pra trocar.' : 'Escolhido por você.'}</small>
+            </div>
+            <div className="-mt-2 grid grid-cols-5 gap-2" role="group" aria-label="Personagem">
+              {CHARACTERS.map((c, ci) => {
+                const on = (current.avatar ?? auto.get(current.id)) === ci;
+                return (
+                  <button key={c.id} type="button" title={c.label} aria-label={c.label} aria-pressed={on}
+                    onClick={() => onUpdate(current.id, { avatar: ci })}
+                    className={cx('grid place-items-center rounded-full p-0.5', on && 'ring-[3px] ring-[var(--accent)]')}>
+                    <Avatar name={current.name || '?'} character={ci} size={46} />
+                  </button>
+                );
+              })}
+            </div>
             {d.useLevel && (
               <Field label="Nível" hint={LEVELS.find((l) => l.value === current.level)?.title ?? 'Sem nível marcado'}>
                 <Segmented<string> label="Nível" value={current.level ? String(current.level) : null} onChange={(v) => onUpdate(current.id, { level: Number(v) })}

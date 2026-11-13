@@ -1,5 +1,5 @@
 import type { PlayerCard, Podium } from '../engine';
-import { avatar, ball, BODY, brandRow, C, DISPLAY, fit, fontsReady, roundRect, spacing, type ImgFormat, type PodiumInfo } from './podiumImage';
+import { avatar, ball, BODY, brandRow, C, charactersReady, DISPLAY, fit, fontsReady, roundRect, spacing, type ImgFormat, type PodiumInfo } from './podiumImage';
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -261,6 +261,7 @@ function shield(ctx: Ctx, x: number, y: number, w: number, h: number, c: number)
 /** Cartinha do jogador (story 1080x1920), com foto opcional. Cor chapada, sem brilho. */
 export async function renderPlayerCard(card: PlayerCard, info: PodiumInfo, photo: HTMLImageElement | null, focus: number): Promise<Blob> {
   await fontsReady();
+  await charactersReady();
   const W = 1080;
   const H = 1920;
   const { canvas, ctx } = canvasFor(W, H);
@@ -319,7 +320,7 @@ export async function renderPlayerCard(card: PlayerCard, info: PodiumInfo, photo
     ctx.restore();
   } else {
     // sem foto: o avatar de iniciais, igual ao do ranking
-    avatar(ctx, card.name, px + pw / 2, py + ph * 0.48, pw * 0.42, T.edge);
+    avatar(ctx, card.name, px + pw / 2, py + ph * 0.48, pw * 0.42, T.edge, info.charOf?.(card.name));
   }
   ctx.restore();
 

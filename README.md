@@ -129,8 +129,13 @@ compartilhar o resultado, então as cartinhas e as telas de vitória são parte 
   Um desenho só (`src/lib/brandPaths.ts`) para símbolo, divisor, carregando, ícone do app e artes.
 - **Interface:** cartões creme com cantos de 16px e sombra leve, ícones próprios de traço arredondado
   (`src/components/Icons.tsx`) e avatar de iniciais com cor fixa por nome, igual no app e nas artes (`src/lib/avatar.ts`).
-- **Artes de compartilhar:** tela de vitória em verde coqueiro com confete, pódio dourado/creme/pêssego com avatar em cima
-  de cada degrau e onda de areia no pé; pôster com a foto se dissolvendo num fundo feito dela mesma; cartinha colecionável
+- **Personagens:** 10 bonecos desenhados (5 mulheres, 5 homens, tons de pele e acessórios de praia variados) fazem
+  as vezes de foto de perfil, sem guardar foto de ninguém. Cada jogador recebe um do próprio gênero automaticamente,
+  sem repetir em sequência; o organizador pode escolher outro (`src/lib/characters.ts`).
+- **Clima de praia:** folha de coqueiro na faixa do topo, onda de areia no pé dos cartões de destaque, degradê creme→pêssego,
+  coroa no 1º do ranking e faixa turquesa/coral em cada lado do placar. Tudo decorativo, clarinho e longe do placar.
+- **Artes de compartilhar:** tela de vitória em verde coqueiro com confete, pódio dourado/creme/pêssego com o personagem de cada um em cima
+  do degrau e onda de areia no pé; pôster com a foto se dissolvendo num fundo feito dela mesma; cartinha colecionável
   em três raridades (dourada pro campeão, creme pro vice, turquesa pro resto).
 - Tema Noite automático (modo escuro do celular): fundo azul-noite, coral e turquesa mais claros pra manter o contraste.
 - Os tokens ficam em `src/index.css` (variáveis CSS) e `tailwind.config.js`.
