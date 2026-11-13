@@ -6,8 +6,9 @@ import {
 } from '../engine';
 import { signupSummary } from '../lib/signup';
 import { Button, Choices, cx, Field, GenderDot, Note, Panel, Segmented, Sheet, Stepper, useToast } from '../components/ui';
-import { api, ApiFail, errorText } from '../lib/api';
-import { loadDraft, saveDraft, upsertSaved } from '../lib/local';
+import { api, ApiFail, errorText, type TournamentRow } from '../lib/api';
+import { Carregando } from '../components/Brand';
+import { getSaved, loadDraft, saveDraft, upsertSaved } from '../lib/local';
 import { go } from '../lib/router';
 
 /** Como a pessoa enxerga a modalidade. "Só feminino/masculino" usa só parte da lista. */
@@ -86,9 +87,59 @@ const BASES = [
 const TIEBREAKS: Record<Tiebreak, string> = { vitorias: 'Vitórias', saldo: 'Saldo de games', confronto: 'Confronto direto', games: 'Games feitos' };
 const DIV_LABEL: Record<string, string> = { H: 'Masculino', M: 'Feminino', all: 'Geral' };
 
-export function CreatePage() {
+/** Torneio em edição: o assistente abre com os dados dele e, no fim, sorteia de novo no mesmo código. */
+interface EditCtx {
+  code: string;
+  adminKey: string;
+  tour: TournamentRow;
+  anyScore: boolean;
+}
+
+/** Monta o rascunho a partir de um torneio que já existe. */
+function draftFrom(t: TournamentRow): Draft {
+  const players = t.data.players.map((p) => ({ ...p }));
+  const m = t.config.modality;
+  const genders = new Set(players.map((p) => p.gender));
+  const tipo: Tipo = m === 'mesmo_genero' && genders.size === 1 ? (genders.has('M') ? 'so_f' : 'so_m') : tipoOf(m);
+  return {
+    ...fresh(),
+    name: t.name,
+    players,
+    config: { ...DEFAULT_CONFIG, ...t.config, formatLater: false },
+    useLevel: players.some((p) => !!p.level),
+    manual: t.config.pairing === 'manual' ? t.data.teams.map((x) => [...x.players] as [string, string]) : [],
+    roundsTouched: true,
+    tipo,
+    entry: 'lista',
+  };
+}
+
+/** Rota #/t/CODIGO/editar: só para o organizador (quem tem a chave neste aparelho). */
+export function EditPage({ code }: { code: string }) {
+  const adminKey = getSaved(code)?.adminKey;
+  const [state, setState] = useState<{ tour: TournamentRow; anyScore: boolean } | 'erro' | null>(null);
+  useEffect(() => {
+    if (!adminKey) return;
+    api.get(code)
+      .then((r) => setState({ tour: r.tournament, anyScore: r.matches.some((x) => x.sets.length > 0) }))
+      .catch(() => setState('erro'));
+  }, [code, adminKey]);
+  if (!adminKey || state === 'erro') {
+    return (
+      <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pt-10">
+        <Note kind="warn">{adminKey ? 'Não consegui abrir o torneio. Confira a conexão.' : 'Só o organizador edita o torneio. Entre com a chave do organizador na aba Info.'}</Note>
+        <Button onClick={() => go(`/t/${code}`)}>Voltar ao torneio</Button>
+      </main>
+    );
+  }
+  if (!state) return <Carregando label="Abrindo o torneio…" className="pt-16" />;
+  return <CreatePage edit={{ code, adminKey, tour: state.tour, anyScore: state.anyScore }} />;
+}
+
+export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
   const toast = useToast();
   const [d, setD] = useState<Draft>(() => {
+    if (edit) return draftFrom(edit.tour);
     const saved = loadDraft<Partial<Draft> | null>(null);
     if (!saved?.config) return fresh();
     const config = { ...DEFAULT_CONFIG, ...saved.config };
@@ -101,7 +152,7 @@ export function CreatePage() {
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const setC = (patch: Partial<Config>) => setD((x) => ({ ...x, config: { ...x.config, ...patch } }));
 
-  useEffect(() => { saveDraft(d); }, [d]);
+  useEffect(() => { if (!edit) saveDraft(d); }, [d]);
   useEffect(() => { window.scrollTo(0, 0); }, [step]);
 
   const only = onlyOf(d.tipo);
@@ -123,7 +174,7 @@ export function CreatePage() {
     [players, c],
   );
   const splitLabel = (x: { div: { id: string }; grp: string | null }) => `${DIV_LABEL[x.div.id]}${x.grp ? ` ${x.grp}` : ''}`;
-  const pinOk = /^\d{4,8}$/.test(d.pin);
+  const pinOk = !!edit || /^\d{4,8}$/.test(d.pin);
   const nameOk = d.name.trim().length > 0 && d.name.trim().length <= 60;
   const women = d.players.filter((p) => p.gender === 'M');
   const men = d.players.filter((p) => p.gender === 'H');
@@ -144,10 +195,21 @@ export function CreatePage() {
     limit: d.signup.limitOn ? d.signup.limit : null,
   };
 
+  async function save(e: EditCtx) {
+    const config: Config = { ...c, formatLater: false, ranking: { ...c.ranking, sorteio: e.tour.config.ranking.sorteio ?? randomSeed() } };
+    const built = buildInitial(players, config, randomSeed(), d.manual);
+    const name = d.name.trim();
+    if (name !== e.tour.name) await api.adminUpdate(e.code, e.adminKey, name, e.tour.data, e.tour.version);
+    await api.adminReset(e.code, e.adminKey, config, { players, teams: built.teams }, built.matches);
+    toast('Torneio atualizado e sorteado de novo.');
+    go(`/t/${e.code}`);
+  }
+
   async function create() {
     if (!ready || busy) return;
     setBusy(true);
     try {
+      if (edit) { await save(edit); return; }
       const config: Config = { ...c, ranking: { ...c.ranking, sorteio: randomSeed() } };
       if (viaLink) {
         const r = await api.createSignup(d.name.trim(), { ...config, formatLater: later, pairing: config.pairing === 'manual' ? 'sorteio' : config.pairing }, d.pin, signupSettings);
@@ -180,9 +242,9 @@ export function CreatePage() {
       <header className="bg-band text-bandink">
         <div className="gutter mx-auto max-w-[760px] py-4">
           <div className="flex items-center gap-3">
-            <a href="#/" aria-label="Voltar para o início" className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-current text-xl no-underline text-bandink">←</a>
+            <a href={edit ? `#/t/${edit.code}` : '#/'} aria-label={edit ? 'Voltar ao torneio' : 'Voltar para o início'} className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-current text-xl no-underline text-bandink">←</a>
             <div className="min-w-0">
-              <h1 className="m-0 font-display text-[30px] font-extrabold leading-none">Novo torneio</h1>
+              <h1 className="m-0 font-display text-[30px] font-extrabold leading-none">{edit ? 'Editar torneio' : 'Novo torneio'}</h1>
               <p className="m-0 mt-0.5 text-sm opacity-85">Passo {pos + 1} de {visible.length} · {STEPS[step]}</p>
             </div>
           </div>
@@ -195,7 +257,13 @@ export function CreatePage() {
       <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-[calc(110px+env(safe-area-inset-bottom,0px))] pt-4">
         {step === 0 && (
           <>
-            <Panel title="Como a galera entra">
+            {edit && (
+              <Note kind={edit.anyScore ? 'warn' : 'ok'}>
+                Mude o que quiser: jogadores, formato, partida, ranking, quadras. No fim o app <b>sorteia de novo</b> no mesmo código
+                {edit.anyScore ? ' e os placares já lançados são apagados.' : '.'} Pra só trocar o critério do ranking ou corrigir nomes, use a aba Info: lá não apaga nada.
+              </Note>
+            )}
+            {!edit && <Panel title="Como a galera entra">
               <Choices name="Como a galera entra" value={d.entry} cols={1} compact
                 options={[
                   { value: 'lista', title: 'Eu coloco os nomes', hint: 'Cola a lista do grupo e sorteia na hora.' },
@@ -205,7 +273,7 @@ export function CreatePage() {
                   set({ entry: v });
                   if (v === 'inscricao') setC({ pairing: d.signup.askLevel ? 'equilibrado' : c.pairing === 'manual' ? 'sorteio' : c.pairing });
                 }} />
-            </Panel>
+            </Panel>}
             <Panel title="Tipo de torneio">
               <Choices name="Tipo de torneio" value={d.tipo} options={viaLink ? TIPOS.map((t) => ({ ...t, hint: t.hint.replace('Usa só as mulheres da lista.', 'Só mulheres se inscrevem.').replace('Usa só os homens da lista.', 'Só homens se inscrevem.') })) : TIPOS} cols={1} compact
                 onChange={(t) => { set({ tipo: t, manual: [] }); setC({ modality: modalityOf(t) }); }} />
@@ -344,7 +412,7 @@ export function CreatePage() {
               <input id="nome-torneio" aria-label="Nome do torneio" maxLength={60} value={d.name} onChange={(e) => set({ name: e.target.value })}
                 className="min-h-[48px] w-full rounded-lg border-[1.5px] border-line bg-bg px-3 text-lg font-semibold text-ink" />
             </Panel>
-            <Panel title="PIN do árbitro">
+            {!edit && <Panel title="PIN do árbitro">
               <p className="m-0 mb-3 text-[15px] text-muted">Quem tiver esse PIN lança placar. Quem só tiver o código assiste.</p>
               <div className="flex gap-2">
                 <input id="pin" aria-label="PIN do árbitro" inputMode="numeric" autoComplete="off" maxLength={8} value={d.pin}
@@ -353,7 +421,7 @@ export function CreatePage() {
                 <Button onClick={() => set({ pin: randomPin() })}>Gerar</Button>
               </div>
               {!pinOk && <p className="m-0 mt-2 text-sm text-danger">Use de 4 a 8 números.</p>}
-            </Panel>
+            </Panel>}
             <Panel title="Resumo">
               <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[15px]">
                 {[
@@ -385,18 +453,19 @@ export function CreatePage() {
               </Note>
             ))}
             {!nameOk && <Note kind="warn">Dê um nome ao torneio.</Note>}
+            {edit?.anyScore && <Note kind="warn">Ao salvar, os placares lançados até agora são apagados e a chave é sorteada de novo.</Note>}
           </>
         )}
       </main>
 
       <nav className="gutter fixed inset-x-0 bottom-0 z-20 border-t border-hair bg-surface pb-[max(12px,env(safe-area-inset-bottom,0px))] pt-3 shadow-[0_-8px_24px_-16px_rgba(0,0,0,.5)]">
         <div className="mx-auto flex max-w-[760px] items-center gap-2">
-          <Button className="flex-none" onClick={() => (step === 0 ? go('/') : goStep(-1))}>{step === 0 ? 'Cancelar' : 'Voltar'}</Button>
+          <Button className="flex-none" onClick={() => (step === 0 ? go(edit ? `/t/${edit.code}` : '/') : goStep(-1))}>{step === 0 ? 'Cancelar' : 'Voltar'}</Button>
           <span className="line-clamp-2 min-w-0 flex-1 text-center text-[11px] font-semibold leading-tight text-muted tabnum">{barInfo}</span>
           {step < STEPS.length - 1 ? (
             <Button kind="primary" className="flex-none" onClick={() => goStep(1)}>Continuar</Button>
           ) : (
-            <Button kind="primary" className="flex-none" disabled={!ready || busy} onClick={create}>{busy ? 'Criando…' : viaLink ? 'Abrir inscrição' : 'Criar'}</Button>
+            <Button kind="primary" className="flex-none" disabled={!ready || busy} onClick={create}>{busy ? (edit ? 'Salvando…' : 'Criando…') : edit ? (edit.anyScore ? 'Salvar e sortear' : 'Salvar') : viaLink ? 'Abrir inscrição' : 'Criar'}</Button>
           )}
         </div>
       </nav>
@@ -404,7 +473,7 @@ export function CreatePage() {
   );
 }
 
-function Check({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint?: string }) {
+export function Check({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint?: string }) {
   return (
     <label className="flex min-h-[44px] items-start gap-3 text-[15px]">
       <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--accent)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
@@ -540,7 +609,7 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
   );
 }
 
-function TiebreakEditor({ value, onChange }: { value: Tiebreak[]; onChange: (v: Tiebreak[]) => void }) {
+export function TiebreakEditor({ value, onChange }: { value: Tiebreak[]; onChange: (v: Tiebreak[]) => void }) {
   const all = [...value, ...(Object.keys(TIEBREAKS) as Tiebreak[]).filter((k) => !value.includes(k))];
   const move = (k: Tiebreak, dir: -1 | 1) => {
     const i = value.indexOf(k);

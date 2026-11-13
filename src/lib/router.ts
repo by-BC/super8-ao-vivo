@@ -4,7 +4,8 @@ export type Route =
   | { name: 'inicio' }
   | { name: 'novo' }
   | { name: 'torneio'; code: string }
-  | { name: 'telao'; code: string };
+  | { name: 'telao'; code: string }
+  | { name: 'editar'; code: string };
 
 const CODE = /^[A-Za-z0-9]{6}$/;
 
@@ -13,7 +14,9 @@ export function parseHash(hash: string): Route {
   if (parts[0] === 'novo') return { name: 'novo' };
   if (parts[0] === 't' && parts[1] && CODE.test(parts[1])) {
     const code = parts[1].toUpperCase();
-    return parts[2] === 'telao' ? { name: 'telao', code } : { name: 'torneio', code };
+    if (parts[2] === 'telao') return { name: 'telao', code };
+    if (parts[2] === 'editar') return { name: 'editar', code };
+    return { name: 'torneio', code };
   }
   return { name: 'inicio' };
 }

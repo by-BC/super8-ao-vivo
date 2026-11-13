@@ -8,6 +8,7 @@ import { MatchCard, Name } from '../components/MatchCard';
 import { PodiumSheet } from '../components/PodiumSheet';
 import { CardSheet } from '../components/CardSheet';
 import { SignupView } from './Signup';
+import { Check, TiebreakEditor } from './Create';
 import { Bracket, RankingSections, ResultPodium } from '../components/Ranking';
 import { Button, copyText, CopySheet, cx, Note, Panel, Pill, Sheet, useToast } from '../components/ui';
 import { api, ApiFail, errorText } from '../lib/api';
@@ -471,12 +472,16 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
   const [keyInput, setKeyInput] = useState('');
   const [keyOpen, setKeyOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [newName, setNewName] = useState<string | null>(null);
+  const showSeparar = isIndividual(config.format) && config.modality !== 'mesmo_genero';
+  const TB: Record<string, string> = { vitorias: 'vitórias', saldo: 'saldo', confronto: 'confronto direto', games: 'games feitos' };
 
   const rows: [string, string][] = [
     ['Modalidade', MODALITY_LABEL[config.modality]],
     ['Formato', FORMAT_LABEL[config.format]],
     ['Partida', scoringLabel(config.scoring)],
     ['Ranking', `${config.ranking.base === 'games' ? 'Games feitos' : 'Vitória 3 · Empate 1 · Derrota 0'}${config.ranking.media ? ' (média por jogo)' : ''}`],
+    ['Desempate', config.ranking.desempate.length ? config.ranking.desempate.map((k) => TB[k]).join(' → ') : 'sorteio'],
     ['Quadras', String(config.courts)],
     ...(isIndividual(config.format) ? [['Rodadas', String(config.rounds)] as [string, string]] : []),
     ...(config.format === 'grupos' ? [['Grupos', `${config.groups}, classificam ${config.qualify} por grupo`] as [string, string]] : []),
@@ -538,6 +543,31 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
         <Panel title="Organizador">
           <div className="flex flex-col gap-4">
             <div>
+              <b>Editar torneio</b>
+              <p className="m-0 text-[13px] text-muted">
+                Jogadores (incluir, tirar, gênero, nível), formato, tipo de partida, games, quadras, rodadas, grupos e duplas. Salva e sorteia de novo no mesmo código{anyScore ? ', apagando os placares' : ''}.
+              </p>
+              <Button kind="primary" className="mt-2" block onClick={() => go(`/t/${code}/editar`)}>Editar jogadores e regras</Button>
+            </div>
+
+            <div>
+              <b>Nome do torneio</b>
+              {newName === null ? (
+                <Button className="mt-2" block onClick={() => setNewName(tour.name)}>Trocar o nome</Button>
+              ) : (
+                <div className="mt-2 flex flex-col gap-2">
+                  <input id="novo-nome" aria-label="Nome do torneio" maxLength={60} value={newName} onChange={(e) => setNewName(e.target.value)}
+                    className="min-h-[44px] rounded-lg border-[1.5px] border-line bg-bg px-3 font-semibold text-ink" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button kind="primary" disabled={busy || !newName.trim()}
+                      onClick={async () => { if (await run(() => api.adminUpdate(code, adminKey, newName.trim(), tour.data, tour.version), 'Nome trocado.')) setNewName(null); }}>Salvar</Button>
+                    <Button onClick={() => setNewName(null)}>Cancelar</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
               <b>Critério do ranking</b>
               <p className="m-0 text-[13px] text-muted">Pode trocar quando quiser: o ranking é recalculado com os placares que já foram lançados.</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -554,6 +584,16 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
                   onChange={(e) => void run(() => api.adminRanking(code, adminKey, { ...config.ranking, media: e.target.checked }), e.target.checked ? 'Ranking por média por partida.' : 'Ranking pelo total.')} />
                 Usar média por partida
               </label>
+              {showSeparar && (
+                <div className="mt-1">
+                  <Check checked={config.ranking.separarGenero} title="Mostrar Rei e Rainha da areia" hint="Ranking dos homens e das mulheres, além do geral."
+                    onChange={(v) => { if (!busy) void run(() => api.adminRanking(code, adminKey, { ...config.ranking, separarGenero: v }), v ? 'Rei e Rainha ligados.' : 'Rei e Rainha desligados.'); }} />
+                </div>
+              )}
+              <div className={cx('mt-3', busy && 'pointer-events-none opacity-60')}>
+                <TiebreakEditor value={config.ranking.desempate}
+                  onChange={(desempate) => void run(() => api.adminRanking(code, adminKey, { ...config.ranking, desempate }), 'Desempate atualizado.')} />
+              </div>
             </div>
 
             <div>
@@ -588,7 +628,7 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
 
             <div>
               <b>Sortear de novo</b>
-              <p className="m-0 text-[13px] text-muted">Refaz a chave com os mesmos jogadores e regras. O código continua o mesmo.</p>
+              <p className="m-0 text-[13px] text-muted">Refaz a chave com os mesmos jogadores e regras. O código continua o mesmo. Pra mudar jogadores ou regras antes, use Editar jogadores e regras.</p>
               {!confirmReset ? (
                 <Button className="mt-2" block onClick={() => setConfirmReset(true)}>Sortear de novo</Button>
               ) : (
