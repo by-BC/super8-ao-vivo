@@ -13,10 +13,12 @@ interface Props {
   locked?: boolean;
   /** Aviso mostrado enquanto corrige um jogo de torneio encerrado. */
   lockedNote?: string;
+  /** Jogador "sou eu" deste celular: o nome dele fica destacado. */
+  me?: string | null;
   onPoint: (side: 'a' | 'b', delta: 1 | -1) => void;
 }
 
-export function MatchCard({ match: m, number, players, scoring, canScore, showGender, locked = false, lockedNote, onPoint }: Props) {
+export function MatchCard({ match: m, number, players, scoring, canScore, showGender, locked = false, lockedNote, me, onPoint }: Props) {
   const knockout = m.stage === 'mata';
   const bye = knockout && m.b.length === 0;
   const r = evaluate(m.sets, scoring, knockout, bye);
@@ -70,7 +72,7 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
     return (
       <div className={cx('relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg py-2 pl-2 pr-1.5 transition-colors', won && 'bg-highlight', draw && 'bg-hair', pop && (won || draw) && 'pop')}>
         <div className="flex min-w-0 flex-col gap-0.5">
-          {ids.map((id) => <Name key={id} p={players.get(id)} showGender={showGender} muted={!!lost} />)}
+          {ids.map((id) => <Name key={id} p={players.get(id)} showGender={showGender} muted={!!lost} mine={!!me && id === me} />)}
           {won && <span className="mt-1 self-start rounded-full bg-accent px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-[.12em] text-onaccent">Venceu</span>}
           {draw && <span className="mt-1 self-start rounded-full border-[1.5px] border-line px-2 py-px text-[11px] font-extrabold uppercase tracking-[.12em]">Empate</span>}
         </div>
@@ -95,7 +97,7 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
   };
 
   return (
-    <article className="court flex flex-col gap-1.5 rounded-lg px-4 py-4 shadow-card" aria-label={head}>
+    <article id={`jogo-${m.id}`} className={cx('court flex scroll-mt-24 flex-col gap-1.5 rounded-lg px-4 py-4 shadow-card', !!me && (m.a.includes(me) || m.b.includes(me)) && 'ring-[3px] ring-accent')} aria-label={head}>
       <header className="relative flex items-center gap-2 px-1 text-xs font-extrabold uppercase tracking-[.12em] text-muted">
         <span className="min-w-0 truncate">{head}</span>
         <span className={cx('ml-auto whitespace-nowrap rounded-full px-2 py-0.5 tracking-[.08em]', status[1])}>{status[0]}</span>
@@ -121,11 +123,11 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
   );
 }
 
-export function Name({ p, showGender, muted, size = 'lg' }: { p: Player | undefined; showGender: boolean; muted?: boolean; size?: 'lg' | 'md' }) {
+export function Name({ p, showGender, muted, mine, size = 'lg' }: { p: Player | undefined; showGender: boolean; muted?: boolean; mine?: boolean; size?: 'lg' | 'md' }) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5">
       {showGender && <GenderDot g={p?.gender} />}
-      <span className={cx('font-bold leading-tight [overflow-wrap:break-word]', size === 'lg' ? 'text-[17px] min-[400px]:text-lg' : 'text-base', muted && 'text-muted')}>{p?.name ?? '?'}</span>
+      <span className={cx('font-bold leading-tight [overflow-wrap:break-word]', size === 'lg' ? 'text-[17px] min-[400px]:text-lg' : 'text-base', muted && 'text-muted', mine && 'rounded bg-accent px-1.5 text-onaccent')}>{p?.name ?? '?'}{mine ? ' (você)' : ''}</span>
     </span>
   );
 }

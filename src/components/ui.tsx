@@ -182,23 +182,32 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
 
 /* ---------------- avisos rápidos ---------------- */
 
-interface ToastItem { id: number; text: string }
-const ToastCtx = createContext<(text: string) => void>(() => {});
+interface ToastAction { label: string; run: () => void }
+interface ToastOpts { action?: ToastAction; ms?: number; /** substitui o aviso anterior com a mesma chave */ key?: string }
+interface ToastItem { id: number; text: string; action?: ToastAction; key?: string }
+const ToastCtx = createContext<(text: string, opts?: ToastOpts) => void>(() => {});
 export const useToast = () => useContext(ToastCtx);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
-  const push = useCallback((text: string) => {
+  const drop = useCallback((id: number) => setItems((xs) => xs.filter((x) => x.id !== id)), []);
+  const push = useCallback((text: string, opts?: ToastOpts) => {
     const id = Date.now() + Math.random();
-    setItems((xs) => [...xs.slice(-2), { id, text }]);
-    window.setTimeout(() => setItems((xs) => xs.filter((x) => x.id !== id)), 3200);
-  }, []);
+    setItems((xs) => [...xs.filter((x) => !opts?.key || x.key !== opts.key).slice(-2), { id, text, action: opts?.action, key: opts?.key }]);
+    window.setTimeout(() => drop(id), opts?.ms ?? 3200);
+  }, [drop]);
   return (
     <ToastCtx.Provider value={push}>
       {children}
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-40 flex flex-col items-center gap-2 px-4">
         {items.map((t) => (
-          <div key={t.id} className="max-w-[min(520px,100%)] rounded-lg bg-ink px-4 py-3 font-semibold text-bg shadow-card">{t.text}</div>
+          <div key={t.id} className={cx('flex max-w-[min(520px,100%)] items-center gap-3 rounded-lg bg-ink py-3 pl-4 font-semibold text-bg shadow-card', t.action ? 'pointer-events-auto pr-2' : 'pr-4')}>
+            <span className="min-w-0">{t.text}</span>
+            {t.action && (
+              <button type="button" onClick={() => { t.action!.run(); drop(t.id); }}
+                className="min-h-[40px] flex-none rounded-lg bg-accent px-3 font-extrabold text-onaccent">{t.action.label}</button>
+            )}
+          </div>
         ))}
       </div>
     </ToastCtx.Provider>

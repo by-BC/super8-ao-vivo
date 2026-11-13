@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, scheduleMessage,
   scoringLabel, tournamentStatus, type Match, type Player,
@@ -15,6 +15,7 @@ import { api, ApiFail, errorText } from '../lib/api';
 import { getSaved, upsertSaved } from '../lib/local';
 import { go, shareLink } from '../lib/router';
 import { useTournament } from '../lib/useTournament';
+import { useWakeLock } from '../lib/useWakeLock';
 import { Carregando, Costura, Simbolo } from '../components/Brand';
 
 type Tab = 'jogos' | 'ranking' | 'info';
@@ -54,6 +55,16 @@ export function TournamentPage({ code }: { code: string }) {
   const credential = saved?.token ?? saved?.adminKey ?? null;
   const canScore = !!credential;
   const isAdmin = !!saved?.adminKey;
+  const [me, setMeState] = useState<string | null>(() => {
+    try { return localStorage.getItem(`s8:eu:${code}`); } catch { return null; }
+  });
+  const setMe = (id: string | null) => {
+    setMeState(id);
+    try { if (id) localStorage.setItem(`s8:eu:${code}`, id); else localStorage.removeItem(`s8:eu:${code}`); } catch { /* ok */ }
+  };
+  const [meOpen, setMeOpen] = useState(false);
+  // árbitro na aba de jogos: a tela não apaga no meio da partida
+  useWakeLock(canScore && tab === 'jogos');
 
   useEffect(() => {
     try {
@@ -169,6 +180,19 @@ export function TournamentPage({ code }: { code: string }) {
   const openCard = (id: string | null) => { setCardId(id); setCardOpen(true); };
   const shownSections = sections.filter((s) => (division === 'todos' || s.division === division) && (group === 'todos' || s.kind !== 'grupo' || s.id.endsWith(`-${group}`)));
 
+  const meId = me && players.has(me) ? me : null;
+
+  /** Lança o game e oferece desfazer por alguns segundos (dedo grosso na areia). */
+  function point(id: string, side: 'a' | 'b', delta: 1 | -1) {
+    t.point(id, side, delta);
+    const m = t.matches.find((x) => x.id === id);
+    const who = m ? (side === 'a' ? m.a : m.b).map((p) => players.get(p)?.name ?? '?').join(' e ') : '';
+    toast(delta > 0 ? `+1 game: ${who}` : `−1 game: ${who}`, {
+      key: 'ponto', ms: 4500,
+      action: { label: 'Desfazer', run: () => t.point(id, side, delta > 0 ? -1 : 1) },
+    });
+  }
+
   async function share(text: string) {
     if (await copyText(text)) toast('Copiado. É só colar no grupo.');
     else setCopyFallback(text);
@@ -226,9 +250,13 @@ export function TournamentPage({ code }: { code: string }) {
         )}
 
         {tab === 'jogos' && (
+          <MeCard me={meId} matches={t.matches} players={players} config={config} onPick={() => setMeOpen(true)} />
+        )}
+
+        {tab === 'jogos' && (
           <GamesView
-            matches={shownMatches} players={players} plist={shownPlayers} config={config} canScore={canScore}
-            onPoint={(id, side, delta) => t.point(id, side, delta)}
+            matches={shownMatches} players={players} plist={shownPlayers} config={config} canScore={canScore} me={meId} jumpOnOpen={!meId}
+            onPoint={point}
             step={step} generating={generating} onGenerate={generate} finished={finished} onRanking={() => setTab('ranking')}
           />
         )}
@@ -316,6 +344,7 @@ export function TournamentPage({ code }: { code: string }) {
         </div>
       </nav>
 
+      <MeSheet open={meOpen} players={plist} me={meId} onClose={() => setMeOpen(false)} onPick={(id) => { setMe(id); setMeOpen(false); }} />
       <PinSheet open={pinOpen} code={code} onClose={() => setPinOpen(false)} onUnlocked={(token) => { setSaved(upsertSaved({ code, token })); setPinOpen(false); toast('Pronto: você pode lançar placar.'); }} />
       <ShareSheet open={shareOpen} code={code} name={tour.name} onClose={() => setShareOpen(false)} onCopy={share} />
       <CopySheet text={copyFallback} onClose={() => setCopyFallback(null)} />
@@ -350,8 +379,8 @@ function LiveBadge({ live, reachable, pending }: { live: string; reachable: bool
   return <span className="font-semibold opacity-80">Conectando…</span>;
 }
 
-function GamesView({ matches, players, plist, config, canScore, onPoint, step, generating, onGenerate, finished, onRanking }: {
-  matches: Match[]; players: Map<string, Player>; plist: Player[]; config: import('../engine').Config; canScore: boolean;
+function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, onPoint, step, generating, onGenerate, finished, onRanking }: {
+  matches: Match[]; players: Map<string, Player>; plist: Player[]; config: import('../engine').Config; canScore: boolean; me: string | null; jumpOnOpen: boolean;
   onPoint: (id: string, side: 'a' | 'b', delta: 1 | -1) => void; step: { title: string } | null; generating: boolean;
   onGenerate: () => void; finished: boolean; onRanking: () => void;
 }) {
@@ -377,6 +406,25 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
   }, [matches]);
   const hasNextStages = config.format === 'mexicano' || matches.some((m) => m.stage === 'mata');
   const [open, setOpen] = useState<Set<string>>(new Set());
+
+  // abre direto na rodada que está rolando e mostra um atalho quando ela sai da tela
+  const jumped = useRef(false);
+  const [away, setAway] = useState<'up' | 'down' | null>(null);
+  const goCurrent = (smooth = true) => document.getElementById(`bloco-${current}`)?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  useEffect(() => {
+    if (jumped.current || current < 0) return;
+    jumped.current = true;
+    if (jumpOnOpen && current > 0) window.setTimeout(() => goCurrent(false), 50);
+  }, [current]);
+  useEffect(() => {
+    const el = current >= 0 ? document.getElementById(`bloco-${current}`) : null;
+    if (!el || typeof IntersectionObserver === 'undefined') { setAway(null); return; }
+    const io = new IntersectionObserver(([e]) => {
+      setAway(e.isIntersecting ? null : e.boundingClientRect.top < 0 ? 'up' : 'down');
+    }, { rootMargin: '-80px 0px -120px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [current, blocks.length]);
   const toggle = (k: string) => setOpen((o) => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   return (
@@ -393,6 +441,13 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
           );
         })}
       </div>
+
+      {away && (
+        <button type="button" onClick={() => goCurrent()}
+          className="fixed right-4 z-30 flex min-h-[48px] items-center gap-1.5 rounded-full bg-accent px-4 font-extrabold text-onaccent shadow-card bottom-[calc(100px+env(safe-area-inset-bottom,0px))]">
+          {away === 'up' ? '↑' : '↓'} Rodada atual
+        </button>
+      )}
 
       {finished && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-accent px-4 py-3 text-onaccent">
@@ -447,7 +502,7 @@ function GamesView({ matches, players, plist, config, canScore, onPoint, step, g
               {i === current && <Costura className="my-1" />}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {b.ms.map((m) => (
-                  <MatchCard key={m.id} match={m} number={numbers.get(m.id) ?? 0} players={players} scoring={config.scoring} canScore={canScore} locked={finished} showGender={showGender}
+                  <MatchCard key={m.id} match={m} number={numbers.get(m.id) ?? 0} players={players} scoring={config.scoring} canScore={canScore} locked={finished} showGender={showGender} me={me}
                     lockedNote={hasNextStages && m.stage !== 'mata' ? 'Atenção: mudar esse placar atualiza o ranking, mas não refaz as rodadas ou o mata-mata que já foram gerados.' : undefined}
                     onPoint={(side, delta) => onPoint(m.id, side, delta)} />
                 ))}
@@ -648,6 +703,76 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
         </Panel>
       )}
     </>
+  );
+}
+
+/** "Sou eu": o próximo jogo de quem está com o celular na mão, no topo da aba Jogos. */
+function MeCard({ me, matches, players, config, onPick }: {
+  me: string | null; matches: Match[]; players: Map<string, Player>; config: import('../engine').Config; onPick: () => void;
+}) {
+  if (!me) {
+    return (
+      <button type="button" onClick={onPick} className="flex min-h-[56px] items-center gap-3 rounded-lg bg-surface px-4 py-3 text-left shadow-card">
+        <span className="flex-1 text-[15px]"><b>Você está jogando?</b> <span className="text-muted">Toque e escolha seu nome pra ver seu próximo jogo.</span></span>
+        <span className="flex-none rounded-full bg-accent px-3 py-1.5 text-sm font-extrabold text-onaccent">Sou eu</span>
+      </button>
+    );
+  }
+  const nm = (ids: string[]) => ids.map((id) => players.get(id)?.name ?? '?').join(' e ');
+  const isDone = (m: Match) => evaluate(m.sets, config.scoring, m.stage === 'mata', m.stage === 'mata' && m.b.length === 0).done;
+  const order = (m: Match) => (m.stage === 'mata' ? 1e6 : 0) + m.round * 1000 + m.slot;
+  const mine = matches.filter((m) => m.a.includes(me) || m.b.includes(me)).sort((x, y) => order(x) - order(y));
+  const next = mine.find((m) => !isDone(m) && m.b.length > 0);
+  const played = mine.filter(isDone).length;
+  const firstPending = [...matches].sort((x, y) => order(x) - order(y)).find((m) => !isDone(m));
+  const now = next && firstPending && (next.stage === firstPending.stage && next.round === firstPending.round);
+  const name = players.get(me)?.name ?? '?';
+  return (
+    <section className="flex flex-col gap-2 rounded-lg bg-surface px-4 py-3 shadow-card" aria-label={`Jogos de ${name}`}>
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-extrabold uppercase tracking-[.12em] text-muted">{next ? (now ? 'Você joga agora' : 'Seu próximo jogo') : 'Seus jogos'}</span>
+        <button type="button" onClick={onPick} className="ml-auto text-sm font-bold text-muted underline underline-offset-2">Não é {name}?</button>
+      </div>
+      {next ? (
+        <>
+          <p className="m-0 font-display text-2xl font-extrabold leading-tight">
+            {next.stage === 'mata' ? next.label : `Rodada ${next.round}`} · Quadra {next.court}
+          </p>
+          {(() => {
+            const mySide = next.a.includes(me) ? next.a : next.b;
+            const other = next.a.includes(me) ? next.b : next.a;
+            const partner = mySide.filter((id) => id !== me);
+            return (
+              <p className="m-0 text-[15px]">
+                {partner.length ? <>Com <b>{nm(partner)}</b> contra </> : 'Contra '}<b>{nm(other)}</b>
+              </p>
+            );
+          })()}
+          <button type="button" onClick={() => document.getElementById(`jogo-${next.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+            className={cx('min-h-[44px] rounded-lg font-bold', now ? 'bg-accent text-onaccent' : 'border-[1.5px] border-line')}>Ver o jogo</button>
+        </>
+      ) : (
+        <p className="m-0 text-[15px]">{mine.length ? `Você já jogou ${played} ${played === 1 ? 'partida' : 'partidas'}. Confira sua posição no Ranking.` : 'Ainda não tem jogo seu na tabela.'}</p>
+      )}
+    </section>
+  );
+}
+
+function MeSheet({ open, players, me, onClose, onPick }: { open: boolean; players: Player[]; me: string | null; onClose: () => void; onPick: (id: string | null) => void }) {
+  const list = [...players].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  return (
+    <Sheet open={open} onClose={onClose} title="Quem é você?">
+      <p className="m-0 mb-3 text-sm text-muted">Fica salvo só neste celular. Serve pra destacar seus jogos.</p>
+      <ul className="m-0 grid list-none grid-cols-2 gap-2 p-0">
+        {list.map((p) => (
+          <li key={p.id}>
+            <button type="button" onClick={() => onPick(p.id)} aria-pressed={me === p.id}
+              className={cx('min-h-[48px] w-full rounded-lg border-[1.5px] px-3 text-left font-bold', me === p.id ? 'border-ink bg-ink text-bg' : 'border-line')}>{p.name}</button>
+          </li>
+        ))}
+      </ul>
+      {me && <Button kind="quiet" className="mt-3" block onClick={() => onPick(null)}>Só estou assistindo</Button>}
+    </Sheet>
   );
 }
 

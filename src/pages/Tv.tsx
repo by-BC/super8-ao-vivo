@@ -3,11 +3,13 @@ import { evaluate, formatScore, rankingSections, tournamentStatus, type Player }
 import { cx } from '../components/ui';
 import { shareLink } from '../lib/router';
 import { useTournament } from '../lib/useTournament';
+import { useWakeLock } from '../lib/useWakeLock';
 import { Carregando, Simbolo } from '../components/Brand';
 
 /** Tela grande para TV ou notebook na beira da quadra: jogos da rodada atual e ranking, ao vivo. */
 export function TvPage({ code }: { code: string }) {
   const t = useTournament(code);
+  useWakeLock(true);
   const tour = t.tournament;
   const players = useMemo(() => new Map<string, Player>((tour?.data.players ?? []).map((p) => [p.id, p])), [tour]);
 
