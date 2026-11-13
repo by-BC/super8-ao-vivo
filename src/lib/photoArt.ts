@@ -42,9 +42,65 @@ function toPng(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob'))), 'image/png'));
 }
 
+/** Desfoque que funciona em qualquer navegador: encolhe a foto e estica de volta (o ctx.filter falha em Safari antigo). */
+function drawBlurred(ctx: Ctx, img: HTMLImageElement, x: number, y: number, w: number, h: number, focus: number, scale = 0.035) {
+  const small = document.createElement('canvas');
+  small.width = Math.max(8, Math.round(w * scale));
+  small.height = Math.max(8, Math.round(h * scale));
+  const sctx = small.getContext('2d')!;
+  sctx.imageSmoothingQuality = 'high';
+  drawCover(sctx, img, 0, 0, small.width, small.height, focus);
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(small, x, y, w, h);
+  ctx.restore();
+}
+
+/** Foto com as bordas de cima e de baixo dissolvendo em transparência. */
+function fadedPhoto(img: HTMLImageElement, w: number, h: number, focus: number, fadeTop: number, fadeBottom: number): HTMLCanvasElement {
+  const { canvas, ctx } = canvasFor(w, h);
+  drawCover(ctx, img, 0, 0, w, h, focus);
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(fadeTop / h, 'rgba(0,0,0,1)');
+  g.addColorStop(1 - fadeBottom / h, 'rgba(0,0,0,1)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  return canvas;
+}
+
+/** Cacau com transparência: rgba a partir do hex da marca. */
+function cocoa(a: number) {
+  return `rgba(58,34,24,${a})`;
+}
+
+/** Painel de vidro fosco: a foto borrada por trás, um véu claro e um fio manteiga na borda. */
+function glass(ctx: Ctx, img: HTMLImageElement, focus: number, W: number, H: number, x: number, y: number, w: number, h: number, r: number) {
+  ctx.save();
+  roundRect(ctx, x, y, w, h, r);
+  ctx.clip();
+  drawBlurred(ctx, img, 0, 0, W, H, focus, 0.02);
+  ctx.fillStyle = cocoa(0.55);
+  ctx.fillRect(x, y, w, h);
+  const sheen = ctx.createLinearGradient(x, y, x, y + h);
+  sheen.addColorStop(0, 'rgba(255,255,255,.14)');
+  sheen.addColorStop(1, 'rgba(255,255,255,.03)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+  roundRect(ctx, x + 1, y + 1, w - 2, h - 2, r);
+  ctx.strokeStyle = 'rgba(251,227,142,.38)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
 /**
- * Pôster com a foto dos campeões: a foto entra inteira, sem filtro, entre duas faixas cacau.
- * O texto fica sempre na faixa, nunca em cima da foto (guia da marca → Artes de compartilhar).
+ * Pôster com a foto dos campeões, estilo capa: a foto ocupa a tela e se dissolve num fundo feito
+ * dela mesma (borrado e tingido de cacau). O nome dos campeões entra por cima da parte de baixo,
+ * e vice/3º ficam num painel de vidro fosco. A foto fica só no aparelho.
  */
 export async function renderPhotoPoster(p: Podium, info: PodiumInfo, format: ImgFormat, photo: HTMLImageElement, focus: number): Promise<Blob> {
   await fontsReady();
@@ -53,66 +109,130 @@ export async function renderPhotoPoster(p: Podium, info: PodiumInfo, format: Img
   const H = story ? 1920 : 1350;
   const X = 64;
   const maxW = W - X * 2;
+  const safeTop = story ? 230 : 56;
+  const safeBottom = story ? 250 : 56;
   const { canvas, ctx } = canvasFor(W, H);
+
+  // 1. fundo: a própria foto, borrada e tingida
   ctx.fillStyle = C.cocoa;
   ctx.fillRect(0, 0, W, H);
+  drawBlurred(ctx, photo, -40, -40, W + 80, H + 80, focus);
+  ctx.fillStyle = cocoa(0.7);
+  ctx.fillRect(0, 0, W, H);
 
-  // faixa de cima: marca e o nome do torneio (no story, abaixo da área dos botões do Instagram)
-  const top = story ? 230 : 56;
-  brandRow(ctx, X, top, info.date);
+  // 2. a foto nítida, dissolvendo em cima e embaixo
+  const ratio = photo.naturalWidth / photo.naturalHeight;
+  const py = story ? safeTop + 60 : 0;
+  const ph = Math.round(Math.min(story ? 1180 : 960, Math.max(W / ratio, story ? 900 : 760)));
+  const fadeTop = story ? 180 : 220;
+  ctx.drawImage(fadedPhoto(photo, W, ph, focus, fadeTop, Math.round(ph * 0.42)), 0, py);
+
+  // 3. véu de cacau por baixo, onde entra o texto
+  const veil = ctx.createLinearGradient(0, py + ph * 0.45, 0, H);
+  veil.addColorStop(0, cocoa(0));
+  veil.addColorStop(0.45, cocoa(0.55));
+  veil.addColorStop(1, cocoa(0.96));
+  ctx.fillStyle = veil;
+  ctx.fillRect(0, 0, W, H);
+  // véu leve no topo pra marca ler bem
+  const topVeil = ctx.createLinearGradient(0, 0, 0, safeTop + 140);
+  topVeil.addColorStop(0, cocoa(0.75));
+  topVeil.addColorStop(1, cocoa(0));
+  ctx.fillStyle = topVeil;
+  ctx.fillRect(0, 0, W, safeTop + 140);
+
+  // 4. topo: marca e nome do torneio
+  brandRow(ctx, X, safeTop, info.date);
   const kicker = [info.name, p.label].filter(Boolean).join(' · ');
   ctx.textAlign = 'right';
   ctx.fillStyle = C.butter;
   fit(ctx, [kicker], 700, BODY, 30, maxW * 0.55, 18);
   spacing(ctx, 1);
-  ctx.fillText(kicker, W - X, top + 32);
+  ctx.fillText(kicker, W - X, safeTop + 32);
   spacing(ctx, 0);
 
-  // foto
-  const py = top + 110;
-  const ph = story ? 980 : 760;
-  drawCover(ctx, photo, 0, py, W, ph, focus);
-
-  // CAMPEÃS num bloco azul que segura a borda de baixo da foto
+  // 5. de baixo pra cima: rodapé, painel de vidro, nome, selo
+  const footY = H - safeBottom;
   ctx.textAlign = 'left';
-  const headSize = fit(ctx, [p.headline], 800, DISPLAY, story ? 210 : 176, maxW - 60, 80);
-  const bw = ctx.measureText(p.headline).width + 64;
-  const bh = Math.round(headSize * 0.92);
-  const by = py + ph - Math.round(bh * 0.55);
-  roundRect(ctx, X - 8, by, bw, bh, 20);
-  ctx.fillStyle = C.eletrico;
-  ctx.fill();
-  ctx.fillStyle = C.white;
-  ctx.fillText(p.headline, X + 24, by + bh * 0.78);
-
-  // nomes, vice/final e rodapé na faixa de baixo
-  let y = by + bh + 28;
-  const names = p.places[0].names;
-  ctx.fillStyle = C.butter;
-  let nameSize = fit(ctx, [names.join(' e ')], 800, DISPLAY, story ? 112 : 96, maxW, 44);
-  const lines = nameSize >= 72 || names.length === 1 ? [names.join(' e ')] : names;
-  if (lines.length > 1) nameSize = fit(ctx, lines, 800, DISPLAY, story ? 112 : 96, maxW, 44);
-  for (const line of lines) {
-    y += nameSize * 0.86;
-    ctx.fillText(line, X, y);
-    y += nameSize * 0.1;
-  }
-
-  const second = p.places[1] ? p.places[1].names.join(' e ') : '';
-  const sub = p.final
-    ? `Final ${p.final}${second ? ` · vice: ${second}` : ''}`
-    : p.places.slice(1).map((pl) => `${pl.pos}º ${pl.names.join(' e ')}${pl.pts ? ` (${pl.pts})` : ''}`).join(' · ');
-  if (sub) {
-    ctx.fillStyle = C.butter;
-    fit(ctx, [sub], 600, BODY, 32, maxW, 20);
-    y += 52;
-    ctx.fillText(sub, X, y);
-  }
-
   ctx.fillStyle = C.butterSoft;
   ctx.font = `600 24px ${BODY}`;
   spacing(ctx, 1);
-  ctx.fillText(`${info.site} · código ${info.code}`, X, H - (story ? 250 : 56));
+  ctx.fillText(`${info.site} · código ${info.code}`, X, footY);
+  spacing(ctx, 0);
+
+  const rest = p.places.slice(1, 3);
+  const second = p.places[1] ? p.places[1].names.join(' e ') : '';
+  const panelH = p.final ? 130 : rest.length ? 170 : 0;
+  const panelY = footY - 48 - panelH;
+  if (panelH) {
+    glass(ctx, photo, focus, W, H, X, panelY, maxW, panelH, 28);
+    if (p.final) {
+      ctx.fillStyle = C.butterSoft;
+      ctx.font = `700 22px ${BODY}`;
+      spacing(ctx, 5);
+      ctx.fillText('FINAL', X + 36, panelY + 50);
+      spacing(ctx, 0);
+      ctx.fillStyle = C.white;
+      fit(ctx, [`${p.final}${second ? ` · vice: ${second}` : ''}`], 700, BODY, 40, maxW - 72, 22);
+      ctx.fillText(`${p.final}${second ? ` · vice: ${second}` : ''}`, X + 36, panelY + 100);
+    } else {
+      const colW = (maxW - 36) / rest.length;
+      rest.forEach((pl, i) => {
+        const cx = X + 36 + i * colW;
+        if (i > 0) {
+          ctx.fillStyle = 'rgba(251,227,142,.25)';
+          ctx.fillRect(cx - 18, panelY + 34, 2, panelH - 68);
+        }
+        ctx.fillStyle = C.butter;
+        ctx.font = `800 72px ${DISPLAY}`;
+        ctx.fillText(`${pl.pos}º`, cx, panelY + 108);
+        const numW = ctx.measureText(`${pl.pos}º`).width + 22;
+        ctx.fillStyle = C.white;
+        const nm = pl.names.join(' e ');
+        fit(ctx, [nm], 700, BODY, 40, colW - numW - 40, 20);
+        ctx.fillText(nm, cx + numW, panelY + (pl.pts ? 84 : 100));
+        if (pl.pts) {
+          ctx.fillStyle = C.butterSoft;
+          ctx.font = `600 26px ${BODY}`;
+          ctx.fillText(pl.pts, cx + numW, panelY + 122);
+        }
+      });
+    }
+  }
+
+  // nome dos campeões, grande, com sombra suave sobre a foto
+  const names = p.places[0].names;
+  const top = panelH ? panelY - 40 : footY - 70;
+  let nameSize = fit(ctx, [names.join(' e ')], 800, DISPLAY, story ? 190 : 160, maxW, 60);
+  const lines = nameSize >= 110 || names.length === 1 ? [names.join(' e ')] : names;
+  if (lines.length > 1) nameSize = fit(ctx, lines, 800, DISPLAY, story ? 150 : 130, maxW, 50);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.45)';
+  ctx.shadowBlur = 40;
+  ctx.shadowOffsetY = 8;
+  ctx.fillStyle = C.butter;
+  let y = top;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    ctx.fillText(lines[i], X - 4, y);
+    y -= nameSize * 0.88;
+  }
+  ctx.restore();
+
+  // selo CAMPEÃ em azul, translúcido, acima do nome
+  const tag = p.headline.toUpperCase();
+  ctx.font = `800 40px ${BODY}`;
+  spacing(ctx, 10);
+  const tw = ctx.measureText(tag).width;
+  const pillH = 70;
+  const pillY = y - nameSize * 0.62 - pillH + 10;
+  roundRect(ctx, X, pillY, tw + 56, pillH, pillH / 2);
+  ctx.fillStyle = 'rgba(43,91,255,.88)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = C.white;
+  ctx.fillText(tag, X + 28 + 5, pillY + pillH / 2 + 14);
   spacing(ctx, 0);
 
   return toPng(canvas);
