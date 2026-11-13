@@ -1,7 +1,7 @@
 import type { Podium } from '../engine';
 import { avatarColor, avatarInk, initialsOf } from './avatar';
 import { CHARACTER_URLS } from './characters';
-import { MONO_BALL, MONO_EIGHT, MONO_MATRIX, MONO_RAYS, MONO_RAY_STROKE, MONO_SEAM, MONO_STROKE } from './brandPaths';
+import { LOGO, SIMBOLO, SIMBOLO_CLARO } from './brandAssets';
 
 export type ImgFormat = 'story' | 'feed';
 
@@ -42,6 +42,7 @@ export const BODY = '"DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sa
 type Ctx = CanvasRenderingContext2D;
 
 export async function fontsReady() {
+  await brandReady();
   try {
     await Promise.all([
       document.fonts.load('800 120px Outfit'),
@@ -104,32 +105,25 @@ export function pill(ctx: Ctx, x: number, y: number, w: number, h: number) {
   roundRect(ctx, x, y, w, h, h / 2);
 }
 
+const brandImgs: Partial<Record<'band' | 'claro' | 'logo', HTMLImageElement>> = {};
+/** Carrega o símbolo e a logo uma vez, pra desenhar no canvas sem esperar. */
+export async function brandReady(): Promise<void> {
+  const want = { band: SIMBOLO, claro: SIMBOLO_CLARO, logo: LOGO } as const;
+  await Promise.all((Object.keys(want) as (keyof typeof want)[]).map(async (k) => {
+    if (brandImgs[k]) return;
+    const i = new Image();
+    i.src = want[k];
+    try { await i.decode(); brandImgs[k] = i; } catch { /* sem a imagem, a arte sai sem o símbolo */ }
+  }));
+}
+
 /**
- * O monograma (o 8 que lança a bola), centrado em (cx, cy) com "raio" r (ocupa 2r).
- * `band`: traço creme, para fundo escuro. `claro`: traço azul profundo, para fundo claro.
+ * O símbolo da logo (o S com a bola), centrado em (cx, cy), ocupando 2r.
+ * `band`: faixa branca, para fundo escuro. `claro`: faixa azul profundo, para fundo claro.
  */
 export function ball(ctx: Ctx, cx: number, cy: number, r: number, tone: 'claro' | 'band' = 'band') {
-  const s = (2 * r) / 64;
-  ctx.save();
-  ctx.translate(cx - 32 * s, cy - 32 * s);
-  ctx.scale(s, s);
-  ctx.transform(MONO_MATRIX.s, 0, 0, MONO_MATRIX.s, MONO_MATRIX.e, MONO_MATRIX.f);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = C.dourado;
-  ctx.lineWidth = MONO_RAY_STROKE;
-  ctx.stroke(new Path2D(MONO_RAYS));
-  ctx.strokeStyle = tone === 'claro' ? C.profundo : C.creme;
-  ctx.lineWidth = MONO_STROKE;
-  ctx.stroke(new Path2D(MONO_EIGHT));
-  ctx.beginPath();
-  ctx.arc(MONO_BALL.x, MONO_BALL.y, MONO_BALL.r, 0, Math.PI * 2);
-  ctx.fillStyle = C.coral;
-  ctx.fill();
-  ctx.strokeStyle = C.creme;
-  ctx.lineWidth = 1.6;
-  ctx.stroke(new Path2D(MONO_SEAM));
-  ctx.restore();
+  const img = brandImgs[tone];
+  if (img) ctx.drawImage(img, cx - r, cy - r, 2 * r, 2 * r);
 }
 
 let charImgs: HTMLImageElement[] | null = null;
@@ -204,18 +198,16 @@ function sandWave(ctx: Ctx, W: number, H: number, y: number) {
   ctx.fill();
 }
 
-/** Linha da marca no topo das artes: símbolo + SUPER 8 AO VIVO, e a data embaixo. */
+/** Linha da marca no topo das artes: a logo completa e a data embaixo (fundo escuro). */
 export function brandRow(ctx: Ctx, x: number, y: number, date: string) {
-  ball(ctx, x + 22, y + 22, 22, 'band');
+  const logo = brandImgs.logo;
+  const h = 64;
+  if (logo) ctx.drawImage(logo, x - 4, y - 6, (logo.naturalWidth / logo.naturalHeight) * h, h);
   ctx.textAlign = 'left';
-  ctx.fillStyle = C.butter;
-  ctx.font = `700 28px ${BODY}`;
-  spacing(ctx, 6);
-  ctx.fillText('SUPER 8 AO VIVO', x + 60, y + 32);
   ctx.fillStyle = C.butterSoft;
-  ctx.font = `600 26px ${BODY}`;
+  ctx.font = `600 24px ${BODY}`;
   spacing(ctx, 2);
-  ctx.fillText(date, x + 60, y + 72);
+  ctx.fillText(date, x, y + h + 26);
   spacing(ctx, 0);
 }
 
@@ -258,7 +250,7 @@ export async function renderPodium(p: Podium, info: PodiumInfo, format: ImgForma
 
   // ---------- topo: marca, nome do torneio, divisão ----------
   brandRow(ctx, X, L.top, info.date);
-  let y = L.top + 116;
+  let y = L.top + 128;
   ctx.fillStyle = C.creme;
   ctx.textAlign = 'left';
   const nameSize = fit(ctx, [info.name], 800, DISPLAY, L.name, W - X * 2, 44);

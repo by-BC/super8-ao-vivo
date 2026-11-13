@@ -4,7 +4,7 @@ import { Button, Note, Panel, Pill } from '../components/ui';
 import { listSaved } from '../lib/local';
 import { go } from '../lib/router';
 import { configured } from '../lib/supabase';
-import { Simbolo } from '../components/Brand';
+import { Logo, Simbolo } from '../components/Brand';
 
 const roleLabel = { organizador: 'Organizador', arbitro: 'Árbitro', publico: 'Assistindo' } as const;
 
@@ -31,7 +31,13 @@ export function HomePage() {
 
   return (
     <>
-      <Hero title="Super 8" accent="ao vivo" sub="Sorteio, placar e ranking do racha de beach tennis, atualizando no celular de todo mundo." />
+      <header className="relative overflow-hidden bg-band text-bandink">
+        <Folha className="absolute -right-8 -top-10 h-44 w-44 rotate-[200deg] opacity-[.13]" />
+        <div className="gutter relative mx-auto max-w-[760px] py-7">
+          <h1 className="m-0"><Logo height={64} className="-ml-1" /></h1>
+          <p className="m-0 mt-3 text-[15px] opacity-90">Sorteio, placar e ranking do racha de beach tennis, ao vivo no celular de todo mundo.</p>
+        </div>
+      </header>
       <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-14 pt-5">
         {!configured && <Note kind="warn">Falta configurar o Supabase: crie o arquivo .env com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY (veja o README).</Note>}
 

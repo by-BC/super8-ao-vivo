@@ -45,9 +45,6 @@
   --shadow: 0 1px 2px rgba(30, 53, 87, 0.06), 0 10px 24px -14px rgba(30, 53, 87, 0.35);
   --focus-ring: 0 0 0 2px var(--creme), 0 0 0 4px var(--profundo);
   --costura-traco: 2.5px;
-  --mono-line: var(--profundo);
-  --mono-ball: var(--coral);
-  --mono-sun: var(--dourado);
   color-scheme: light;
 }
 
@@ -78,7 +75,6 @@
     --tint-ok: #19414a;
     --shadow: 0 1px 0 #00000066, 0 10px 22px -14px #000000d9;
     --focus-ring: 0 0 0 2px #0f1e2e, 0 0 0 4px var(--creme);
-    --mono-line: var(--creme);
     color-scheme: dark;
   }
 }
@@ -136,7 +132,7 @@ h3 {
   border-top: 1.5px dashed var(--hair);
 }
 
-/* a costura da bola: divisor e carregando (guia da marca → Costura) */
+/* divisor com o símbolo no meio, e o símbolo quicando no carregando */
 .costura {
   display: flex;
   align-items: center;
@@ -149,30 +145,13 @@ h3 {
   height: 0;
   border-top: var(--costura-traco) solid currentColor;
 }
-.costura svg,
-.carregando svg {
-  flex: none;
-  display: block;
-  overflow: visible;
+.quica {
+  display: inline-block;
+  animation: quicar 1.1s cubic-bezier(.3, 0, .4, 1) infinite;
 }
-.costura path,
-.carregando path {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: var(--costura-traco);
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-.carregando path {
-  stroke-dasharray: 100 100;
-  animation: costurar 1.8s ease-in-out infinite;
-}
-@keyframes costurar {
-  0% { stroke-dashoffset: 100; }
-  60%, 100% { stroke-dashoffset: -100; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .carregando path { stroke-dasharray: none; }
+@keyframes quicar {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  45% { transform: translateY(-14px) rotate(-8deg); }
 }
 
 .pop { animation: pop 0.55s ease-out 1; }

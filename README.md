@@ -1,3 +1,5 @@
+![Super 8 · sistema de beach tênis](docs/banner.jpg)
+
 # Super 8 ao vivo 🎾
 
 [![Deploy](https://github.com/by-BC/super8-ao-vivo/actions/workflows/deploy.yml/badge.svg)](https://github.com/by-BC/super8-ao-vivo/actions/workflows/deploy.yml)
@@ -125,8 +127,10 @@ compartilhar o resultado, então as cartinhas e as telas de vitória são parte 
 | Dourado Sol | `#F2C45A` | conquista: 1º lugar, título de campeão, raios do sol |
 
 - Fontes: **Outfit** (600–800) em título, placar e pódio; **DM Sans** na interface (as duas pelo Google Fonts).
-- **Monograma:** o 8 desenhado como a trajetória da bola, aberto em cima, lançando a bola coral com três raios de sol.
-  Um desenho só (`src/lib/brandPaths.ts`) para símbolo, divisor, carregando, ícone do app e artes.
+- **Logo oficial:** o S em duas faixas, laranja e branca, segurando a bola, com o "SUPER8" em itálico e "Sistema de beach tênis"
+  embaixo. Ficam em `public/marca`: o símbolo pra fundo escuro (`simbolo.webp`), a versão com a faixa em azul profundo
+  pra fundo claro (`simbolo-claro.webp`) e a logo completa, de letras brancas, só pra fundo escuro (`logo.webp`).
+  O ícone do app e o favicon são o símbolo sobre quadrado escuro.
 - **Interface:** cartões creme com cantos de 16px e sombra leve, ícones próprios de traço arredondado
   (`src/components/Icons.tsx`) e avatar de iniciais com cor fixa por nome, igual no app e nas artes (`src/lib/avatar.ts`).
 - **Personagens:** 21 ilustrações de praia (10 mulheres, 11 homens, com raquete, viseira, boné e óculos) fazem
