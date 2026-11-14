@@ -144,6 +144,19 @@ components:
     textColor: "{colors.areia}"
     rounded: "{rounded.lg}"
     padding: "12px 16px"
+  undo-chip:
+    backgroundColor: "{colors.coral-botao}"
+    textColor: "{colors.branco}"
+    typography: "{typography.label}"
+    rounded: "{rounded.full}"
+    padding: "0 12px"
+    height: "28px"
+  offline-badge:
+    backgroundColor: "{colors.creme}"
+    textColor: "{colors.verde-coqueiro}"
+    typography: "{typography.label}"
+    rounded: "{rounded.full}"
+    padding: "1px 8px"
 ---
 
 # Design System: Super 8 ao vivo
@@ -172,7 +185,7 @@ O app tem uma base quente de areia e creme, tinta azul-profunda e quatro destaqu
 
 ### Primary
 - **Coral Saque** (`coral-saque`): o coral da marca. Aparece puro em enfeites, na barra lateral da dupla B, na costura do divisor e como botão no tema Noite.
-- **Coral de Botão** (`coral-botao`): o coral mais fechado dos botões primários, do selo "Venceu", da barra de progresso e da ação do toast. Existe porque branco sobre o coral puro não passa no contraste.
+- **Coral de Botão** (`coral-botao`): o coral mais fechado dos botões primários, do selo "Venceu", da barra de progresso e do "Desfazer" no cartão. Existe porque branco sobre o coral puro não passa no contraste.
 - **Tinta Coral** (`coral-tinta`): texto coral sobre o véu coral, usado na aba ativa e no "(você)". No Noite vira `noite-coral-tinta`.
 
 ### Secondary
@@ -225,7 +238,7 @@ O app tem uma base quente de areia e creme, tinta azul-profunda e quatro destaqu
 
 Uma coluna feita para o celular. O conteúdo fica centralizado com largura máxima de 760 px, e as folhas (sheets) ficam limitadas a 520 px em telas maiores. A margem lateral é de 16 px e respeita a área segura do aparelho (`.gutter`), e o corpo da página também respeita a área segura em cima e embaixo.
 
-A navegação do torneio fica presa embaixo, ao alcance do polegar. São três abas iguais (Jogos, Ranking, Info), com uma barra de progresso de 3 px por cima que vai enchendo conforme os jogos terminam. As folhas sobem de baixo no celular e viram um diálogo centralizado a partir de `sm` (640 px). Os toasts aparecem acima da navegação.
+A navegação do torneio fica presa embaixo, ao alcance do polegar. São três abas iguais (Jogos, Ranking, Info), com uma barra de progresso de 3 px por cima que vai enchendo conforme os jogos terminam. As folhas sobem de baixo no celular e viram um diálogo centralizado a partir de `sm` (640 px). Os toasts de confirmação aparecem acima da navegação.
 
 O ritmo é apertado e regular. Os cartões têm 16 px de respiro interno, as linhas de um cartão se separam por 6 a 8 px e os grupos de campos por 12 px. As grades de opções começam em uma coluna e passam a duas a partir de 420 px. Os ajustes de tamanho para telas pequenas entram em 380 e 400 px, não nos breakpoints padrão do Tailwind.
 
@@ -293,10 +306,24 @@ Firmes e amigáveis: grandes o bastante para mão suada, com cantos macios que c
 - **Duplas:** cada uma ocupa uma linha com uma barra lateral de 5 px, turquesa para a dupla A e coral para a dupla B.
 - **Rede:** um tracejado de 1,5 px em fio de areia separa as duas duplas.
 - **Placar:** número em Outfit 800 a 48 px, com − (36 px, contorno) e + game (52 px, coqueiro sólido) para o árbitro.
+- **Desfazer:** por 5 s depois de cada game, ocupa o lugar do "Jogo N · Quadra X" (ver Desfazer no cartão).
 - **Fim:** a dupla vencedora ganha fundo manteiga e um "pop" de 0,55 s, e a perdedora fica em cinza maré.
 
-### Toast com Desfazer
-É uma pílula azul profundo com texto areia, logo acima da navegação. A ação "Desfazer" é um botão coral de botão de 40 px dentro dela. Aparecem no máximo três ao mesmo tempo, e cada um some depois de 3,2 s.
+### Desfazer no cartão
+O "Desfazer" mora no cabeçalho do cartão de partida, não num aviso flutuante: assim o segundo toque no "+" nunca cai nele por engano.
+- **Quando:** aparece logo depois de cada game lançado e fica 5 s depois do último toque. Cada toque entra numa pilha curta (até 5), e cada "Desfazer" volta o mais recente.
+- **Onde:** no lugar do "Jogo N · Quadra X", do lado oposto aos botões de game. O cabeçalho já reserva 28 px de altura para quem lança placar, então nada embaixo se mexe quando ele aparece ou some.
+- **Forma:** pílula de 28 px em coral de botão com texto branco (no Noite, coral puro com tinta azul-marinho), label em caixa alta, seta de voltar desenhada e "+1" ou "−1" ao lado. Em telas de até 380 px fica só "Desfazer". O alvo de toque cresce para 48 px por uma extensão invisível que só avança sobre a área dos nomes da dupla A.
+- **Nome acessível:** diz o que volta e de quem ("Desfazer +1 game de Fê e Edu").
+
+### Toast
+É uma pílula azul profundo com texto areia, logo acima da navegação, só para confirmar ("+1 game: Fê e Edu", "Copiado. É só colar no grupo."). Não pega toque: o dedo atravessa o aviso e chega no que está embaixo. Aparecem no máximo três ao mesmo tempo, e cada um some depois de 3,2 s.
+
+### Selo "Sem conexão"
+Quando o servidor não responde, o placar na tela é o último que chegou neste celular, e isso precisa ficar dito.
+- **No cabeçalho:** um selo em caixa alta, creme sobre a faixa (as cores da faixa invertidas), seguido de "último placar às HH:MM" e, se houver, "· N na fila". O mesmo selo vale para abrir sem internet e para cair no meio do play.
+- **No Telão:** a mesma frase em tamanho de longe, numa faixa creme logo abaixo do título. Sem nada guardado, a tela inteira diz "Sem conexão com o servidor · Tentando de novo…".
+- **O que trava:** só o que grava no servidor (editar, trocar PIN, sortear, inscrever, entrar com o PIN). Fica visível e desligado, com o motivo num aviso perto. O placar continua lançando pela fila, e copiar mensagens continua funcionando.
 
 ### Avatar de personagem
 É um círculo com o personagem ilustrado sobre a cor derivada do nome, com um anel de 2 px na cor do cartão. Sem personagem, mostra as iniciais em Outfit 700. Tem 30 px ao lado do nome na partida e 36 px por padrão.

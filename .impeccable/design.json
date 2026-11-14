@@ -610,12 +610,28 @@
       "css": ".ds-tabs{background:var(--surface, #fff6ea);border-top:1px solid var(--hair, #e8d7bc);padding:0 16px 8px;max-width:420px;font-family:\"DM Sans\",system-ui,sans-serif;}.ds-tabs-progress{height:3px;margin:0 -16px;background:var(--hair, #e8d7bc);}.ds-tabs-progress i{display:block;height:100%;width:50%;background:var(--accent, #bf5440);}.ds-tabs-row{display:flex;gap:4px;padding-top:8px;}.ds-tab{flex:1;min-height:56px;border:none;border-radius:16px;background:transparent;color:var(--muted, #5b6678);font-size:13px;font-weight:700;cursor:pointer;}.ds-tab span{margin-left:4px;padding:0 6px;border-radius:9999px;font-size:10px;background:var(--accent, #bf5440);color:var(--on-accent, #ffffff);}.ds-tab[aria-selected=\"true\"]{background:var(--accent-tint, #f9ddd5);color:var(--accent-ink, #a84a36);}.ds-tab:hover{color:var(--ink, #1e3557);}.ds-tab:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
     },
     {
-      "name": "Toast com Desfazer",
+      "name": "Toast",
       "kind": "custom",
       "refersTo": "toast",
-      "description": "Confirma cada game lançado e oferece desfazer por alguns segundos.",
-      "html": "<div class=\"ds-toast\"><span>+1 game: Fê e Edu</span><button>Desfazer</button></div>",
-      "css": ".ds-toast{display:inline-flex;align-items:center;gap:12px;padding:12px 8px 12px 16px;border-radius:16px;background:var(--ink, #1e3557);color:var(--bg, #f4e7d3);font-family:\"DM Sans\",system-ui,sans-serif;font-weight:600;box-shadow:var(--shadow, 0 1px 2px rgba(30,53,87,.06), 0 10px 24px -14px rgba(30,53,87,.35));}.ds-toast button{min-height:40px;padding:0 12px;border:none;border-radius:16px;background:var(--accent, #bf5440);color:var(--on-accent, #ffffff);font-weight:800;cursor:pointer;}.ds-toast button:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
+      "description": "Só confirma (\"+1 game: Fê e Edu\", \"Copiado\"). Não pega toque: o dedo atravessa o aviso. O Desfazer mora no cartão.",
+      "html": "<div class=\"ds-toast\"><span>+1 game: Fê e Edu</span></div>",
+      "css": ".ds-toast{display:inline-flex;align-items:center;padding:12px 16px;border-radius:16px;background:var(--ink, #1e3557);color:var(--bg, #f4e7d3);font-family:\"DM Sans\",system-ui,sans-serif;font-weight:600;pointer-events:none;box-shadow:var(--shadow, 0 1px 2px rgba(30,53,87,.06), 0 10px 24px -14px rgba(30,53,87,.35));}"
+    },
+    {
+      "name": "Desfazer no cartão",
+      "kind": "button",
+      "refersTo": "undo-chip",
+      "description": "Fica 5 s no cabeçalho do cartão de partida depois de cada game, no lugar do \"Jogo N · Quadra X\". Alvo de 48 px por extensão invisível.",
+      "html": "<button class=\"ds-undo\" aria-label=\"Desfazer +1 game de Fê e Edu\"><svg viewBox=\"0 0 16 16\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5.5 3 2.5 6l3 3\"/><path d=\"M2.5 6h7a4 4 0 0 1 0 8H7\"/></svg>Desfazer +1</button>",
+      "css": ".ds-undo{position:relative;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:none;border-radius:9999px;background:var(--accent, #bf5440);color:var(--on-accent, #ffffff);font-family:\"DM Sans\",system-ui,sans-serif;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;}.ds-undo::before{content:\"\";position:absolute;left:0;right:0;top:-10px;bottom:-10px;}.ds-undo:active{transform:translateY(1px);}.ds-undo:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
+    },
+    {
+      "name": "Selo Sem conexão",
+      "kind": "chip",
+      "refersTo": "offline-badge",
+      "description": "No cabeçalho quando o servidor não responde: selo creme sobre a faixa e a hora do último placar guardado.",
+      "html": "<p class=\"ds-offline\"><b>Sem conexão</b><span>último placar às 17:04</span><span>· 2 na fila</span></p>",
+      "css": ".ds-offline{display:inline-flex;flex-wrap:wrap;align-items:center;gap:0 6px;margin:0;padding:12px 16px;border-radius:16px;background:var(--band, #1f5c52);color:var(--band-ink, #fff6ea);font-family:\"DM Sans\",system-ui,sans-serif;font-size:13px;font-weight:600;}.ds-offline b{padding:1px 8px;border-radius:9999px;background:var(--band-ink, #fff6ea);color:var(--band, #1f5c52);font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;}.ds-offline span:last-child{white-space:nowrap;}"
     }
   ],
   "narrative": {
