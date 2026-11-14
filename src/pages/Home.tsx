@@ -11,7 +11,7 @@ const roleLabel = { organizador: 'Organizador', arbitro: 'Árbitro', publico: 'A
 export function Hero({ title, accent, sub, small }: { title: string; accent?: string; sub?: string; small?: boolean }) {
   return (
     <header className="relative overflow-hidden bg-band text-bandink">
-      <Folha className="absolute -right-8 -top-10 h-44 w-44 rotate-[200deg] opacity-[.13]" />
+      <Folha className="absolute -right-10 -top-10 h-44 w-44 opacity-[.15] sm:-right-3 sm:-top-2 sm:h-52 sm:w-52" />
       <div className="gutter relative mx-auto flex max-w-[760px] items-center gap-4 py-6">
         <a href="#/" aria-label="Início" className="flex-none"><Simbolo onBand size={small ? 44 : 64} /></a>
         <div className="min-w-0">
@@ -32,7 +32,7 @@ export function HomePage() {
   return (
     <>
       <header className="relative overflow-hidden bg-band text-bandink">
-        <Folha className="absolute -right-8 -top-10 h-44 w-44 rotate-[200deg] opacity-[.13]" />
+        <Folha className="absolute -right-10 -top-10 h-44 w-44 opacity-[.15] sm:-right-3 sm:-top-2 sm:h-52 sm:w-52" />
         <div className="gutter relative mx-auto max-w-[760px] py-7">
           <h1 className="m-0"><Logo height={64} className="-ml-1" /></h1>
           <p className="m-0 mt-3 text-[15px] opacity-90">Sorteio, placar e ranking do racha de beach tennis, ao vivo no celular de todo mundo.</p>
