@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyGame, buildInitial, DEFAULT_CONFIG, evaluate, individualSides, knockoutChampion, mulberry32, nextStep,
   parsePlayerList, playerEntities, rankingMessage, rankingSections, rodizioPlans, scheduleQuality, standings,
-  suggestRounds, tournamentStatus, validateSetup, matchesPerRound, finalWinners, podiums, playerCard, levelLetter, levelValue, formTeams, summarize, splitGroups, suggestFormats, possibleModalities,
+  suggestRounds, tournamentStatus, validateSetup, teamSides, defaultRanking, isDefaultRanking, rankingFor, type Entity, matchesPerRound, finalWinners, podiums, playerCard, levelLetter, levelValue, formTeams, keptPairs, summarize, splitGroups, suggestFormats, possibleModalities, estimateMinutes, matchMinutes, durationText,
   type Config, type Match, type NewMatch, type Player, type Scoring, type SetScore,
 } from './index';
 
@@ -492,8 +492,11 @@ describe('rodízio em 2 grupos', () => {
     const step = nextStep(ps, [], c, played, 1);
     expect(step?.title).toBe('Gerar final');
     expect(step!.matches.map((m) => m.division).sort()).toEqual(['H', 'M']);
+    // o resumo conta a tabela inteira e mais uma final por divisão, numa rodada a mais
     const s = summarize(ps, c);
-    expect(s.matches).toBe(matches.length);
+    expect(s.matches).toBe(matches.length + 2);
+    expect(s.rounds).toBe(Math.max(...matches.map((m) => m.round)) + 1);
+    expect(s.extra).toMatch(/as 2 finais cruzadas/);
   });
 
   it('grupos equilibrados pelo nível e, no misto, com homens e mulheres nos dois', () => {
@@ -514,6 +517,75 @@ describe('rodízio em 2 grupos', () => {
   });
 });
 
+describe('ranking de duplas fixas e grupos: vitórias primeiro', () => {
+  // Regulamentos amadores de fase de grupos (FPT 2022, Arapiraca 2024, Sesc SP, Copa SP): vitórias; com 2
+  // empatados, confronto direto; com 3 ou mais, saldo de games, depois média de games; por fim, sorteio.
+  const pair = cfg({ format: 'duplas', scoring: { type: 'corrida', games: 4 }, ranking: { ...DEFAULT_CONFIG.ranking, ...defaultRanking('duplas') } });
+  const ents = (keys: string[]): Entity[] => keys.map((k) => ({ key: k, ids: [], label: k, gender: null }));
+  let n = 0;
+  const g = (a: string, b: string, s: [number, number]): Match => ({
+    id: `g${n++}`, version: 0, stage: 'grupo', round: 1, division: 'all', grp: 'A', slot: 0, court: 1, label: null, a: [`${a}1`, `${a}2`], b: [`${b}1`, `${b}2`], teamA: a, teamB: b, sets: [s],
+  });
+  const order = (keys: string[], ms: Match[], c: Config = pair) => standings(ents(keys), ms, c, teamSides).map((r) => r.key);
+
+  it('padrão por formato: individual por games, duplas e grupos por resultado', () => {
+    expect(defaultRanking('rodizio')).toEqual({ base: 'games', desempate: ['vitorias', 'saldo', 'confronto'] });
+    expect(defaultRanking('mexicano')).toEqual(defaultRanking('rodizio'));
+    expect(defaultRanking('duplas')).toEqual({ base: 'resultado', desempate: ['confronto', 'saldo', 'media_games'] });
+    expect(defaultRanking('grupos')).toEqual(defaultRanking('duplas'));
+    expect(DEFAULT_CONFIG.ranking).toMatchObject(defaultRanking(DEFAULT_CONFIG.format));
+  });
+  it('trocar o formato troca o ranking padrão, mas nunca o que o organizador escolheu', () => {
+    const ind = DEFAULT_CONFIG.ranking;
+    const dup = rankingFor('duplas', ind);
+    expect(dup).toMatchObject({ base: 'resultado', desempate: ['confronto', 'saldo', 'media_games'], separarGenero: ind.separarGenero, media: ind.media });
+    expect(rankingFor('rodizio', dup)).toMatchObject(defaultRanking('rodizio'));
+    expect(rankingFor('grupos', dup)).toBe(dup); // já está no padrão: nada muda
+    const custom = { ...ind, desempate: ['saldo', 'vitorias'] as typeof ind.desempate };
+    expect(isDefaultRanking(custom)).toBe(false);
+    expect(rankingFor('duplas', custom)).toBe(custom);
+    // rankingTouched: mesmo igual a um padrão, a escolha explícita fica
+    expect(rankingFor('duplas', ind, true)).toBe(ind);
+  });
+  it('sugestões de duplas e grupos já vêm com vitórias primeiro; rodízio continua por games', () => {
+    const s = suggestFormats(mkPlayers(8, 8), cfg({ courts: 4 }), { minutes: 300, modalities: ['mista'] });
+    const by = (f: string) => s.find((x) => x.config.format === f)!.config.ranking;
+    expect(by('duplas')).toMatchObject(defaultRanking('duplas'));
+    expect(by('rodizio')).toMatchObject(defaultRanking('rodizio'));
+  });
+  it('2 empatados em vitórias: confronto direto decide, mesmo com saldo pior', () => {
+    // E e F com 2 vitórias; F ganhou de E, mas E tem saldo bem melhor
+    const ms = [g('F', 'E', [4, 3]), g('E', 'G', [4, 0]), g('E', 'H', [4, 0]), g('F', 'G', [4, 3]), g('H', 'F', [4, 3]), g('G', 'H', [4, 2])];
+    expect(order(['E', 'F', 'G', 'H'], ms)).toEqual(['F', 'E', 'G', 'H']);
+  });
+  it('3 empatados: confronto direto não entra; decide saldo e depois média de games', () => {
+    // A ganha de B, B de C, C de A: ciclo. Antes, o confronto virava um mini-campeonato entre os 3 (C, B, A).
+    // Pela regra, com 3 ou mais empatados vale o saldo: C (+4), depois A e B com +1, separados pela média de games.
+    const ms = [g('A', 'B', [4, 3]), g('B', 'C', [4, 3]), g('C', 'A', [4, 0]), g('A', 'D', [4, 0]), g('B', 'D', [4, 3]), g('C', 'D', [4, 3])];
+    const rows = standings(ents(['A', 'B', 'C', 'D']), ms, pair, teamSides);
+    expect(rows.map((r) => r.key)).toEqual(['C', 'A', 'B', 'D']);
+    expect(rows.find((r) => r.key === 'A')!.sg).toBe(rows.find((r) => r.key === 'B')!.sg);
+    expect(rows.map((r) => r.pos)).toEqual([1, 2, 3, 4]);
+    // só confronto na lista: com 3 empatados ninguém se separa e dividem a posição
+    const onlyH2H = cfg({ ...pair, ranking: { ...pair.ranking, desempate: ['confronto'] } });
+    expect(standings(ents(['A', 'B', 'C', 'D']), ms, onlyH2H, teamSides).map((r) => r.pos)).toEqual([1, 1, 1, 4]);
+  });
+  it('média de games: games feitos ÷ games jogados', () => {
+    const c = cfg({ ...pair, ranking: { ...pair.ranking, desempate: ['media_games'] } });
+    // X e Y com 1 vitória e 4 games feitos; X sofreu 3 (4/7), Y sofreu 0 (4/4). Z não jogou: 0, sem quebrar.
+    const ms = [g('X', 'W', [4, 3]), g('Y', 'V', [4, 0])];
+    expect(order(['X', 'Y', 'Z'], ms, c).slice(0, 2)).toEqual(['Y', 'X']);
+    expect(order(['Z'], [], c)).toEqual(['Z']);
+  });
+  it('desempate de torneio salvo continua valendo; critério desconhecido não quebra', () => {
+    const ms = [g('A', 'B', [4, 3]), g('B', 'C', [4, 3]), g('C', 'A', [4, 0])];
+    const old = cfg({ ...pair, ranking: { ...DEFAULT_CONFIG.ranking } });
+    expect(order(['A', 'B', 'C'], ms, old)).toHaveLength(3);
+    const weird = cfg({ ...pair, ranking: { ...pair.ranking, desempate: ['futuro' as never, 'saldo'] } });
+    expect(order(['A', 'B', 'C'], ms, weird)).toEqual(['C', 'B', 'A']); // saldo: C +3, B 0, A -3
+  });
+});
+
 describe('sugestões de formato pela lista', () => {
   it('cada sugestão é válida, cabe no tempo pedido e muda com o tempo', () => {
     const ps = mkPlayers(8, 8);
@@ -531,5 +603,205 @@ describe('sugestões de formato pela lista', () => {
     const ps = mkPlayers(14, 13);
     const s = suggestFormats(ps, cfg({ courts: 4, scoring: { type: 'total', games: 6 } }), { minutes: 300, modalities: ['mesmo_genero'] });
     expect(s.some((x) => x.config.format === 'rodizio' && x.config.rodizioGroups === 2)).toBe(true);
+  });
+});
+
+describe('final cruzada do rodízio em 2 grupos', () => {
+  /** Joga todos os jogos com placar aleatório (sem empate) e devolve a final gerada. */
+  const playAll = (ps: Player[], c: Config, seed: number) => {
+    const { matches } = buildInitial(ps, c, seed);
+    const rng = mulberry32(seed * 7 + 1);
+    const played: Match[] = matches.map((m, i) => {
+      const lose = Math.floor(rng() * 3);
+      return { ...m, id: `m${i}`, version: 1, sets: [rng() < 0.5 ? [4, lose] : [lose, 4]] as SetScore[] };
+    });
+    return { played, step: nextStep(ps, [], c, played, 1) };
+  };
+  const genderOf = (ps: Player[]) => new Map(ps.map((p) => [p.id, p.gender]));
+
+  it('misto: 1º homem do A + 1ª mulher do B contra 1º homem do B + 1ª mulher do A, em todo sorteio', () => {
+    for (const [h, mm] of [[7, 7], [8, 6], [14, 13]] as const) {
+      const ps = mkPlayers(h, mm);
+      const g = genderOf(ps);
+      const c = cfg({ modality: 'mista', format: 'rodizio', rodizioGroups: 2, courts: 4, extraGames: true });
+      c.rounds = suggestRounds(ps, c);
+      expect(validateSetup(ps, c).ok).toBe(true);
+      for (let seed = 1; seed <= 40; seed++) {
+        const { played, step } = playAll(ps, c, seed);
+        expect(step?.title).toBe('Gerar final');
+        const [f] = step!.matches;
+        expect(step!.matches).toHaveLength(1);
+        for (const side of [f.a, f.b]) expect(side.map((id) => g.get(id)).sort()).toEqual(['H', 'M']);
+        const [ga, gb] = rankingSections(ps, [], c, played);
+        expect([ga.title, gb.title]).toEqual(['Grupo A', 'Grupo B']);
+        const first = (rows: typeof ga.rows, x: 'H' | 'M') => rows.find((r) => g.get(r.key) === x)!.key;
+        expect(f.a).toEqual([first(ga.rows, 'H'), first(gb.rows, 'M')]);
+        expect(f.b).toEqual([first(gb.rows, 'H'), first(ga.rows, 'M')]);
+        // a tabela marca exatamente quem joga a final
+        expect(ga.finalists).toEqual([f.a[0], f.b[1]]);
+        expect(gb.finalists).toEqual([f.b[0], f.a[1]]);
+      }
+    }
+  });
+
+  it('fora do misto continua 1º A + 2º B contra 2º A + 1º B', () => {
+    for (const modality of ['mesmo_genero', 'livre'] as const) {
+      const ps = modality === 'livre' ? mkPlayers(10, 0).map((p) => ({ ...p, gender: null })) : mkPlayers(10, 10);
+      const c = cfg({ modality, format: 'rodizio', rodizioGroups: 2, courts: 4, extraGames: true });
+      c.rounds = suggestRounds(ps, c);
+      expect(validateSetup(ps, c).ok).toBe(true);
+      for (let seed = 1; seed <= 10; seed++) {
+        const { played, step } = playAll(ps, c, seed);
+        const secs = rankingSections(ps, [], c, played).filter((s) => s.kind === 'grupo');
+        for (const f of step!.matches) {
+          const [ga, gb] = secs.filter((s) => s.division === f.division);
+          expect(f.a).toEqual([ga.rows[0].key, gb.rows[1].key]);
+          expect(f.b).toEqual([ga.rows[1].key, gb.rows[0].key]);
+          expect(ga.finalists).toEqual([ga.rows[0].key, ga.rows[1].key]);
+        }
+      }
+    }
+  });
+
+  it('misto com grupo sem mulher: não gera final nem promete vaga, e o torneio fecha', () => {
+    const ps = mkPlayers(6, 2);
+    const c = cfg({ modality: 'mista', format: 'rodizio' });
+    const mk = (a: string[], b: string[], grp: string, id: string): Match =>
+      ({ id, version: 1, stage: 'rodada', round: 1, division: 'all', grp, slot: 0, court: grp === 'A' ? 1 : 2, label: null, a, b, teamA: null, teamB: null, sets: [[4, 1]] });
+    const all = [mk(['h0', 'm0'], ['h1', 'm1'], 'A', '1'), mk(['h2', 'h3'], ['h4', 'h5'], 'B', '2')];
+    expect(nextStep(ps, [], c, all, 1)).toBeNull();
+    const secs = rankingSections(ps, [], c, all);
+    expect(secs.map((s) => [s.title, s.qualify, s.finalists])).toEqual([['Grupo A', undefined, undefined], ['Grupo B', undefined, undefined]]);
+    expect(tournamentStatus(ps, c, all)).toBe('encerrado');
+  });
+});
+
+describe('sortear de novo com duplas montadas à mão', () => {
+  const pairKeys = (ts: { players: [string, string] }[]) => ts.map((t) => [...t.players].sort().join('+')).sort();
+
+  it('mantém as duplas e só sorteia a tabela de novo', () => {
+    const ps = mkPlayers(6, 6);
+    const c = cfg({ format: 'duplas', pairing: 'manual', courts: 3 });
+    const manual: [string, string][] = ps.slice(0, 6).map((h, i) => [h.id, `m${(i + 2) % 6}`]);
+    const first = buildInitial(ps, c, 1, manual);
+    const seeds = [2, 3, 4, 5];
+    const redraws = seeds.map((seed) => {
+      const kp = keptPairs(first.teams, ps, c, seed);
+      expect(kp).toMatchObject({ kept: 6, loose: 0 });
+      expect(validateSetup(ps, c, kp.manual).ok).toBe(true);
+      return buildInitial(ps, c, seed, kp.manual);
+    });
+    for (const r of redraws) expect(pairKeys(r.teams)).toEqual(pairKeys(first.teams));
+    // a tabela muda em pelo menos um dos sorteios (antes, com as mesmas duplas, saía sempre igual)
+    const order = (ms: NewMatch[]) => ms.map((m) => [...m.a, ...m.b].join(',')).join('|');
+    expect(redraws.some((r) => order(r.matches) !== order(first.matches))).toBe(true);
+  });
+
+  it('quem perdeu o parceiro entra no sorteio; o resto das duplas fica', () => {
+    const ps = mkPlayers(4, 4);
+    const c = cfg({ format: 'grupos', pairing: 'manual', groups: 1, qualify: 2 });
+    const manual: [string, string][] = [['h0', 'm0'], ['h1', 'm1'], ['h2', 'm2'], ['h3', 'm3']];
+    const { teams } = buildInitial(ps, c, 1, manual);
+    // h3 e m0 saíram: as duplas h0+m0 e h3+m3 se desfazem, h0 e m3 viram dupla no sorteio
+    const active = ps.filter((p) => p.id !== 'h3' && p.id !== 'm0');
+    const kp = keptPairs(teams, active, c, 9);
+    expect(kp).toMatchObject({ kept: 2, loose: 2 });
+    expect(pairKeys(kp.manual.map((p) => ({ players: p })))).toEqual(['h0+m3', 'h1+m1', 'h2+m2']);
+    expect(validateSetup(active, c, kp.manual).ok).toBe(true);
+  });
+
+  it('dupla que não fecha mais com a modalidade se desfaz', () => {
+    const ps = mkPlayers(2, 2);
+    const teams = [{ id: 't1', players: ['h0', 'h1'] as [string, string], division: 'all' }, { id: 't2', players: ['m0', 'm1'] as [string, string], division: 'all' }];
+    const kp = keptPairs(teams, ps, cfg({ format: 'duplas', pairing: 'manual', modality: 'mista' }), 3);
+    expect(kp).toMatchObject({ kept: 0, loose: 4 });
+    for (const [x, y] of kp.manual) expect(x[0]).not.toBe(y[0]);
+  });
+});
+
+describe('tamanho e tempo antes de criar', () => {
+  const lastRound = (ms: NewMatch[]) => Math.max(...ms.map((m) => m.round));
+
+  it('duplas fixas: as rodadas são as da tabela de verdade, encaixada nas quadras', () => {
+    for (const [n, courts] of [[8, 2], [10, 2], [6, 3], [12, 4]] as const) {
+      const ps = mkPlayers(0, n);
+      const c = cfg({ format: 'duplas', modality: 'livre', courts });
+      const { matches } = buildInitial(ps, c, 5);
+      const s = summarize(ps, c);
+      expect(s.matches).toBe(matches.length);
+      expect(s.rounds).toBe(lastRound(matches));
+    }
+  });
+
+  it('grupos + mata-mata: conta as rodadas e os jogos do mata-mata, não só a fase de grupos', () => {
+    // 8 duplas, 2 grupos de 4, 2 classificam: 12 jogos de grupo, semifinal (2) e final (1)
+    const ps = mkPlayers(0, 16);
+    const c = cfg({ format: 'grupos', modality: 'livre', courts: 2, groups: 2, qualify: 2 });
+    const { matches } = buildInitial(ps, c, 9);
+    const s = summarize(ps, c);
+    expect(matches.length).toBe(12);
+    expect(s.matches).toBe(12 + 3);
+    expect(s.rounds).toBe(lastRound(matches) + 2); // semifinal numa rodada (2 quadras) e final
+    expect(s.extra).toBe('12 jogos de grupo + 3 no mata-mata');
+    // com 1 quadra, as 2 semifinais ocupam 2 rodadas
+    expect(summarize(ps, { ...c, courts: 1 }).rounds).toBe(lastRound(buildInitial(ps, { ...c, courts: 1 }, 9).matches) + 3);
+    // 6 classificados: 2 jogos na 1ª fase (o resto passa direto), semifinal e final
+    const big = mkPlayers(0, 24);
+    const g3 = cfg({ format: 'grupos', modality: 'livre', courts: 4, groups: 3, qualify: 2 });
+    expect(summarize(big, g3).matches).toBe(buildInitial(big, g3, 2).matches.length + 5);
+  });
+
+  it('rodízio em 2 grupos de uma divisão só: uma final, uma rodada a mais', () => {
+    const ps = mkPlayers(0, 12);
+    const c = cfg({ modality: 'livre', courts: 2, rodizioGroups: 2, extraGames: false, rounds: 5 });
+    expect(validateSetup(ps, c).ok).toBe(true);
+    const { matches } = buildInitial(ps, c, 4);
+    const s = summarize(ps, c);
+    expect(s.matches).toBe(matches.length + 1);
+    expect(s.rounds).toBe(lastRound(matches) + 1);
+    expect(s.extra).toBe('Inclui a final cruzada');
+  });
+
+  it('tempo: rodadas × minutos por partida, a mesma conta na criação e nas sugestões do sorteio', () => {
+    const ps = mkPlayers(8, 8);
+    const c = cfg({ courts: 2, scoring: { type: 'total', games: 6 }, rounds: 7 });
+    expect(matchMinutes(c.scoring)).toBe(26);
+    expect(estimateMinutes(ps, c)).toBe(summarize(ps, c).rounds * 26);
+    for (const x of suggestFormats(ps, cfg({ courts: 4, scoring: { type: 'total', games: 6 } }), { minutes: 240, modalities: ['mista', 'mesmo_genero'] })) {
+      expect(x.minutes).toBe(estimateMinutes(ps, x.config));
+    }
+  });
+
+  it('duração pra tela, de 5 em 5 minutos', () => {
+    expect(durationText(26)).toBe('25 min');
+    expect(durationText(60)).toBe('1h');
+    expect(durationText(108)).toBe('1h50');
+    expect(durationText(182)).toBe('3h');
+    expect(durationText(0)).toBe('5 min');
+  });
+});
+
+describe('partidas desiguais e a média por partida', () => {
+  it('mexicano com 9: avisa que o ranking soma games e sugere a média, mesmo com o jogo extra ligado', () => {
+    const ps = mkPlayers(0, 9);
+    const c = cfg({ format: 'mexicano', modality: 'livre', courts: 2, rounds: 6, extraGames: true, ranking: { ...DEFAULT_CONFIG.ranking, media: false } });
+    const s = summarize(ps, c);
+    expect(s.minGames).toBeLessThan(s.maxGames);
+    const v = validateSetup(ps, c);
+    expect(v.ok).toBe(true);
+    expect(v.uneven).toMatch(/média por partida/);
+    expect(v.uneven).not.toMatch(/jogo extra/);
+    expect(v.warnings).toContain(v.uneven);
+    // com a média ligada, nada a avisar
+    expect(validateSetup(ps, { ...c, ranking: { ...c.ranking, media: true } }).uneven).toBeUndefined();
+  });
+
+  it('rodízio: com jogo extra não avisa; sem ele, sugere jogo extra ou média', () => {
+    const ps = mkPlayers(0, 9);
+    const c = cfg({ modality: 'livre', courts: 2, rounds: 5, ranking: { ...DEFAULT_CONFIG.ranking, media: false } });
+    expect(validateSetup(ps, { ...c, extraGames: true }).uneven).toBeUndefined();
+    const off = validateSetup(ps, { ...c, extraGames: false });
+    expect(summarize(ps, { ...c, extraGames: false })).toMatchObject({ minGames: 4, maxGames: 5 });
+    expect(off.uneven).toMatch(/jogo extra/);
   });
 });

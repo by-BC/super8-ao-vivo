@@ -35,7 +35,11 @@ export interface Scoring {
 
 /** games: soma de games feitos · resultado: vitória 3, empate 1, derrota 0 */
 export type RankingBase = 'games' | 'resultado';
-export type Tiebreak = 'vitorias' | 'saldo' | 'confronto' | 'games';
+/**
+ * vitorias · saldo (games feitos − sofridos) · confronto (só com 2 empatados) · games (games feitos)
+ * · media_games (games feitos ÷ games jogados, feitos + sofridos).
+ */
+export type Tiebreak = 'vitorias' | 'saldo' | 'confronto' | 'games' | 'media_games';
 
 export interface RankingConfig {
   base: RankingBase;
@@ -126,6 +130,36 @@ export const DEFAULT_CONFIG: Config = {
   rodizioGroups: 1,
   extraGames: true,
 };
+
+/**
+ * Ranking padrão de cada formato (só critério e desempate; média, Rei e Rainha e sorteio ficam como estão).
+ * - Individual (rodízio/Super 8, mexicano): games feitos, depois vitórias, saldo e confronto, como nos
+ *   regulamentos de Super 8.
+ * - Duplas fixas e grupos + mata-mata: vitórias primeiro (V3 · E1 · D0), como nos regulamentos amadores de
+ *   fase de grupos (FPT 2022, Arapiraca 2024, Sesc SP, Copa SP): com 2 empatados, confronto direto; com 3 ou
+ *   mais, saldo de games e depois média de games. O que sobrar empatado vai pro sorteio fixo do torneio.
+ *   Vitórias não entra na lista porque o critério principal já é o resultado.
+ */
+export function defaultRanking(format: Format): Pick<RankingConfig, 'base' | 'desempate'> {
+  return isIndividual(format)
+    ? { base: 'games', desempate: ['vitorias', 'saldo', 'confronto'] }
+    : { base: 'resultado', desempate: ['confronto', 'saldo', 'media_games'] };
+}
+
+const sameRanking = (r: Pick<RankingConfig, 'base' | 'desempate'>, d: Pick<RankingConfig, 'base' | 'desempate'>) =>
+  r.base === d.base && r.desempate.length === d.desempate.length && r.desempate.every((k, i) => k === d.desempate[i]);
+
+/** O ranking é um dos padrões (de formato individual ou de duplas), ou seja, ninguém mexeu nele. */
+export function isDefaultRanking(r: Pick<RankingConfig, 'base' | 'desempate'>): boolean {
+  return sameRanking(r, defaultRanking('rodizio')) || sameRanking(r, defaultRanking('duplas'));
+}
+
+/** Ranking para o formato: troca para o padrão dele, a não ser que o organizador tenha escolhido outro. */
+export function rankingFor(format: Format, r: RankingConfig, touched = !isDefaultRanking(r)): RankingConfig {
+  if (touched) return r;
+  const d = defaultRanking(format);
+  return sameRanking(r, d) ? r : { ...r, base: d.base, desempate: [...d.desempate] };
+}
 
 export const MAX_PLAYERS = 64;
 

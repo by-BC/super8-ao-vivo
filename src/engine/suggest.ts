@@ -1,11 +1,31 @@
 import { divisionsOf } from './schedule';
 import { gamesPerMatch } from './scoring';
 import { suggestRounds, summarize, validateSetup, type Summary } from './setup';
-import type { Config, Format, Modality, Player, Scoring } from './types';
+import { rankingFor, type Config, type Format, type Modality, type Player, type Scoring } from './types';
 
-/** Minutos de uma partida, contando a troca de quadra: ~4 min por game. */
+/**
+ * Minutos de uma partida, contando a troca de quadra: ~4 min por game, mais 2 min entre um jogo e outro.
+ * Os games de uma partida vêm de gamesPerMatch (total: os games jogados; 1º a X, set e melhor de 3: a média
+ * que costuma sair). É um chute de quadra, não cronômetro.
+ */
 export function matchMinutes(s: Scoring): number {
   return Math.round(gamesPerMatch(s) * 4 + 2);
+}
+
+/**
+ * Tempo estimado do torneio, do primeiro jogo ao último (com extras, final e mata-mata), em minutos.
+ * Supõe que os jogos de uma rodada acontecem ao mesmo tempo, um por quadra, e que cada rodada dura uma
+ * partida (matchMinutes). Não conta atraso, aquecimento nem intervalo. Mesma conta na criação e no sorteio.
+ */
+export function estimateMinutes(players: Player[], config: Config): number {
+  return summarize(players, config).rounds * matchMinutes(config.scoring);
+}
+
+/** Duração pra tela, arredondada de 5 em 5 min: "50 min", "2h", "1h50". Vai com "≈" na frente. */
+export function durationText(min: number): string {
+  const m = Math.max(5, Math.round(min / 5) * 5);
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`;
 }
 
 export interface Suggestion {
@@ -49,11 +69,13 @@ export function suggestFormats(players: Player[], base: Config, opts: { minutes:
   const hasLevel = players.some((p) => p.level != null);
   const out: Suggestion[] = [];
 
-  const add = (key: string, title: string, why: (s: Summary) => string, config: Config, extraRounds = 0) => {
+  const add = (key: string, title: string, why: (s: Summary) => string, cfg: Config) => {
+    // cada formato com o seu ranking padrão (duplas e grupos: vitórias primeiro), a não ser que o organizador tenha escolhido outro
+    const config: Config = { ...cfg, ranking: rankingFor(cfg.format, cfg.ranking) };
     if (!validateSetup(players, config, []).ok) return;
     const summary = summarize(players, config);
-    const rounds = isTeams(config.format) ? Math.ceil(summary.matches / Math.max(1, config.courts)) : summary.rounds + extraRounds;
-    const minutes = rounds * mm;
+    // summary.rounds já conta extras, final e mata-mata: é a mesma conta do estimateMinutes
+    const minutes = summary.rounds * mm;
     out.push({ key, title: title.replace(/\s+/g, ' ').trim(), why: why(summary), config, summary, minutes, fits: minutes <= opts.minutes });
   };
 
@@ -72,7 +94,7 @@ export function suggestFormats(players: Player[], base: Config, opts: { minutes:
         const ideal = suggestRounds(players, rc);
         const finalRound = groups === 2 ? 1 : 0;
         let rounds = Math.max(2, Math.min(ideal, budget - finalRound));
-        while (rounds > 2 && summarize(players, { ...rc, rounds }).rounds + finalRound > budget) rounds--;
+        while (rounds > 2 && summarize(players, { ...rc, rounds }).rounds > budget) rounds--;
         const config = { ...rc, rounds };
         if (!validateSetup(players, config, []).ok) continue;
         const sm = summarize(players, config);
@@ -82,8 +104,8 @@ export function suggestFormats(players: Player[], base: Config, opts: { minutes:
       if (!best) continue;
       const { rounds, ideal, config } = best;
       add(`rodizio-${modality}-${groups}`, `Rodízio ${label}${groups === 2 ? ' em 2 grupos + final' : ''}`,
-        (sm) => `Parceiro novo a cada rodada. Cada um joga ${sm.minGames === sm.maxGames ? sm.minGames : `${sm.minGames} a ${sm.maxGames}`} partidas${groups === 2 ? '; no fim, final cruzada entre os grupos' : ''}${!config.extraGames && sm.minGames !== sm.maxGames ? ' (ranking pela média)' : ''}${rounds < ideal ? '. Encurtado pra caber no tempo' : ''}.`,
-        config, groups === 2 ? 1 : 0);
+        (sm) => `Parceiro novo a cada rodada. Cada um joga ${sm.minGames === sm.maxGames ? sm.minGames : `${sm.minGames} a ${sm.maxGames}`} partidas${groups === 2 ? `; no fim, final cruzada entre os grupos${modality === 'mista' ? ' (homem de um com mulher do outro)' : ''}` : ''}${!config.extraGames && sm.minGames !== sm.maxGames ? ' (ranking pela média)' : ''}${rounds < ideal ? '. Encurtado pra caber no tempo' : ''}.`,
+        config);
     }
 
     // Duplas fixas, todos contra todos
@@ -98,7 +120,7 @@ export function suggestFormats(players: Player[], base: Config, opts: { minutes:
       const g = teams >= 12 ? 4 : 2;
       add(`grupos-${modality}`, `Grupos + mata-mata ${label}`,
         () => `${g} grupos de duplas fixas; os 2 melhores de cada grupo vão pra chave${hasLevel ? '. Duplas e grupos equilibrados pelo nível' : ''}.`,
-        { ...b, format: 'grupos', pairing, groups: g, qualify: 2 }, Math.ceil(Math.log2(g * 2)));
+        { ...b, format: 'grupos', pairing, groups: g, qualify: 2 });
     }
 
     // Mexicano: rodadas montadas pelo ranking, bom pra grupo de nível misturado
@@ -114,8 +136,4 @@ export function suggestFormats(players: Player[], base: Config, opts: { minutes:
   const order: Record<Format, number> = { rodizio: 0, duplas: 1, grupos: 1, mexicano: 2 };
   const rank = (s: Suggestion) => (s.fits ? 0 : 1000) + order[s.config.format] * 15 - s.summary.minGames * 5 + (s.summary.minGames !== s.summary.maxGames ? 4 : 0);
   return out.filter((s) => s.summary.minGames >= 2).sort((x, y) => rank(x) - rank(y)).slice(0, 5);
-}
-
-function isTeams(f: Format) {
-  return f === 'duplas' || f === 'grupos';
 }

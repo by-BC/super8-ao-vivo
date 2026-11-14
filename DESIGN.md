@@ -167,7 +167,7 @@ components:
 
 O Super 8 tem a luz do fim de tarde num play de beach tennis. O fundo é areia quente, os cartões são creme e o destaque esquenta para pêssego, como o sol baixando. O texto é sempre um azul profundo, nunca preto. Por cima disso a quadra continua funcionando: placar grande, alvos de toque generosos e informação que se lê sob sol forte. A atmosfera mora nas bordas e o jogo fica no centro.
 
-O clima vem de poucas peças bem escolhidas. São os 21 personagens no lugar de foto, a folha de coqueiro e a onda de areia como enfeite, a rede tracejada entre as duplas e a bola que quica enquanto carrega. A densidade é a de um app de celular feito para uma mão só: uma coluna, cartões empilhados e navegação embaixo, ao alcance do polegar. À noite o mesmo clube vira o tema Noite, azul-marinho com creme, seguindo o modo escuro do aparelho.
+O clima vem de poucas peças bem escolhidas. São os 21 personagens no lugar de foto, as palhas de coqueiro pendendo do canto de cima e a onda de areia como enfeite, a rede tracejada entre as duplas e a bola que quica enquanto carrega. A densidade é a de um app de celular feito para uma mão só: uma coluna, cartões empilhados e navegação embaixo, ao alcance do polegar. À noite o mesmo clube vira o tema Noite, azul-marinho com creme, seguindo o modo escuro do aparelho.
 
 O sistema é um "clube de sol": social e ensolarado, mas nunca bagunçado. A cor tem trabalho a fazer. Coral é ação, verde coqueiro é placar e faixa, turquesa é seleção e dourado é conquista.
 
@@ -275,7 +275,7 @@ Firmes e amigáveis: grandes o bastante para mão suada, com cantos macios que c
 - **Line:** fundo transparente com borda sólida de 1,5 px na cor da tinta. É a ação secundária padrão.
 - **Ghost:** borda tracejada de 1,5 px em linha de madeira, para "adicionar" ou "mais um".
 - **Danger:** vermelho de perigo com texto branco, só para apagar ou encerrar.
-- **Quiet:** texto com sublinhado afastado (4 px) em linha de madeira, para ações terciárias.
+- **Quiet:** texto com sublinhado afastado (4 px) em linha de madeira, para ações terciárias. Também é o atalho para um ajuste que o app sugere, sempre com o verbo "Usar" e o valor: "Usar 28" ao lado das rodadas, "Usar média por partida" no fim do aviso de partidas desiguais, "Usar o padrão" no ranking mexido. Fica do lado ou embaixo do texto que explica, com 48 px de alvo, e nunca liga nada sozinho: o organizador toca e um toast confirma quando a mudança não está à vista.
 - **Disabled:** 40% de opacidade, sem sombra e sem o deslocamento do toque.
 
 ### Chips / Pills
@@ -327,6 +327,16 @@ Quando o servidor não responde, o placar na tela é o último que chegou neste 
 
 ### Avatar de personagem
 É um círculo com o personagem ilustrado sobre a cor derivada do nome, com um anel de 2 px na cor do cartão. Sem personagem, mostra as iniciais em Outfit 700. Tem 30 px ao lado do nome na partida e 36 px por padrão.
+
+### Enfeites de praia
+O enfeite é o fim de tarde visto da areia: palhas de coqueiro contra o céu, pendendo de cima.
+- **Palhas de coqueiro (`Folha`):** três palhas que nascem fora do quadro, no canto de cima à direita, e caem em arco para a esquerda, com os folíolos longos pendendo. Vivem só no canto de cima de uma faixa ou de um cartão, com o pai em `overflow-hidden`, e são uma silhueta chapada na cor da tinta (`currentColor`), sem traço nem degradê.
+- **Opacidade e tamanho:** na faixa de cabeçalho (início e torneio), 14 a 15% sobre a faixa, com 160 a 176 px no celular, um pouco para fora do canto, e 176 a 208 px a partir de `sm`, mais para dentro. No cartão "Sou eu", 50% em dourado, com 144 px.
+- **Onda de areia (`OndaAreia`):** duas ondas, pêssego a 45% e dourado a 35%, coladas na base de um cartão de destaque, com 28 px de altura.
+- **Onde nunca:** perto do placar, dos botões de game ou de qualquer texto que precise ser lido. O enfeite não pega toque, some para leitores de tela e não se mexe.
+
+### Estimativas
+Todo número aproximado leva "≈" colado ("≈2h25", "≈5 games"), nunca "~" nem "cerca de". O tempo do torneio sai de uma conta só (rodadas × minutos de uma partida, contando extras, final e mata-mata), arredondado de 5 em 5 min, e aparece igual na criação, no resumo e no sorteio da inscrição. Com ajuste pendente, o app não mostra tamanho nem tempo, para não exibir uma conta torta.
 
 ## Do's and Don'ts
 

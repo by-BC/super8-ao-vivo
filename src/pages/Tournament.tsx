@@ -1,8 +1,8 @@
 import QRCode from 'qrcode';
 import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, refereeMessage, scheduleMessage,
-  scoringLabel, tournamentStatus, type Match, type Player,
+  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, keptPairs, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, refereeMessage, scheduleMessage,
+  scoringLabel, tournamentStatus, validateSetup, type Match, type Player,
 } from '../engine';
 import { MatchCard } from '../components/MatchCard';
 import { PodiumSheet } from '../components/PodiumSheet';
@@ -123,7 +123,7 @@ export function TournamentPage({ code }: { code: string }) {
   const { config } = tour;
   const header = (
     <header className="relative overflow-hidden bg-band text-bandink">
-      <Folha className="absolute -right-6 -top-8 h-36 w-36 rotate-[200deg] opacity-[.13]" />
+      <Folha className="absolute -right-8 -top-8 h-40 w-40 opacity-[.14] sm:-right-3 sm:-top-2 sm:h-44 sm:w-44" />
       <div className="gutter relative mx-auto flex max-w-[760px] items-center gap-3 py-4">
         <a href="#/" aria-label="Início" className="flex-none"><Simbolo onBand size={40} /></a>
         <div className="min-w-0 flex-1">
@@ -319,7 +319,7 @@ export function TournamentPage({ code }: { code: string }) {
                   ) : f ? (
                     <p className="m-0 mt-1 text-[15px]"><b>{nm(f.a)}</b> x <b>{nm(f.b)}</b>{f.sets.length ? ` · ${formatScore(f.sets, config.scoring)}` : ''}</p>
                   ) : (
-                    <p className="m-0 mt-1 text-[15px] text-muted">Final cruzada: 1º do A + 2º do B contra 2º do A + 1º do B, quando os jogos de grupo acabarem.</p>
+                    <p className="m-0 mt-1 text-[15px] text-muted">{config.modality === 'mista' ? 'Final cruzada: 1º homem do A + 1ª mulher do B contra 1º homem do B + 1ª mulher do A' : 'Final cruzada: 1º do A + 2º do B contra 2º do A + 1º do B'}, quando os jogos de grupo acabarem.</p>
                   )}
                   {w && f && <p className="m-0 mt-1 text-sm font-semibold">Final: {nm(f.a)} {formatScore(f.sets, config.scoring)} {nm(f.b)}</p>}
                 </section>
@@ -634,19 +634,28 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, pin, offline, onSha
   const [newPin, setNewPin] = useState('');
   const [pinEdit, setPinEdit] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  // Sortear de novo: duplas montadas à mão ficam (só a tabela muda); sorteio e equilibrado sorteiam as duplas de novo.
+  const manualPairs = !isIndividual(config.format) && config.pairing === 'manual';
+  const resetPlan = useMemo(() => {
+    if (!confirmReset) return null;
+    const ps = tour.data.players.filter((p) => !p.left);
+    const seed = randomSeed();
+    const kp = manualPairs ? keptPairs(tour.data.teams, ps, config, seed) : null;
+    return { ps, seed, kp, check: validateSetup(ps, config, kp?.manual) };
+  }, [confirmReset, tour, config, manualPairs]);
   const [keyInput, setKeyInput] = useState('');
   const [keyOpen, setKeyOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [newName, setNewName] = useState<string | null>(null);
   const showSeparar = isIndividual(config.format) && config.modality !== 'mesmo_genero';
-  const TB: Record<string, string> = { vitorias: 'vitórias', saldo: 'saldo', confronto: 'confronto direto', games: 'games feitos' };
+  const TB: Record<string, string> = { vitorias: 'vitórias', saldo: 'saldo', confronto: 'confronto direto', games: 'games feitos', media_games: 'média de games' };
 
   const rows: [string, string][] = [
     ['Modalidade', MODALITY_LABEL[config.modality]],
     ['Formato', FORMAT_LABEL[config.format]],
     ['Partida', scoringLabel(config.scoring)],
-    ['Ranking', `${config.ranking.base === 'games' ? 'Games feitos' : 'Vitória 3 · Empate 1 · Derrota 0'}${config.ranking.media ? ' (média por jogo)' : ''}`],
-    ['Desempate', config.ranking.desempate.length ? config.ranking.desempate.map((k) => TB[k]).join(' → ') : 'sorteio'],
+    ['Ranking', `${config.ranking.base === 'games' ? 'Games feitos' : 'Vitória 3 · Empate 1 · Derrota 0'}${config.ranking.media ? ' (média por partida)' : ''}`],
+    ['Desempate', config.ranking.desempate.length ? config.ranking.desempate.map((k) => TB[k]).filter(Boolean).join(' → ') : 'sorteio'],
     ['Quadras', String(config.courts)],
     ...(isIndividual(config.format) ? [['Rodadas', String(config.rounds)] as [string, string]] : []),
     ...(config.format === 'grupos' ? [['Grupos', `${config.groups}, classificam ${config.qualify} por grupo`] as [string, string]] : []),
@@ -840,16 +849,21 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, pin, offline, onSha
 
             <fieldset disabled={offline} className="m-0 min-w-0 border-0 p-0">
               <b>Sortear de novo</b>
-              <p className="m-0 text-[13px] text-muted">Refaz a chave com os mesmos jogadores e regras. O código continua o mesmo. Pra mudar jogadores ou regras antes, use Editar jogadores e regras.</p>
+              <p className="m-0 text-[13px] text-muted">Refaz a chave com os mesmos jogadores e regras{manualPairs ? ', e as duplas montadas por você ficam' : ''}. O código continua o mesmo. Pra mudar jogadores ou regras antes, use Editar jogadores e regras.</p>
               {!confirmReset ? (
                 <Button className="mt-2" block onClick={() => setConfirmReset(true)}>Sortear de novo</Button>
               ) : (
                 <div className="mt-2 flex flex-col gap-2 rounded-lg bg-tintwarn p-3">
                   <b>{anyScore ? 'Isso apaga os placares que já foram lançados.' : 'A chave atual vai ser trocada por um sorteio novo.'}</b>
+                  {resetPlan && <ResetPairsNote format={config.format} pairing={config.pairing} kept={resetPlan.kp} />}
+                  {resetPlan && !resetPlan.check.ok && (
+                    <p className="m-0 text-[13px] font-semibold text-danger">{resetPlan.check.errors[0]} Ajuste em Editar jogadores e regras.</p>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
-                    <Button kind="danger" disabled={busy} onClick={async () => {
-                      const ps = tour.data.players.filter((p) => !p.left);
-                      const built = buildInitial(ps, config, randomSeed());
+                    <Button kind="danger" disabled={busy || !resetPlan?.check.ok} onClick={async () => {
+                      if (!resetPlan?.check.ok) return;
+                      const { ps, seed, kp } = resetPlan;
+                      const built = buildInitial(ps, config, seed, kp?.manual);
                       if (await run(() => api.adminReset(code, adminKey, config, { players: ps, teams: built.teams }, built.matches), 'Chave sorteada de novo.')) setConfirmReset(false);
                     }}>{anyScore ? 'Apagar e sortear' : 'Sortear'}</Button>
                     <Button onClick={() => setConfirmReset(false)}>Cancelar</Button>
@@ -862,6 +876,23 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, pin, offline, onSha
       )}
     </>
   );
+}
+
+/** No "Sortear de novo": diz se as duplas ficam ou são sorteadas de novo (e quem perdeu o parceiro). */
+function ResetPairsNote({ format, pairing, kept }: {
+  format: import('../engine').Config['format']; pairing: import('../engine').Config['pairing']; kept: { kept: number; loose: number } | null;
+}) {
+  if (isIndividual(format)) return null;
+  let text: string;
+  if (pairing !== 'manual') text = pairing === 'equilibrado' ? 'As duplas também são sorteadas de novo, equilibradas por nível.' : 'As duplas também são sorteadas de novo.';
+  else if (!kept || !kept.loose) text = 'As duplas ficam as mesmas, só a tabela é sorteada de novo.';
+  else if (!kept.kept) text = 'Nenhuma dupla montada ficou inteira: todo mundo entra no sorteio.';
+  else {
+    const duplas = kept.kept === 1 ? '1 dupla fica como está' : `${kept.kept} duplas ficam como estão`;
+    const sobra = kept.loose === 1 ? '1 pessoa ficou sem parceiro e entra no sorteio' : `${kept.loose} pessoas ficaram sem parceiro e entram no sorteio`;
+    text = `${duplas}; ${sobra}.`;
+  }
+  return <p className="m-0 text-[13px]">{text}</p>;
 }
 
 /** "Sou eu": o próximo jogo de quem está com o celular na mão, no topo da aba Jogos. */
@@ -887,7 +918,7 @@ function MeCard({ me, matches, players, config, onPick }: {
   const name = players.get(me)?.name ?? '?';
   return (
     <section className="sol relative flex flex-col gap-2 overflow-hidden rounded-lg px-4 pb-7 pt-3 shadow-card" aria-label={`Jogos de ${name}`}>
-      <Folha className="absolute -right-5 -top-6 h-28 w-28 rotate-[205deg] text-dourado opacity-40" />
+      <Folha className="absolute -right-2 -top-2 h-36 w-36 text-dourado opacity-50" />
       <OndaAreia />
       <div className="relative flex items-center gap-2">
         <Avatar id={me} name={name} size={30} />

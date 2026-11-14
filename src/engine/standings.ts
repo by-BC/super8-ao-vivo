@@ -50,6 +50,7 @@ const EPS = 1e-9;
 
 /**
  * Classificação. Critério principal (games ou resultado), depois a lista de desempates na ordem escolhida.
+ * Cada critério só olha quem continua empatado. Confronto direto só entra quando sobram exatamente 2.
  * Quem continua empatado em tudo divide a posição.
  */
 export function standings(entities: Entity[], matches: Match[], config: Pick<Config, 'scoring' | 'ranking'>, sides: SideKeys): Row[] {
@@ -106,7 +107,11 @@ export function standings(entities: Entity[], matches: Match[], config: Pick<Con
       case 'vitorias': return per(row.v, row);
       case 'saldo': return per(row.sg, row);
       case 'games': return per(row.gf, row);
+      // games feitos ÷ games jogados (feitos + sofridos): já é proporção, não depende da média por partida
+      case 'media_games': return row.gf + row.gs ? row.gf / (row.gf + row.gs) : 0;
+      // só chega aqui com exatamente 2 empatados (ver abaixo)
       case 'confronto': return headToHead(row.key, block);
+      default: return 0; // critério desconhecido (dado de uma versão mais nova): não separa ninguém
     }
   };
 
@@ -117,6 +122,9 @@ export function standings(entities: Entity[], matches: Match[], config: Pick<Con
   for (const crit of criteria) {
     blocks = blocks.flatMap((block) => {
       if (block.length < 2) return [block];
+      // Confronto direto só vale com exatamente 2 empatados, como nos regulamentos: com 3 ou mais, o jogo entre
+      // eles não é comparável (A ganha de B, B de C, C de A) e quem decide é o próximo critério.
+      if (crit === 'confronto' && block.length !== 2) return [block];
       const keys = new Set(block.map((r) => r.key));
       const vals = new Map(block.map((r) => [r.key, value(r, crit, keys)]));
       const sorted = [...block].sort((x, y) => vals.get(y.key)! - vals.get(x.key)! || byLabel(x, y));

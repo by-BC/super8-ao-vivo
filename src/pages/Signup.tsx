@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  buildInitial, isIndividual, LEVELS, levelLetter, levelValue, matchMinutes, parsePlayerList, possibleModalities, randomSeed, scoringLabel, suggestFormats,
+  buildInitial, durationText, estimateMinutes, isDefaultRanking, isIndividual, rankingFor, LEVELS, levelLetter, levelValue, parsePlayerList, possibleModalities, randomSeed, scoringLabel, suggestFormats,
   suggestRounds, summarize, validateSetup,
   type Config, type Format, type Gender, type LevelLetter, type Modality, type PairingMethod, type RankingBase, type ScoringType,
 } from '../engine';
@@ -431,8 +431,6 @@ const FORMAT_OPTIONS = [
 
 const TIME_OPTIONS = [{ value: '90', label: '1h30' }, { value: '120', label: '2h' }, { value: '180', label: '3h' }, { value: '240', label: '4h' }];
 
-const hm = (min: number) => `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
-
 function Tick({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint?: string }) {
   return (
     <label className="flex min-h-[44px] items-start gap-3 text-[15px]">
@@ -450,6 +448,13 @@ function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }
   const s = settingsOf(tour.signup);
   const players = useMemo(() => entriesToPlayers(confirmed, s.gender), [confirmed, s.gender]);
   const [cfg, setCfg] = useState<Config>(() => ({ ...tour.config }));
+  /** O ranking acompanha o formato (duplas e grupos: vitórias primeiro) até o organizador mexer no critério. */
+  const [rankingTouched, setRankingTouched] = useState(() => !isDefaultRanking(tour.config.ranking));
+  /** Sugestão escolhida: entra inteira, mas mantém o critério do ranking se o organizador já tiver escolhido um. */
+  const pick = (x: { key: string; config: Config }) => {
+    setCfg(rankingTouched ? { ...x.config, ranking: { ...x.config.ranking, base: cfg.ranking.base, desempate: cfg.ranking.desempate } } : x.config);
+    setPicked(x.key);
+  };
   const [minutes, setMinutes] = useState(120);
   const [picked, setPicked] = useState<string | null>(null);
   const [manual, setManual] = useState(false);
@@ -459,17 +464,18 @@ function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }
   const check = useMemo(() => validateSetup(players, cfg, []), [players, cfg]);
   const summary = useMemo(() => summarize(players, cfg), [players, cfg]);
   const teamsFormat = cfg.format === 'duplas' || cfg.format === 'grupos';
-  const estimate = (isIndividual(cfg.format) ? summary.rounds + (cfg.format === 'rodizio' && cfg.rodizioGroups === 2 ? 1 : 0) : Math.ceil(summary.matches / Math.max(1, cfg.courts))) * matchMinutes(cfg.scoring);
+  const estimate = useMemo(() => estimateMinutes(players, cfg), [players, cfg]);
 
   // formato a definir: já começa com a melhor sugestão
   useEffect(() => {
-    if (open && tour.config.formatLater && !picked && !manual && suggestions[0]) { setCfg(suggestions[0].config); setPicked(suggestions[0].key); }
+    if (open && tour.config.formatLater && !picked && !manual && suggestions[0]) pick(suggestions[0]);
   }, [open, suggestions]);
 
   const update = (patch: Partial<Config>, resetRounds = false) => {
     setPicked(null);
     setCfg((c) => {
       const n = { ...c, ...patch };
+      if (patch.format) n.ranking = rankingFor(n.format, n.ranking, rankingTouched);
       if (resetRounds && isIndividual(n.format)) n.rounds = suggestRounds(players, n);
       return n;
     });
@@ -511,11 +517,11 @@ function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }
           {suggestions.map((x) => {
             const on = picked === x.key;
             return (
-              <button key={x.key} type="button" aria-pressed={on} onClick={() => { setCfg(x.config); setPicked(x.key); }}
+              <button key={x.key} type="button" aria-pressed={on} onClick={() => pick(x)}
                 className={cx('flex flex-col gap-1 rounded-lg border-[1.5px] px-3 py-2.5 text-left', on ? 'border-ink bg-surface shadow-[inset_0_0_0_1px_var(--ink)]' : 'border-line bg-bg')}>
                 <span className="flex items-center justify-between gap-2">
                   <b className="font-display text-[20px] font-extrabold leading-none">{x.title}</b>
-                  <span className={cx('flex-none rounded-full px-2 py-0.5 text-[12px] font-extrabold', on ? 'bg-ink text-bg' : x.fits ? 'bg-tintok' : 'bg-tintwarn')}>~{hm(x.minutes)}</span>
+                  <span className={cx('flex-none rounded-full px-2 py-0.5 text-[12px] font-extrabold', on ? 'bg-ink text-bg' : x.fits ? 'bg-tintok' : 'bg-tintwarn')}>≈{durationText(x.minutes)}</span>
                 </span>
                 <span className={cx('text-[13px] leading-snug', on ? '' : 'text-muted')}>{x.why}</span>
                 <span className={cx('text-[12px] font-bold', on ? '' : 'text-muted')}>{x.summary.rounds} rodadas · {x.summary.matches} jogos</span>
@@ -564,7 +570,7 @@ function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }
               <Stepper id="sorteio-games" label="games" value={cfg.scoring.games} min={1} max={30} onChange={(n) => update({ scoring: { ...cfg.scoring, games: n } })} />
             </Field>
             <Field label="Ranking">
-              <Segmented<RankingBase> label="Critério do ranking" value={cfg.ranking.base} onChange={(v) => update({ ranking: { ...cfg.ranking, base: v } })}
+              <Segmented<RankingBase> label="Critério do ranking" value={cfg.ranking.base} onChange={(v) => { setRankingTouched(true); update({ ranking: { ...cfg.ranking, base: v } }); }}
                 options={[{ value: 'resultado', label: 'V3 · E1 · D0' }, { value: 'games', label: 'Games' }]} />
             </Field>
           </div>
@@ -573,7 +579,7 @@ function DrawSheet({ open, onClose, code, adminKey, tour, confirmed, onStarted }
         {cfg.format === 'rodizio' && s.askLevel && <Note kind="ok">Com nível, o rodízio monta cada jogo com duplas de força parecida{cfg.rodizioGroups === 2 ? ' e os grupos saem equilibrados' : ''}.</Note>}
         {check.ok && (
           <Note kind="ok">
-            <b>{summary.rounds} rodadas · {summary.matches} jogos · ~{hm(estimate)}.</b> Cada um joga {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas.
+            <b>{summary.rounds} rodadas · {summary.matches} jogos · ≈{durationText(estimate)}.</b> Cada um joga {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas.
             {summary.extra && <> {summary.extra}.</>}
           </Note>
         )}

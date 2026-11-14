@@ -74,6 +74,17 @@ export function ResultPodium({ podium: p }: { podium: Podium }) {
   );
 }
 
+/** A vaga (no misto, a do homem ou a da mulher) está empatada em tudo com o próximo da fila? */
+function tiedForSpot(s: RankingSection, players: Map<string, Player>): boolean {
+  const n = s.qualify ?? 0;
+  if (!s.finalists) return !!s.rows[n] && s.rows[n - 1].pos === s.rows[n].pos;
+  return s.finalists.some((k) => {
+    const g = players.get(k)?.gender;
+    const same = s.rows.filter((r) => players.get(r.key)?.gender === g);
+    return !!same[1] && same[0].pos === same[1].pos;
+  });
+}
+
 export function RankingSections({ sections, players, config, finished, onPlayer }: {
   sections: RankingSection[]; players: Map<string, Player>; config: Config; finished: boolean; onPlayer?: (id: string) => void;
 }) {
@@ -97,10 +108,10 @@ export function RankingSections({ sections, players, config, finished, onPlayer 
             <ol className="m-0 flex list-none flex-col p-0">
               {rows.map((r, i) => (
                 <RowItem key={r.key} r={r} players={players} showGender={showGender && s.kind !== 'genero'} media={config.ranking.media} played={played}
-                  qualifies={s.kind === 'grupo' && played && i < (s.qualify ?? 0)} compact={s.kind === 'genero'} onPlayer={s.kind === 'genero' ? undefined : onPlayer} />
+                  qualifies={s.kind === 'grupo' && played && (s.finalists ? s.finalists.includes(r.key) : i < (s.qualify ?? 0))} compact={s.kind === 'genero'} onPlayer={s.kind === 'genero' ? undefined : onPlayer} />
               ))}
             </ol>
-            {s.kind === 'grupo' && played && s.qualify && rows[s.qualify] && rows[s.qualify - 1].pos === rows[s.qualify].pos && (
+            {s.kind === 'grupo' && played && s.qualify && tiedForSpot(s, players) && (
               <p className="m-0 mt-2 text-[13px] text-muted">Empate em tudo na briga pela vaga: quem passa saiu do sorteio do torneio, igual em todos os celulares.</p>
             )}
           </section>
@@ -108,13 +119,15 @@ export function RankingSections({ sections, players, config, finished, onPlayer 
       })}
       {individual && sections.some((s) => s.kind === 'grupo' && s.qualify === 2) && (
         <p className="m-0 rounded-lg bg-surface px-3 py-2.5 text-sm font-semibold shadow-card">
-          Final cruzada: <b>1º do A + 2º do B</b> contra <b>2º do A + 1º do B</b>.
+          {config.modality === 'mista'
+            ? <>Final cruzada: <b>1º homem do A + 1ª mulher do B</b> contra <b>1º homem do B + 1ª mulher do A</b>.</>
+            : <>Final cruzada: <b>1º do A + 2º do B</b> contra <b>2º do A + 1º do B</b>.</>}
         </p>
       )}
       <p className="m-0 text-[13px] text-muted">
         {config.ranking.base === 'games' ? 'Pontos = games feitos nas partidas encerradas.' : 'Vitória 3 · Empate 1 · Derrota 0.'}
         {config.ranking.media && ' Média por partida, porque nem todo mundo joga o mesmo número de jogos.'}
-        {' '}Desempate: {config.ranking.desempate.map((d) => ({ vitorias: 'vitórias', saldo: 'saldo de games', confronto: 'confronto direto', games: 'games feitos' })[d]).join(', ') || 'nenhum'}.
+        {' '}Desempate: {config.ranking.desempate.map((d) => ({ vitorias: 'vitórias', saldo: 'saldo de games', confronto: 'confronto direto (só com 2 empatados)', games: 'games feitos', media_games: 'média de games (feitos ÷ jogados)' } as Record<string, string>)[d]).filter(Boolean).join(', ') || 'nenhum'}.
       </p>
     </div>
   );

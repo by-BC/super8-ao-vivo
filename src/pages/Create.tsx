@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  buildInitial, DEFAULT_CONFIG, gamesPerMatch, individualUnits, isIndividual, LEVELS, levelLetter, matchesPerRound, parsePlayerList, randomSeed, scoringLabel,
+  buildInitial, DEFAULT_CONFIG, defaultRanking, durationText, estimateMinutes, gamesPerMatch, matchMinutes, isDefaultRanking, rankingFor, individualUnits, isIndividual, LEVELS, levelLetter, matchesPerRound, parsePlayerList, randomSeed, scoringLabel,
   planEdit, suggestRounds, summarize, validateSetup, type Config, type Match, type Format, type Gender, type Modality, type PairingMethod,
   type Player, type RankingBase, type ScoringType, type SetupArea, type Tiebreak,
 } from '../engine';
@@ -24,6 +24,8 @@ interface Draft {
   useLevel: boolean;
   manual: [string, string][];
   roundsTouched: boolean;
+  /** o organizador mexeu no critério ou no desempate: trocar o formato não troca mais o ranking */
+  rankingTouched: boolean;
   tipo: Tipo;
   /** o organizador escolheu o tipo na mão: o app para de deduzir pela lista */
   tipoPicked: boolean;
@@ -83,6 +85,7 @@ const fresh = (): Draft => ({
   useLevel: false,
   manual: [],
   roundsTouched: false,
+  rankingTouched: false,
   tipo: 'mista',
   tipoPicked: false,
   entry: 'lista',
@@ -124,11 +127,11 @@ const SCORINGS = [
 ] satisfies { value: ScoringType; title: string; hint: string }[];
 
 const BASES = [
-  { value: 'games', title: 'Games feitos', hint: 'Soma dos games de cada partida.' },
-  { value: 'resultado', title: 'Vitória 3 · Empate 1', hint: 'Derrota 0. Games entram no desempate.' },
+  { value: 'games', title: 'Games feitos', hint: 'Soma dos games de cada partida. Padrão do rodízio e do mexicano.' },
+  { value: 'resultado', title: 'Vitória 3 · Empate 1', hint: 'Derrota 0. Padrão de duplas fixas e grupos.' },
 ] satisfies { value: RankingBase; title: string; hint: string }[];
 
-const TIEBREAKS: Record<Tiebreak, string> = { vitorias: 'Vitórias', saldo: 'Saldo de games', confronto: 'Confronto direto', games: 'Games feitos' };
+const TIEBREAKS: Record<Tiebreak, string> = { vitorias: 'Vitórias', saldo: 'Saldo de games', confronto: 'Confronto direto', games: 'Games feitos', media_games: 'Média de games' };
 const DIV_LABEL: Record<string, string> = { H: 'Masculino', M: 'Feminino', all: 'Geral' };
 
 /** Torneio em edição: o assistente abre com os dados dele e, no fim, sorteia de novo no mesmo código. */
@@ -154,6 +157,7 @@ function draftFrom(t: TournamentRow): Draft {
     useLevel: players.some((p) => !!p.level),
     manual: t.config.pairing === 'manual' ? t.data.teams.map((x) => [...x.players] as [string, string]) : [],
     roundsTouched: true,
+    rankingTouched: true,
     tipo,
     tipoPicked: true,
     entry: 'lista',
@@ -189,7 +193,8 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
     const saved = loadDraft<Partial<Draft> | null>(null);
     if (!saved?.config) return fresh();
     const config = { ...DEFAULT_CONFIG, ...saved.config };
-    return { ...fresh(), ...saved, config, tipo: saved.tipo ?? tipoOf(config.modality), tipoPicked: saved.tipoPicked ?? (saved.tipo !== undefined && saved.tipo !== 'mista'), signup: { ...fresh().signup, ...saved.signup }, pin: randomPin(), name: fresh().name } as Draft;
+    // rascunho de antes do rankingTouched: só conta como mexido se o ranking não for nenhum dos padrões
+    return { ...fresh(), ...saved, config, rankingTouched: saved.rankingTouched ?? !isDefaultRanking(config.ranking), tipo: saved.tipo ?? tipoOf(config.modality), tipoPicked: saved.tipoPicked ?? (saved.tipo !== undefined && saved.tipo !== 'mista'), signup: { ...fresh().signup, ...saved.signup }, pin: randomPin(), name: fresh().name } as Draft;
   });
   const [step, setStep] = useState(0);
   const [tipoOpen, setTipoOpen] = useState(false);
@@ -236,12 +241,23 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
     if (!d.roundsTouched && isIndividual(c.format) && suggested !== c.rounds) setC({ rounds: suggested });
   }, [suggested, d.roundsTouched, c.format]);
 
+  // ranking acompanha o formato (duplas e grupos: vitórias primeiro) até o organizador mexer nele
+  useEffect(() => {
+    if (d.rankingTouched) return;
+    const next = rankingFor(c.format, c.ranking, false);
+    if (next !== c.ranking) setC({ ranking: next });
+  }, [c.format, d.rankingTouched, c.ranking]);
+  const setRanking = (patch: Partial<Config['ranking']>) => setD((x) => ({ ...x, rankingTouched: true, config: { ...x.config, ranking: { ...x.config.ranking, ...patch } } }));
+  const formatRanking = defaultRanking(c.format);
+  const rankingIsDefault = c.ranking.base === formatRanking.base && c.ranking.desempate.join() === formatRanking.desempate.join();
+
   const check = useMemo(() => validateSetup(players, c, d.manual), [players, c, d.manual]);
   const [editSeed] = useState(() => randomSeed());
   const plan = useMemo(() => (edit && check.ok
     ? planEdit({ config: edit.tour.config, players: edit.tour.data.players, teams: edit.tour.data.teams }, edit.matches, { config: c, players, manual: d.manual }, editSeed)
     : null), [edit, check.ok, c, players, d.manual, editSeed]);
   const summary = useMemo(() => summarize(players, c), [players, c]);
+  const estimate = useMemo(() => estimateMinutes(players, c), [players, c]);
   const courtSplit = useMemo(
     () => (isIndividual(c.format) ? individualUnits(players, c) : matchesPerRound(players, c).map((x) => ({ ...x, grp: null as string | null }))),
     [players, c],
@@ -346,14 +362,37 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
   const wipeAsk = confirmWipe && destructive && step === CONFIRM && !busy;
   const tallBar = failShown || retrying || wipeAsk;
   const pending = `${check.issues.length} ajuste${check.issues.length > 1 ? 's' : ''} pendente${check.issues.length > 1 ? 's' : ''}`;
+  /** só mostra tamanho e tempo com o torneio fechando: com ajuste pendente, a conta sai torta (0 rodadas, −1 partidas) */
+  const sized = check.ok && summary.matches > 0;
   const sizeText = `${summary.rounds} ${summary.rounds === 1 ? 'rodada' : 'rodadas'} · ${summary.matches} ${summary.matches === 1 ? 'jogo' : 'jogos'}`;
-  const size = check.ok ? sizeText : pending;
+  const timeText = `≈${durationText(estimate)}`;
+  const courtsText = `${c.courts} ${c.courts === 1 ? 'quadra' : 'quadras'}`;
+  const size = sized ? `${sizeText} · ${timeText}` : check.ok ? 'Confira o formato' : pending;
+  // passo 1, entre Cancelar e Continuar: duas linhas fixas (jogadores / rodadas e tempo), pro tempo nunca ser o que o corte come.
+  // Em tela de até 380 px só cabe o tempo (ou "Falta ajustar") na 2ª linha; o resto está nos avisos da página.
   const barInfo = [
-    viaLink ? 'Inscrição pelo link' : players.length ? `${players.length} jogadores · ${size}` : 'Cole a lista pra começar',
+    viaLink ? 'Inscrição pelo link' : players.length ? (
+      <>
+        <span className="block">{players.length} jogadores</span>
+        <span className="block">
+          {sized
+            ? <><span className="max-[380px]:hidden">{summary.rounds} {summary.rounds === 1 ? 'rodada' : 'rodadas'} · </span>{timeText}</>
+            : <><span className="max-[380px]:hidden">{size}</span><span className="min-[381px]:hidden">Falta ajustar</span></>}
+        </span>
+      </>
+    ) : 'Cole a lista pra começar',
     viaLink ? 'Rodadas no sorteio' : size,
-    scoringLabel(c.scoring),
+    viaLink || !sized ? scoringLabel(c.scoring) : `${scoringLabel(c.scoring)} · ${timeText}`,
     '',
   ][step];
+  const playsText = `${summary.minGames === summary.maxGames ? summary.minGames : `${summary.minGames} a ${summary.maxGames}`} partidas${c.format === 'grupos' ? ' na fase de grupos' : ''}`;
+  /** partidas desiguais que a média resolve: aviso com o ajuste a um toque (não liga sozinho) */
+  const mediaFix = !viaLink && check.uneven && (
+    <Note kind="ok">
+      {check.uneven}
+      <Button kind="quiet" className="mt-1 block !px-0" onClick={() => { setC({ ranking: { ...c.ranking, media: true } }); toast('Ranking pela média por partida.'); }}>Usar média por partida</Button>
+    </Note>
+  );
   const tipoInfo = TIPOS.find((t) => t.value === d.tipo)!;
 
   const activeIds = new Set(players.map((p) => p.id));
@@ -521,7 +560,7 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
                 {c.format === 'rodizio' && (
                   <>
                     <Check checked={c.rodizioGroups === 2} onChange={(v) => setC({ rodizioGroups: v ? 2 : 1 })} title="Dividir em 2 grupos"
-                      hint="Cada grupo faz seu rodízio na sua quadra e tem seu ranking. No fim, final cruzada: 1º A + 2º B x 2º A + 1º B. Com nível, os grupos saem equilibrados." />
+                      hint={`Cada grupo faz seu rodízio na sua quadra e tem seu ranking. No fim, final cruzada: ${c.modality === 'mista' ? '1º homem do A + 1ª mulher do B x 1º homem do B + 1ª mulher do A' : '1º A + 2º B x 2º A + 1º B'}. Com nível, os grupos saem equilibrados.`} />
                     <Check checked={!!c.extraGames} onChange={(v) => setC({ extraGames: v })} title="Igualar jogos com jogo extra"
                       hint="Quem ficou com uma partida a menos joga um extra no fim (A x B quando tem grupos), pra todo mundo somar o mesmo número." />
                   </>
@@ -539,12 +578,13 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
                 <Field label="Quadras" hint={courtSplit.length > 1 && !viaLink ? courtSplit.map((x) => `${splitLabel(x)}: ${x.m}`).join(' · ') : 'Jogos ao mesmo tempo'}>
                   <Stepper id="quadras" label="quadras" value={c.courts} min={1} max={30} onChange={(n) => setC({ courts: n })} />
                 </Field>
-                {check.ok && !viaLink && (
+                {sized && !viaLink && (
                   <Note kind="ok">
-                    <b>{sizeText}.</b>{summary.extra && <> {summary.extra}.</>} Cada {isIndividual(c.format) ? 'pessoa' : 'dupla'} joga{' '}
-                    {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas{c.format === 'rodizio' && c.rodizioGroups === 2 && c.extraGames && summary.minGames !== summary.maxGames ? ' (igual dentro de cada grupo)' : ''}.
+                    <b>{sizeText} · {timeText} com {courtsText}</b> (≈{matchMinutes(c.scoring)} min por jogo).{summary.extra && <> {summary.extra}.</>} Cada {isIndividual(c.format) ? 'pessoa' : 'dupla'} joga{' '}
+                    {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas{c.format === 'grupos' ? ' na fase de grupos' : ''}{c.format === 'rodizio' && c.rodizioGroups === 2 && c.extraGames && summary.minGames !== summary.maxGames ? ' (igual dentro de cada grupo)' : ''}.
                   </Note>
                 )}
+                {mediaFix}
               </div>
             </Panel>
             {teamsFormat && (
@@ -575,13 +615,19 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
               </div>
             </Panel>
             <Panel title="Ranking">
-              <Choices name="Critério do ranking" value={c.ranking.base} options={BASES} cols={1} compact onChange={(v) => setC({ ranking: { ...c.ranking, base: v } })} />
+              <Choices name="Critério do ranking" value={c.ranking.base} options={BASES} cols={1} compact onChange={(v) => setRanking({ base: v })} />
               <div className="mt-4 flex flex-col gap-3">
                 <Check checked={c.ranking.media} onChange={(v) => setC({ ranking: { ...c.ranking, media: v } })} title="Usar média por partida" hint="Justo quando nem todo mundo joga o mesmo número de partidas." />
                 {isIndividual(c.format) && d.tipo !== 'separado' && d.tipo !== 'so_f' && d.tipo !== 'so_m' && (
                   <Check checked={c.ranking.separarGenero} onChange={(v) => setC({ ranking: { ...c.ranking, separarGenero: v } })} title="Mostrar Rei e Rainha da areia" hint="Ranking dos homens e das mulheres, além do geral." />
                 )}
-                <TiebreakEditor value={c.ranking.desempate} onChange={(desempate) => setC({ ranking: { ...c.ranking, desempate } })} />
+                <TiebreakEditor value={c.ranking.desempate} onChange={(desempate) => setRanking({ desempate })} />
+                {d.rankingTouched && !rankingIsDefault && (
+                  <div className="flex min-h-[48px] items-center gap-3">
+                    <small className="min-w-0 flex-1 text-[13px] leading-snug text-muted">{edit ? 'Diferente do padrão desse formato.' : 'Ranking do seu jeito: trocar o formato não mexe mais nele.'}</small>
+                    <Button kind="quiet" className="flex-none" onClick={() => setD((x) => ({ ...x, rankingTouched: false }))}>Usar o padrão</Button>
+                  </div>
+                )}
               </div>
             </Panel>
           </>
@@ -600,8 +646,9 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
                   ['Formato', later ? 'Decide no sorteio, com sugestões pela lista' : FORMATS.find((f) => f.value === c.format)!.title],
                   ...(teamsFormat && !later ? [['Duplas', c.pairing === 'manual' ? `Montadas por você (${formed} de ${Math.floor(players.length / 2)})` : c.pairing === 'equilibrado' ? 'Equilibradas por nível' : 'No sorteio']] : []),
                   ...(viaLink ? [] : [
-                    ['Tamanho', sizeText],
-                    ['Cada um joga', summary.minGames === summary.maxGames ? `${summary.minGames} partidas` : `${summary.minGames} a ${summary.maxGames} partidas`],
+                    ...(sized
+                      ? [['Tamanho', sizeText], ['Tempo', `${timeText} com ${courtsText}`], ['Cada um joga', playsText]]
+                      : [['Tamanho', 'Depende dos ajustes pendentes']]),
                   ]),
                   ...(later ? [] : [['Partida', c.scoring.type === 'total' ? scoringLabel(c.scoring) : `${scoringLabel(c.scoring)} · ≈${gamesPerMatch(c.scoring)} games`]]),
                   ...(later ? [] : [
@@ -620,7 +667,8 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
                 </div>
               )}
             </Panel>
-            {!viaLink && check.warnings.map((w) => <Note key={w} kind="ok">{w}</Note>)}
+            {mediaFix}
+            {!viaLink && check.warnings.filter((w) => w !== check.uneven).map((w) => <Note key={w} kind="ok">{w}</Note>)}
             {!viaLink && check.issues.map((i) => (
               <Note key={i.text} kind="warn">
                 {i.text}{' '}
@@ -903,7 +951,7 @@ export function TiebreakEditor({ value, onChange }: { value: Tiebreak[]; onChang
         })}
       </ol>
       <p className="m-0 mt-2 text-[13px] leading-snug text-muted">
-        Vale o primeiro critério que separar os empatados. <b className="text-ink">Saldo</b>: games feitos menos sofridos. <b className="text-ink">Confronto direto</b>: quem venceu o jogo entre eles.
+        Vale o primeiro critério que separar os empatados. <b className="text-ink">Saldo</b>: games feitos menos sofridos. <b className="text-ink">Confronto direto</b>: quem venceu o jogo entre os dois. Só vale com 2 empatados; com 3 ou mais, passa pro próximo critério. <b className="text-ink">Média de games</b>: games feitos ÷ games jogados.
       </p>
     </div>
   );
