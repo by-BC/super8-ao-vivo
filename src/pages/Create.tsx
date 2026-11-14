@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildInitial, DEFAULT_CONFIG, gamesPerMatch, individualUnits, isIndividual, LEVELS, levelLetter, matchesPerRound, parsePlayerList, randomSeed, scoringLabel,
   planEdit, suggestRounds, summarize, validateSetup, type Config, type Match, type Format, type Gender, type Modality, type PairingMethod,
@@ -8,7 +8,7 @@ import { signupSummary } from '../lib/signup';
 import { Avatar, Button, Choices, cx, Field, GenderDot, Note, Panel, Segmented, Sheet, Stepper, useToast } from '../components/ui';
 import { assignCharacters, charactersFor } from '../lib/avatar';
 import { CHARACTERS } from '../lib/characters';
-import { api, ApiFail, errorText, type TournamentRow } from '../lib/api';
+import { api, ApiFail, errorText, type ApiErrorCode, type TournamentRow } from '../lib/api';
 import { Carregando } from '../components/Brand';
 import { getSaved, loadDraft, saveDraft, upsertSaved } from '../lib/local';
 import { go } from '../lib/router';
@@ -25,6 +25,8 @@ interface Draft {
   manual: [string, string][];
   roundsTouched: boolean;
   tipo: Tipo;
+  /** o organizador escolheu o tipo na mão: o app para de deduzir pela lista */
+  tipoPicked: boolean;
   /** lista: o organizador coloca os nomes · inscricao: cada um se inscreve pelo link */
   entry: 'lista' | 'inscricao';
   signup: { askLevel: boolean; limitOn: boolean; limit: number; perGender: boolean; formatLater: boolean };
@@ -37,6 +39,21 @@ const modalityOf = (t: Tipo): Modality => (t === 'mista' ? 'mista' : t === 'livr
 const onlyOf = (t: Tipo): Gender | null => (t === 'so_f' ? 'M' : t === 'so_m' ? 'H' : null);
 const tipoOf = (m: Modality): Tipo => (m === 'mista' ? 'mista' : m === 'livre' ? 'livre' : 'separado');
 
+/**
+ * O tipo que a lista colada sugere. Nunca escolhe "feminino e masculino separados":
+ * esse só entra se o organizador pedir. Quem está sem gênero no meio de uma lista
+ * com gênero puxa para misto, pra o app pedir M ou H em vez de deixar gente de fora.
+ */
+function inferTipo(players: { gender: Gender | null }[]): Tipo {
+  const w = players.some((p) => p.gender === 'M');
+  const h = players.some((p) => p.gender === 'H');
+  const none = players.some((p) => !p.gender);
+  if (!w && !h) return 'livre';
+  if (w && h) return 'mista';
+  if (none) return 'mista';
+  return w ? 'so_f' : 'so_m';
+}
+
 const fresh = (): Draft => ({
   name: `Play de ${WEEKDAY[new Date().getDay()]}`,
   players: [],
@@ -46,11 +63,15 @@ const fresh = (): Draft => ({
   manual: [],
   roundsTouched: false,
   tipo: 'mista',
+  tipoPicked: false,
   entry: 'lista',
   signup: { askLevel: true, limitOn: false, limit: 8, perGender: true, formatLater: true },
 });
 
 const STEPS = ['Jogadores', 'Formato', 'Regras', 'Confirmar'] as const;
+/** O caminho é Jogadores → Confirmar. Formato e Regras são desvios a partir do Confirmar, que voltam pra ele. */
+const FLOW = [0, 3] as const;
+const CONFIRM = 3;
 const AREA_STEP: Record<SetupArea, number> = { jogadores: 0, formato: 1, regras: 2 };
 
 const TIPOS = [
@@ -113,6 +134,7 @@ function draftFrom(t: TournamentRow): Draft {
     manual: t.config.pairing === 'manual' ? t.data.teams.map((x) => [...x.players] as [string, string]) : [],
     roundsTouched: true,
     tipo,
+    tipoPicked: true,
     entry: 'lista',
   };
 }
@@ -146,17 +168,37 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
     const saved = loadDraft<Partial<Draft> | null>(null);
     if (!saved?.config) return fresh();
     const config = { ...DEFAULT_CONFIG, ...saved.config };
-    return { ...fresh(), ...saved, config, tipo: saved.tipo ?? tipoOf(config.modality), signup: { ...fresh().signup, ...saved.signup }, pin: randomPin(), name: fresh().name } as Draft;
+    return { ...fresh(), ...saved, config, tipo: saved.tipo ?? tipoOf(config.modality), tipoPicked: saved.tipoPicked ?? (saved.tipo !== undefined && saved.tipo !== 'mista'), signup: { ...fresh().signup, ...saved.signup }, pin: randomPin(), name: fresh().name } as Draft;
   });
   const [step, setStep] = useState(0);
+  const [tipoOpen, setTipoOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** Trava síncrona contra criar duas vezes (toque + volta da internet no mesmo instante). */
+  const busyRef = useRef(false);
+  /** Falha da última tentativa. auto = já foi a nova tentativa automática. */
+  const [fail, setFail] = useState<{ code: ApiErrorCode; auto: boolean } | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  /** edição que apaga placares: primeiro toque pede confirmação, o segundo salva */
+  const [confirmWipe, setConfirmWipe] = useState(false);
   const c = d.config;
 
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const setC = (patch: Partial<Config>) => setD((x) => ({ ...x, config: { ...x.config, ...patch } }));
 
   useEffect(() => { if (!edit) saveDraft(d); }, [d]);
-  useEffect(() => { window.scrollTo(0, 0); }, [step]);
+  // mexeu em qualquer coisa: o aviso de falha sai e a nova tentativa automática é desarmada
+  useEffect(() => { setFail(null); setConfirmWipe(false); }, [d]);
+  useEffect(() => { window.scrollTo(0, 0); setConfirmWipe(false); }, [step]);
+
+  // enquanto o organizador não escolhe o tipo na mão, ele sai da lista colada
+  const inferred = inferTipo(d.players);
+  useEffect(() => {
+    if (edit || d.tipoPicked || d.entry !== 'lista' || !d.players.length || inferred === d.tipo) return;
+    set({ tipo: inferred, manual: [] });
+    setC({ modality: modalityOf(inferred) });
+  }, [inferred, d.tipoPicked, d.entry, d.tipo]);
+  const pickTipo = (t: Tipo) => { set({ tipo: t, tipoPicked: true, manual: [] }); setC({ modality: modalityOf(t) }); setTipoOpen(false); };
+  const autoTipo = () => { set({ tipoPicked: false }); setTipoOpen(false); };
 
   const only = onlyOf(d.tipo);
   /** quem entra de fato no torneio */
@@ -183,14 +225,12 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
   const splitLabel = (x: { div: { id: string }; grp: string | null }) => `${DIV_LABEL[x.div.id]}${x.grp ? ` ${x.grp}` : ''}`;
   const pinOk = !!edit || /^\d{4,8}$/.test(d.pin);
   const nameOk = d.name.trim().length > 0 && d.name.trim().length <= 60;
-  const women = d.players.filter((p) => p.gender === 'M');
-  const men = d.players.filter((p) => p.gender === 'H');
   const teamsFormat = c.format === 'duplas' || c.format === 'grupos';
   const viaLink = d.entry === 'inscricao';
   const later = viaLink && d.signup.formatLater;
-  const visible = later ? [0, 3] : [0, 1, 2, 3];
-  const pos = Math.max(0, visible.indexOf(step));
-  const goStep = (dir: 1 | -1) => setStep(visible[Math.min(visible.length - 1, Math.max(0, pos + dir))]);
+  /** Formato e Regras contam como parte do Confirmar no indicador de passos */
+  const detour = step === 1 || step === 2;
+  const pos = detour ? FLOW.length - 1 : Math.max(0, FLOW.indexOf(step as 0 | 3));
   const gendered = d.tipo === 'mista' || d.tipo === 'separado';
   const ready = (viaLink || check.ok) && pinOk && nameOk;
   const signupSettings = {
@@ -221,9 +261,13 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
     go(`/t/${e.code}`);
   }
 
-  async function create() {
-    if (!ready || busy) return;
+  async function create(auto = false) {
+    if (!ready || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
+    setFail(null);
+    setConfirmWipe(false);
+    setRetrying(auto);
     try {
       if (edit) { await save(edit); return; }
       const config: Config = { ...c, ranking: { ...c.ranking, sorteio: randomSeed() } };
@@ -240,62 +284,86 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
       try { sessionStorage.setItem('s8:novo', JSON.stringify({ code: r.code, pin: d.pin })); } catch { /* ok */ }
       go(`/t/${r.code}`);
     } catch (e) {
-      const code = e instanceof ApiFail ? e.code : 'SERVIDOR';
-      toast(edit && code === 'CONFLITO' ? 'Alguém lançou placar enquanto você editava. Abra a edição de novo.' : errorText[code]);
+      setFail({ code: e instanceof ApiFail ? e.code : 'SERVIDOR', auto });
     } finally {
+      busyRef.current = false;
       setBusy(false);
+      setRetrying(false);
     }
   }
 
+  // sem internet: quando a conexão voltar, tenta criar de novo uma vez sozinho
+  const createRef = useRef(create);
+  createRef.current = create;
+  useEffect(() => {
+    if (!fail || fail.code !== 'REDE' || fail.auto) return;
+    const onOnline = () => { void createRef.current(true); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [fail]);
+
+  /** salvar esta edição apaga placares já lançados */
+  const destructive = !!edit && plan?.mode === 'tudo' && plan.lostScored > 0;
+  const lost = destructive ? plan!.lostScored : 0;
+  const actionLabel = destructive ? 'Apagar e sortear' : edit ? 'Salvar' : viaLink ? 'Abrir inscrição' : 'Criar';
+  const failText = !fail ? '' : (() => {
+    const didnt = edit ? 'Não deu pra salvar' : viaLink ? 'Não deu pra abrir a inscrição' : 'Não deu pra criar';
+    if (fail.code === 'REDE') {
+      const kept = edit ? 'Suas mudanças continuam nesta tela.' : viaLink ? 'Seus ajustes estão salvos aqui.' : 'Sua lista está salva aqui.';
+      const next = fail.auto ? `Toque em ${actionLabel} de novo.` : `Toque em ${actionLabel} de novo. Se a internet voltar com esta tela aberta, eu tento sozinho.`;
+      return `${didnt}: sem internet. ${kept} ${next}`;
+    }
+    if (edit && fail.code === 'CONFLITO') return `${didnt}: alguém lançou placar enquanto você editava. Abra a edição de novo.`;
+    return `${didnt}. ${errorText[fail.code]}`;
+  })();
+
+  /** o aviso manda tocar no botão de criar: só aparece na tela que tem esse botão */
+  const failShown = !!fail && step === CONFIRM;
+  const wipeAsk = confirmWipe && destructive && step === CONFIRM && !busy;
+  const tallBar = failShown || retrying || wipeAsk;
+  const pending = `${check.issues.length} ajuste${check.issues.length > 1 ? 's' : ''} pendente${check.issues.length > 1 ? 's' : ''}`;
+  const size = check.ok ? `${summary.rounds} rodadas · ${summary.matches} jogos` : pending;
   const barInfo = [
-    viaLink ? 'Inscrição pelo link' : `${players.length} jogadores${only ? '' : ` · ${women.length} M · ${men.length} H`}`,
-    viaLink ? 'Rodadas no sorteio' : check.ok ? `${summary.rounds} rodadas · ${summary.matches} jogos` : `${check.issues.length} ajuste${check.issues.length > 1 ? 's' : ''} pendente${check.issues.length > 1 ? 's' : ''}`,
+    viaLink ? 'Inscrição pelo link' : players.length ? `${players.length} jogadores · ${size}` : 'Cole a lista pra começar',
+    viaLink ? 'Rodadas no sorteio' : size,
     scoringLabel(c.scoring),
     '',
   ][step];
+  const tipoInfo = TIPOS.find((t) => t.value === d.tipo)!;
 
   return (
     <>
       <header className="bg-band text-bandink">
         <div className="gutter mx-auto max-w-[760px] py-4">
           <div className="flex items-center gap-3">
-            <a href={edit ? `#/t/${edit.code}` : '#/'} aria-label={edit ? 'Voltar ao torneio' : 'Voltar para o início'} className="grid h-10 w-10 place-items-center rounded-full border-[1.5px] border-current text-xl no-underline text-bandink">←</a>
+            <a href={edit ? `#/t/${edit.code}` : '#/'} aria-label={edit ? 'Voltar ao torneio' : 'Voltar para o início'} className="grid h-12 w-12 flex-none place-items-center rounded-full border-[1.5px] border-current text-xl no-underline text-bandink">←</a>
             <div className="min-w-0">
               <h1 className="m-0 font-display text-[30px] font-extrabold leading-none">{edit ? 'Editar torneio' : 'Novo torneio'}</h1>
-              <p className="m-0 mt-0.5 text-sm opacity-85">Passo {pos + 1} de {visible.length} · {STEPS[step]}</p>
+              <p className="m-0 mt-0.5 text-sm opacity-85">Passo {pos + 1} de {FLOW.length} · {detour ? `Ajustar ${STEPS[step].toLowerCase()}` : STEPS[step]}</p>
             </div>
           </div>
-          <div className={cx('mt-3 grid gap-1.5', visible.length === 4 ? 'grid-cols-4' : 'grid-cols-2')} aria-hidden>
-            {visible.map((v, i) => <i key={v} className={cx('block h-1.5 rounded-full', i <= pos ? 'bg-accent' : 'bg-white/20')} />)}
+          <div className="mt-3 grid grid-cols-2 gap-1.5" aria-hidden>
+            {FLOW.map((v, i) => <i key={v} className={cx('block h-1.5 rounded-full', i <= pos ? 'bg-accent' : 'bg-white/20')} />)}
           </div>
         </div>
       </header>
 
-      <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-[calc(110px+env(safe-area-inset-bottom,0px))] pt-4">
+      <main className={cx('gutter mx-auto flex max-w-[760px] flex-col gap-4 pt-4', tallBar ? 'pb-[calc(220px+env(safe-area-inset-bottom,0px))]' : 'pb-[calc(110px+env(safe-area-inset-bottom,0px))]')}>
+        {destructive && step !== CONFIRM && (
+          <Note kind="warn">
+            <b>Essa mudança apaga placares.</b> O app vai refazer a tabela inteira porque {plan!.reason}, e os {lost} placares lançados somem. Desfaça a mudança se quiser manter os jogos.
+          </Note>
+        )}
         {step === 0 && (
           <>
-            {edit && (
+            {edit && !destructive && (
               <Note kind="ok">
                 Mude o que quiser: jogadores, formato, partida, ranking, quadras. O app guarda os placares sempre que dá: no fim ele mostra o que fica e o que é sorteado de novo, antes de salvar.
               </Note>
             )}
-            {!edit && <Panel title="Como a galera entra">
-              <Choices name="Como a galera entra" value={d.entry} cols={1} compact
-                options={[
-                  { value: 'lista', title: 'Eu coloco os nomes', hint: 'Cola a lista do grupo e sorteia na hora.' },
-                  { value: 'inscricao', title: 'Inscrição pelo link', hint: 'Cada um põe nome, gênero e nível no celular. Você fecha e sorteia.' },
-                ]}
-                onChange={(v) => {
-                  set({ entry: v });
-                  if (v === 'inscricao') setC({ pairing: d.signup.askLevel ? 'equilibrado' : c.pairing === 'manual' ? 'sorteio' : c.pairing });
-                }} />
-            </Panel>}
-            <Panel title="Tipo de torneio">
-              <Choices name="Tipo de torneio" value={d.tipo} options={viaLink ? TIPOS.map((t) => ({ ...t, hint: t.hint.replace('Usa só as mulheres da lista.', 'Só mulheres se inscrevem.').replace('Usa só os homens da lista.', 'Só homens se inscrevem.') })) : TIPOS} cols={1} compact
-                onChange={(t) => { set({ tipo: t, manual: [] }); setC({ modality: modalityOf(t) }); }} />
-            </Panel>
-            {viaLink ? (
-              <Panel title="Inscrição">
+            {viaLink ? (<>
+              <Panel title="Inscrição pelo link">
+                <p className="m-0 mb-4 text-[15px] text-muted">Cada um põe nome, gênero e nível no celular. Você fecha a lista e sorteia.</p>
                 <div className="flex flex-col gap-3">
                   <Check checked={d.signup.askLevel} onChange={(v) => { set({ signup: { ...d.signup, askLevel: v } }); if (v) setC({ pairing: 'equilibrado' }); }}
                     title="Perguntar o nível (A a D)" hint="A profissional · B avançado · C intermediário · D iniciante. Só você vê." />
@@ -314,13 +382,28 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
                   <Note kind="ok">Depois de criar, você manda o link no grupo. Quando fechar a lista, toca em <b>Sortear</b> e o app monta os jogos com quem se inscreveu.</Note>
                 </div>
               </Panel>
-            ) : (<>
-            <AddNames tipo={d.tipo} onAdd={(list) => {
+              <Panel title="Quem se inscreve">
+                <Choices name="Tipo de torneio" value={d.tipo} cols={1} compact
+                  options={TIPOS.map((t) => ({ ...t, hint: t.hint.replace('Usa só as mulheres da lista.', 'Só mulheres se inscrevem.').replace('Usa só os homens da lista.', 'Só homens se inscrevem.') }))}
+                  onChange={pickTipo} />
+              </Panel>
+              <Button kind="quiet" className="self-center" onClick={() => set({ entry: 'lista' })}>Prefere colar a lista do grupo?</Button>
+            </>) : (<>
+            <AddNames tipo={d.tipo} picked={d.tipoPicked} onAdd={(list) => {
               const have = new Set(d.players.map((p) => p.name.trim().toLocaleLowerCase('pt-BR')));
               const fresh = list.filter((p) => !have.has(p.name.toLocaleLowerCase('pt-BR')));
               set({ players: [...d.players, ...fresh.map((p) => ({ id: pid(), name: p.name, gender: p.gender }))] });
               toast(fresh.length === list.length ? `${fresh.length} nomes adicionados.` : `${fresh.length} nomes adicionados, ${list.length - fresh.length} já estavam na lista.`);
             }} />
+            {(d.players.length > 0 || d.tipoPicked) && (
+              <div className="flex min-h-[56px] items-center gap-3 rounded-lg bg-surface py-2 pl-4 pr-2 shadow-card">
+                <p className="m-0 min-w-0 flex-1 leading-tight">
+                  <b>Tipo: {tipoInfo.title}</b>
+                  <small className="block text-[13px] text-muted">{d.tipoPicked ? tipoInfo.hint : `Pela lista. ${tipoInfo.hint}`}</small>
+                </p>
+                <Button kind="quiet" className="flex-none" aria-haspopup="dialog" onClick={() => setTipoOpen(true)}>Mudar</Button>
+              </div>
+            )}
             <PlayersPanel
               d={d} tipo={d.tipo}
               onUpdate={(id, patch) => set({ players: d.players.map((p) => (p.id === id ? { ...p, ...patch } : p)) })}
@@ -328,6 +411,20 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
               onClear={() => set({ players: [], manual: [] })}
               onLevel={(useLevel) => set({ useLevel })}
             />
+            {!edit && (
+              <Button kind="quiet" className="self-center text-balance"
+                onClick={() => { set({ entry: 'inscricao' }); setC({ pairing: d.signup.askLevel ? 'equilibrado' : c.pairing === 'manual' ? 'sorteio' : c.pairing }); }}>
+                Prefere abrir inscrição pelo link?
+              </Button>
+            )}
+            <Sheet open={tipoOpen} onClose={() => setTipoOpen(false)} title="Tipo de torneio">
+              <div className="flex flex-col gap-3">
+                <Choices name="Tipo de torneio" value={d.tipo} options={TIPOS} cols={1} compact onChange={pickTipo} />
+                {d.tipoPicked && !edit && (
+                  <Button kind="quiet" className="self-start" onClick={autoTipo}>Deixar o app escolher pela lista ({TIPOS.find((t) => t.value === inferred)!.title})</Button>
+                )}
+              </div>
+            </Sheet>
             </>)}
           </>
         )}
@@ -381,7 +478,7 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
               <Panel title="Duplas">
                 <Choices name="Formação das duplas" value={c.pairing} options={viaLink ? PAIRINGS.filter((o) => o.value !== 'manual') : PAIRINGS} cols={1} compact
                   onChange={(v) => { setC({ pairing: v }); if (v === 'equilibrado') { if (viaLink) set({ signup: { ...d.signup, askLevel: true } }); else set({ useLevel: true }); } }} />
-                {c.pairing === 'equilibrado' && <p className="m-0 mt-3 text-sm text-muted">{viaLink ? 'O nível de cada um vem da inscrição. Você pode corrigir antes de sortear.' : 'Toque no nome de cada jogador, no passo 1, para marcar o nível.'}</p>}
+                {c.pairing === 'equilibrado' && <p className="m-0 mt-3 text-sm text-muted">{viaLink ? 'O nível de cada um vem da inscrição. Você pode corrigir antes de sortear.' : 'Toque no nome de cada jogador, no passo Jogadores, para marcar o nível.'}</p>}
                 {c.pairing === 'manual' && <ManualPairs players={players} modality={c.modality} pairs={d.manual} onChange={(manual) => set({ manual })} />}
               </Panel>
             )}
@@ -424,6 +521,43 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
 
         {step === 3 && (
           <>
+            {plan && <EditPlanNote plan={plan} rounds={c.rounds} format={c.format} />}
+            <Panel title="Resumo">
+              <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[15px]">
+                {[
+                  ['Tipo', TIPOS.find((t) => t.value === d.tipo)!.title],
+                  ...(viaLink
+                    ? [['Inscrição', `Pelo link · ${signupSummary({ ...signupSettings, gender: only })}`]]
+                    : [['Jogadores', `${players.length}${d.tipo === 'livre' ? '' : ` (${players.filter((p) => p.gender === 'M').length} M · ${players.filter((p) => p.gender === 'H').length} H)`}`]]),
+                  ['Formato', later ? 'Decide no sorteio, com sugestões pela lista' : FORMATS.find((f) => f.value === c.format)!.title],
+                  ...(viaLink ? [] : [
+                    ['Tamanho', `${summary.rounds} rodadas · ${summary.matches} jogos`],
+                    ['Cada um joga', summary.minGames === summary.maxGames ? `${summary.minGames} partidas` : `${summary.minGames} a ${summary.maxGames} partidas`],
+                  ]),
+                  ...(later ? [] : [['Partida', c.scoring.type === 'total' ? scoringLabel(c.scoring) : `${scoringLabel(c.scoring)} · ≈${gamesPerMatch(c.scoring)} games`]]),
+                  ...(later ? [] : [
+                    ['Ranking', c.ranking.base === 'games' ? 'Games feitos' : 'Vitória 3 · Empate 1 · Derrota 0'],
+                    ['Quadras', courtSplit.length > 1 && !viaLink ? `${c.courts} (${courtSplit.map((x) => `${splitLabel(x)} ${x.m}`).join(', ')})` : String(c.courts)],
+                  ]),
+                ].map(([k, v]) => (
+                  <div key={k} className="contents"><dt className="font-bold">{k}</dt><dd className="m-0 text-muted">{v}</dd></div>
+                ))}
+              </dl>
+              {only && !viaLink && <p className="m-0 mt-3 text-sm text-muted">{d.players.length - players.length} pessoas da lista ficam de fora deste torneio.</p>}
+              {!later && (
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <Button className="!px-2" onClick={() => setStep(1)}>Ajustar formato</Button>
+                  <Button className="!px-2" onClick={() => setStep(2)}>Ajustar regras</Button>
+                </div>
+              )}
+            </Panel>
+            {!viaLink && check.warnings.map((w) => <Note key={w} kind="ok">{w}</Note>)}
+            {!viaLink && check.issues.map((i) => (
+              <Note key={i.text} kind="warn">
+                {i.text}{' '}
+                <button type="button" className="font-bold underline underline-offset-2" onClick={() => setStep(AREA_STEP[i.area])}>Corrigir</button>
+              </Note>
+            ))}
             <Panel title="Nome">
               <input id="nome-torneio" aria-label="Nome do torneio" maxLength={60} value={d.name} onChange={(e) => set({ name: e.target.value })}
                 className="min-h-[48px] w-full rounded-lg border-[1.5px] border-line bg-bg px-3 text-lg font-semibold text-ink" />
@@ -438,51 +572,37 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
               </div>
               {!pinOk && <p className="m-0 mt-2 text-sm text-danger">Use de 4 a 8 números.</p>}
             </Panel>}
-            <Panel title="Resumo">
-              <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-[15px]">
-                {[
-                  ['Tipo', TIPOS.find((t) => t.value === d.tipo)!.title],
-                  ...(viaLink
-                    ? [['Inscrição', `Pelo link · ${signupSummary({ ...signupSettings, gender: only })}`]]
-                    : [['Jogadores', `${players.length}${d.tipo === 'livre' ? '' : ` (${players.filter((p) => p.gender === 'M').length} M · ${players.filter((p) => p.gender === 'H').length} H)`}`]]),
-                  ['Formato', later ? 'Decide no sorteio, com sugestões pela lista' : FORMATS.find((f) => f.value === c.format)!.title],
-                  ...(viaLink ? [] : [
-                    ['Tamanho', `${summary.rounds} rodadas · ${summary.matches} jogos`],
-                    ['Cada um joga', summary.minGames === summary.maxGames ? `${summary.minGames} partidas` : `${summary.minGames} a ${summary.maxGames} partidas`],
-                  ]),
-                  ...(later ? [] : [['Partida', `${scoringLabel(c.scoring)} (≈${gamesPerMatch(c.scoring)} games)`]]),
-                  ...(later ? [] : [
-                    ['Ranking', c.ranking.base === 'games' ? 'Games feitos' : 'Vitória 3 · Empate 1 · Derrota 0'],
-                    ['Quadras', courtSplit.length > 1 && !viaLink ? `${c.courts} (${courtSplit.map((x) => `${splitLabel(x)} ${x.m}`).join(', ')})` : String(c.courts)],
-                  ]),
-                ].map(([k, v]) => (
-                  <div key={k} className="contents"><dt className="font-bold">{k}</dt><dd className="m-0 text-muted">{v}</dd></div>
-                ))}
-              </dl>
-              {only && !viaLink && <p className="m-0 mt-3 text-sm text-muted">{d.players.length - players.length} pessoas da lista ficam de fora deste torneio.</p>}
-            </Panel>
-            {!viaLink && check.warnings.map((w) => <Note key={w} kind="ok">{w}</Note>)}
-            {!viaLink && check.issues.map((i) => (
-              <Note key={i.text} kind="warn">
-                {i.text}{' '}
-                <button type="button" className="font-bold underline underline-offset-2" onClick={() => setStep(AREA_STEP[i.area])}>Corrigir</button>
-              </Note>
-            ))}
             {!nameOk && <Note kind="warn">Dê um nome ao torneio.</Note>}
-            {plan && <EditPlanNote plan={plan} rounds={c.rounds} format={c.format} />}
           </>
         )}
       </main>
 
       <nav className="gutter fixed inset-x-0 bottom-0 z-20 border-t border-hair bg-surface pb-[max(12px,env(safe-area-inset-bottom,0px))] pt-3 shadow-[0_-8px_24px_-16px_rgba(0,0,0,.5)]">
-        <div className="mx-auto flex max-w-[760px] items-center gap-2">
-          <Button className="flex-none" onClick={() => (step === 0 ? go(edit ? `/t/${edit.code}` : '/') : goStep(-1))}>{step === 0 ? 'Cancelar' : 'Voltar'}</Button>
-          <span className="line-clamp-2 min-w-0 flex-1 text-center text-[11px] font-semibold leading-tight text-muted tabnum">{barInfo}</span>
-          {step < STEPS.length - 1 ? (
-            <Button kind="primary" className="flex-none" onClick={() => goStep(1)}>Continuar</Button>
-          ) : (
-            <Button kind="primary" className="flex-none" disabled={!ready || busy} onClick={create}>{busy ? (edit ? 'Salvando…' : 'Criando…') : edit ? (plan?.mode === 'tudo' && plan.lostScored ? 'Apagar e sortear' : 'Salvar') : viaLink ? 'Abrir inscrição' : 'Criar'}</Button>
+        <div className="mx-auto max-w-[760px] empty:hidden" role="status" aria-live="polite">
+          {retrying ? <Note kind="ok">A internet voltou. Tentando de novo…</Note> : failShown ? <Note kind="warn">{failText}</Note> : wipeAsk && (
+            <Note kind="warn"><b>Apagar os {lost} placares lançados?</b> A tabela é sorteada de novo e não dá pra desfazer.</Note>
           )}
+        </div>
+        <div className={cx('mx-auto flex max-w-[760px] items-center gap-2', tallBar && 'mt-3')}>
+          {wipeAsk ? (
+            <>
+              <Button className="flex-1" onClick={() => setConfirmWipe(false)}>Manter placares</Button>
+              <Button kind="danger" className="flex-1" onClick={() => void create()}>Apagar e sortear</Button>
+            </>
+          ) : (<>
+          {!detour && <Button className="flex-none" onClick={() => (step === 0 ? go(edit ? `/t/${edit.code}` : '/') : setStep(0))}>{step === 0 ? 'Cancelar' : 'Voltar'}</Button>}
+          <span className={cx('line-clamp-2 min-w-0 flex-1 text-[13px] font-semibold leading-tight text-muted tabnum', detour ? 'text-left' : 'text-center')}>{barInfo}</span>
+          {step === 0 ? (
+            <Button kind="primary" className="flex-none" onClick={() => setStep(CONFIRM)}>Continuar</Button>
+          ) : detour ? (
+            <Button kind="primary" className="flex-none" onClick={() => setStep(CONFIRM)}>Pronto</Button>
+          ) : (
+            <Button kind={destructive ? 'danger' : 'primary'} className="flex-none" disabled={!ready || busy}
+              onClick={() => (destructive && !fail ? setConfirmWipe(true) : void create())}>
+              {busy ? (edit ? 'Salvando…' : 'Criando…') : actionLabel}
+            </Button>
+          )}
+          </>)}
         </div>
       </nav>
     </>
@@ -501,7 +621,7 @@ function EditPlanNote({ plan, rounds, format }: { plan: import('../engine').Edit
             : plan.matches.length ? `Da rodada ${plan.keptUpTo + 1} à ${rounds} o app sorteia de novo com as mudanças.` : ''}
         </Note>
         {plan.leftNames.length > 0 && <Note kind="ok">{plan.leftNames.join(', ')} {plan.leftNames.length > 1 ? 'saem' : 'sai'} das próximas rodadas, mas os jogos que já {plan.leftNames.length > 1 ? 'fizeram' : 'fez'} continuam valendo.</Note>}
-        {format === 'rodizio' && rounds <= plan.keptUpTo && <Note kind="warn">Já foram {plan.keptUpTo} rodadas. Aumente as rodadas no passo Formato pra ter jogos novos.</Note>}
+        {format === 'rodizio' && rounds <= plan.keptUpTo && <Note kind="warn">Já foram {plan.keptUpTo} rodadas. Aumente as rodadas em Ajustar formato pra ter jogos novos.</Note>}
       </>
     );
   }
@@ -511,7 +631,7 @@ function EditPlanNote({ plan, rounds, format }: { plan: import('../engine').Edit
 
 export function Check({ checked, onChange, title, hint }: { checked: boolean; onChange: (v: boolean) => void; title: string; hint?: string }) {
   return (
-    <label className="flex min-h-[44px] items-start gap-3 text-[15px]">
+    <label className="flex min-h-[48px] items-start gap-3 text-[15px]">
       <input type="checkbox" className="mt-0.5 h-6 w-6 flex-none accent-[var(--accent)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span>{title}{hint && <small className="block text-muted">{hint}</small>}</span>
     </label>
@@ -520,10 +640,11 @@ export function Check({ checked, onChange, title, hint }: { checked: boolean; on
 
 type Batch = 'auto' | Gender;
 
-function AddNames({ tipo, onAdd }: { tipo: Tipo; onAdd: (l: { name: string; gender: Gender | null }[]) => void }) {
+function AddNames({ tipo, picked, onAdd }: { tipo: Tipo; picked: boolean; onAdd: (l: { name: string; gender: Gender | null }[]) => void }) {
   const [text, setText] = useState('');
-  const [batch, setBatch] = useState<Batch>(tipo === 'so_f' ? 'M' : tipo === 'so_m' ? 'H' : 'auto');
-  useEffect(() => { if (tipo === 'so_f') setBatch('M'); else if (tipo === 'so_m') setBatch('H'); }, [tipo]);
+  // só segue o tipo quando ele foi escolhido na mão; o tipo deduzido não muda como a próxima lista é lida
+  const [batch, setBatch] = useState<Batch>(picked && tipo === 'so_f' ? 'M' : picked && tipo === 'so_m' ? 'H' : 'auto');
+  useEffect(() => { if (!picked) return; if (tipo === 'so_f') setBatch('M'); else if (tipo === 'so_m') setBatch('H'); }, [tipo, picked]);
   const parsed = useMemo(() => parsePlayerList(text, batch === 'auto' ? null : batch), [text, batch]);
   const h = parsed.players.filter((p) => p.gender === 'H').length;
   const m = parsed.players.filter((p) => p.gender === 'M').length;
@@ -546,7 +667,7 @@ function AddNames({ tipo, onAdd }: { tipo: Tipo; onAdd: (l: { name: string; gend
       </div>
       <p className="m-0 mt-3 text-sm text-muted tabnum">
         {parsed.players.length
-          ? <><b className="text-ink">{parsed.players.length} nomes</b>{h || m ? ` · ${m} M · ${h} H` : ''}{none && tipo !== 'livre' ? ` · ${none} sem gênero (marque depois)` : ''}</>
+          ? <><b className="text-ink">{parsed.players.length} nomes</b>{h || m ? ` · ${m} M · ${h} H` : ''}{none && (h || m) ? ` · ${none} sem gênero (marque depois)` : ''}</>
           : 'Funciona com vírgula, um por linha, lista numerada, “Mulheres:” e “Homens:”, com ou sem emoji.'}
         {parsed.ignored.length > 0 && <span className="block">Ignorei: {parsed.ignored.slice(0, 3).join(' · ')}{parsed.ignored.length > 3 ? '…' : ''}</span>}
         {parsed.duplicates.length > 0 && <span className="block">Repetidos: {parsed.duplicates.join(', ')}</span>}
@@ -589,15 +710,15 @@ function PlayersPanel({ d, tipo, onUpdate, onRemove, onClear, onLevel }: {
             <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
               {g.list.map((p) => (
                 <li key={p.id} className="flex items-center overflow-hidden rounded-full border-[1.5px] border-line bg-bg">
-                  <button type="button" onClick={() => setEditing(p.id)} className="flex min-h-[40px] items-center gap-1.5 pl-1 pr-3 text-[15px] font-semibold text-ink">
+                  <button type="button" onClick={() => setEditing(p.id)} className="flex min-h-[48px] items-center gap-1.5 pl-2 pr-3 text-[15px] font-semibold text-ink">
                     <Avatar name={p.name || '?'} character={p.avatar ?? auto.get(p.id)} size={30} />
                     {p.name || 'sem nome'}
                     {d.useLevel && <span className="rounded-full bg-hair px-1.5 text-[11px] font-bold">{levelLetter(p.level) ?? '?'}</span>}
                   </button>
                   {g.key === 'x' && (
                     <>
-                      <button type="button" aria-label={`${p.name} é mulher`} onClick={() => onUpdate(p.id, { gender: 'M' })} className="min-h-[40px] w-10 border-l border-hair font-extrabold text-accentink">M</button>
-                      <button type="button" aria-label={`${p.name} é homem`} onClick={() => onUpdate(p.id, { gender: 'H' })} className="min-h-[40px] w-10 border-l border-hair font-extrabold text-ink">H</button>
+                      <button type="button" aria-label={`${p.name} é mulher`} onClick={() => onUpdate(p.id, { gender: 'M' })} className="min-h-[48px] w-12 border-l border-hair font-extrabold text-accentink">M</button>
+                      <button type="button" aria-label={`${p.name} é homem`} onClick={() => onUpdate(p.id, { gender: 'H' })} className="min-h-[48px] w-12 border-l border-hair font-extrabold text-ink">H</button>
                     </>
                   )}
                 </li>
@@ -675,27 +796,45 @@ export function TiebreakEditor({ value, onChange }: { value: Tiebreak[]; onChang
     [next[i], next[j]] = [next[j], next[i]];
     onChange(next);
   };
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <div className="flex min-h-[48px] items-center gap-3">
+        <p className="m-0 min-w-0 flex-1 leading-tight">
+          <b className="text-[15px]">Desempate</b>
+          <small className="block text-[13px] text-muted">{value.length ? value.map((k, i) => `${i + 1}. ${TIEBREAKS[k]}`).join(' · ') : 'Nenhum critério: empate fica empatado.'}</small>
+        </p>
+        <Button kind="quiet" className="flex-none" aria-expanded={false} onClick={() => setOpen(true)}>Mudar ordem</Button>
+      </div>
+    );
+  }
   return (
     <div>
-      <b className="text-[15px]">Desempate, na ordem</b>
-      <ol className="m-0 mt-2 flex list-none flex-col gap-1.5 p-0">
+      <div className="flex min-h-[48px] items-center justify-between gap-3">
+        <b className="text-[15px]">Desempate, na ordem</b>
+        <Button kind="quiet" className="flex-none" aria-expanded onClick={() => setOpen(false)}>Fechar</Button>
+      </div>
+      <ol className="m-0 mt-1 flex list-none flex-col gap-1.5 p-0">
         {all.map((k) => {
           const on = value.includes(k);
           const i = value.indexOf(k);
           return (
-            <li key={k} className={cx('flex min-h-[48px] items-center gap-2 rounded-lg border-[1.5px] px-2.5', on ? 'border-ink' : 'border-line text-muted')}>
+            <li key={k} className={cx('flex min-h-[52px] items-center gap-2 rounded-lg border-[1.5px] pl-2.5 pr-1.5', on ? 'border-ink' : 'border-line text-muted')}>
               <input type="checkbox" aria-label={`Usar ${TIEBREAKS[k]}`} className="h-6 w-6 accent-[var(--accent)]" checked={on} onChange={(e) => onChange(e.target.checked ? [...value, k] : value.filter((x) => x !== k))} />
               <span className="flex-1 font-semibold">{on ? `${i + 1}. ` : ''}{TIEBREAKS[k]}</span>
               {on && (
                 <>
-                  <button type="button" aria-label={`Subir ${TIEBREAKS[k]}`} disabled={i === 0} onClick={() => move(k, -1)} className="h-10 w-10 rounded-lg text-lg disabled:opacity-25">↑</button>
-                  <button type="button" aria-label={`Descer ${TIEBREAKS[k]}`} disabled={i === value.length - 1} onClick={() => move(k, 1)} className="h-10 w-10 rounded-lg text-lg disabled:opacity-25">↓</button>
+                  <button type="button" aria-label={`Subir ${TIEBREAKS[k]}`} disabled={i === 0} onClick={() => move(k, -1)} className="h-12 w-12 rounded-lg text-lg disabled:opacity-25">↑</button>
+                  <button type="button" aria-label={`Descer ${TIEBREAKS[k]}`} disabled={i === value.length - 1} onClick={() => move(k, 1)} className="h-12 w-12 rounded-lg text-lg disabled:opacity-25">↓</button>
                 </>
               )}
             </li>
           );
         })}
       </ol>
+      <p className="m-0 mt-2 text-[13px] leading-snug text-muted">
+        Vale o primeiro critério que separar os empatados. <b className="text-ink">Saldo</b>: games feitos menos sofridos. <b className="text-ink">Confronto direto</b>: quem venceu o jogo entre eles.
+      </p>
     </div>
   );
 }
@@ -720,7 +859,7 @@ function ManualPairs({ players, modality, pairs, onChange }: { players: Player[]
         <div key={i} className="flex flex-col gap-1.5 rounded-lg bg-bg p-2.5">
           <div className="flex items-center justify-between">
             <b className="text-sm">Dupla {i + 1}</b>
-            <button type="button" aria-label={`Remover dupla ${i + 1}`} className="h-9 w-9 text-xl text-muted" onClick={() => onChange(pairs.filter((_, j) => j !== i))}>×</button>
+            <button type="button" aria-label={`Remover dupla ${i + 1}`} className="-my-2 -mr-1 h-12 w-12 text-xl text-muted" onClick={() => onChange(pairs.filter((_, j) => j !== i))}>×</button>
           </div>
           {([0, 1] as const).map((side) => (
             <select key={side} aria-label={`Dupla ${i + 1}, jogador ${side + 1}`} value={p[side]} onChange={(e) => setAt(i, side, e.target.value)}

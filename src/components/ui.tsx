@@ -124,7 +124,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
           type="button"
           aria-pressed={value === o.value}
           onClick={() => onChange(o.value)}
-          className={cx('min-h-[42px] min-w-[42px] px-2 font-extrabold', value === o.value ? (o.className ?? 'bg-ink text-bg') : 'text-muted')}
+          className={cx('min-h-[48px] min-w-[48px] px-2 font-extrabold', value === o.value ? (o.className ?? 'bg-ink text-bg') : 'text-muted')}
         >
           {o.label}
         </button>
@@ -136,7 +136,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 export function Stepper({ id, value, min, max, onChange, label }: { id: string; value: number; min: number; max: number; onChange: (n: number) => void; label: string }) {
   return (
     <div className="flex items-center overflow-hidden rounded-lg border-[1.5px] border-line bg-bg">
-      <button type="button" aria-label={`Diminuir ${label}`} className="h-11 w-11 text-2xl disabled:opacity-30" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))}>−</button>
+      <button type="button" aria-label={`Diminuir ${label}`} className="h-12 w-12 text-2xl disabled:opacity-30" disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))}>−</button>
       <input
         id={id}
         type="number"
@@ -151,7 +151,7 @@ export function Stepper({ id, value, min, max, onChange, label }: { id: string; 
           if (!Number.isNaN(n)) onChange(Math.max(min, Math.min(max, n)));
         }}
       />
-      <button type="button" aria-label={`Aumentar ${label}`} className="h-11 w-11 text-2xl disabled:opacity-30" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))}>+</button>
+      <button type="button" aria-label={`Aumentar ${label}`} className="h-12 w-12 text-2xl disabled:opacity-30" disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))}>+</button>
     </div>
   );
 }
@@ -174,13 +174,33 @@ export function Note({ kind, children }: { kind: 'warn' | 'ok'; children: ReactN
 
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    // quem abriu a folha recebe o foco de volta quando ela fecha
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusables = () => Array.from(ref.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])',
+    ) ?? []);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { closeRef.current(); return; }
+      if (e.key !== 'Tab') return;
+      // Tab fica preso dentro da folha
+      const list = focusables();
+      if (!list.length) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !ref.current?.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !ref.current?.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener('keydown', onKey);
     ref.current?.querySelector<HTMLElement>('input,textarea,button')?.focus();
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-30 grid place-items-end bg-black/50 sm:place-items-center" onClick={onClose}>
@@ -194,7 +214,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
       >
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="m-0 font-display text-2xl font-extrabold">{title}</h2>
-          <button type="button" aria-label="Fechar" className="h-10 w-10 text-2xl text-muted" onClick={onClose}>×</button>
+          <button type="button" aria-label="Fechar" className="h-12 w-12 text-2xl text-muted" onClick={onClose}>×</button>
         </div>
         {children}
       </div>
