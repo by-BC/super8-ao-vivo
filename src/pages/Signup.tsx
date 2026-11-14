@@ -17,8 +17,11 @@ const GENDERS = [
 ];
 
 /** Página do torneio enquanto a lista está aberta: a galera se inscreve e quem organiza sorteia. */
-export function SignupView({ code, tour, entries, adminKey, onChanged }: {
-  code: string; tour: TournamentRow; entries: PublicEntry[]; adminKey: string | null; onChanged: () => Promise<void>;
+export function SignupView({ code, tour, entries, adminKey, offline = false, onChanged }: {
+  code: string; tour: TournamentRow; entries: PublicEntry[]; adminKey: string | null;
+  /** Sem servidor: inscrever, editar e sortear travam. Copiar o convite segue valendo. */
+  offline?: boolean;
+  onChanged: () => Promise<void>;
 }) {
   const toast = useToast();
   const s = settingsOf(tour.signup);
@@ -69,6 +72,8 @@ export function SignupView({ code, tour, entries, adminKey, onChanged }: {
         <Button className="mt-3" block onClick={share}>Copiar convite pro grupo</Button>
       </section>
 
+      {/* o convite acima funciona sem internet; daqui pra baixo tudo grava no servidor */}
+      <fieldset disabled={offline} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
       {mine && mineListed && !editing ? (
         <Panel title="Você está na lista">
           <div className="flex items-center gap-2 text-lg font-bold">
@@ -107,6 +112,7 @@ export function SignupView({ code, tour, entries, adminKey, onChanged }: {
       <PublicList entries={entries} s={s} mineId={mine?.id ?? null} />
 
       {adminKey && <AdminPanel code={code} adminKey={adminKey} tour={tour} entries={entries} onChanged={onChanged} />}
+      </fieldset>
 
       <CopySheet text={copyFallback} onClose={() => setCopyFallback(null)} />
     </>

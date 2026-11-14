@@ -297,14 +297,14 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
       const config: Config = { ...c, ranking: { ...c.ranking, sorteio: randomSeed() } };
       if (viaLink) {
         const r = await api.createSignup(d.name.trim(), { ...config, formatLater: later, pairing: config.pairing === 'manual' ? 'sorteio' : config.pairing }, d.pin, signupSettings);
-        upsertSaved({ code: r.code, name: d.name.trim(), adminKey: r.adminKey, token: r.token });
+        upsertSaved({ code: r.code, name: d.name.trim(), adminKey: r.adminKey, token: r.token, pin: d.pin });
         try { sessionStorage.setItem('s8:novo', JSON.stringify({ code: r.code, pin: d.pin })); } catch { /* ok */ }
         go(`/t/${r.code}`);
         return;
       }
       const built = buildInitial(players, config, randomSeed(), d.manual);
       const r = await api.create(d.name.trim(), config, { players, teams: built.teams }, d.pin, built.matches);
-      upsertSaved({ code: r.code, name: d.name.trim(), adminKey: r.adminKey, token: r.token });
+      upsertSaved({ code: r.code, name: d.name.trim(), adminKey: r.adminKey, token: r.token, pin: d.pin });
       try { sessionStorage.setItem('s8:novo', JSON.stringify({ code: r.code, pin: d.pin })); } catch { /* ok */ }
       go(`/t/${r.code}`);
     } catch (e) {

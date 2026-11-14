@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { applyGame, type Match } from '../engine';
 import { api, ApiFail, type PublicEntry, type TournamentRow } from './api';
 import { dropToken, getSaved, loadQueue, saveQueue, type Intent } from './local';
+import { dropSnapshot, overlayQueue, readSnapshot, writeSnapshot } from './snapshot';
 import { supabase } from './supabase';
 
 export type LoadState = 'carregando' | 'ok' | 'nao_encontrado' | 'erro';
@@ -21,10 +22,14 @@ const POLL_MS = 15000;
  * Estado ao vivo de um torneio.
  * - Lê pelo RPC s8_get. O canal de broadcast "s8:CÓDIGO" só avisa que algo mudou: quem recebe o aviso
  *   busca de novo no servidor. Assim um aviso falso no canal público não consegue mostrar placar inventado.
- * - Se o canal cair, a tela consulta o servidor a cada 15 segundos.
+ * - Se o canal cair, ou o servidor não responder, a tela consulta o servidor a cada 15 segundos.
  * - Cada toque no placar vira uma intenção (+1/-1) numa fila guardada no aparelho. A fila é enviada em ordem,
  *   sempre aplicando a intenção sobre o placar mais recente do servidor com trava de versão:
  *   se dois celulares apertam juntos, nenhum ponto se perde.
+ * - Cada leitura boa do servidor fica guardada no aparelho (snapshot.ts). Se o torneio abrir sem internet,
+ *   a tela mostra esse último placar com `stale: true` e `updatedAt`, mais a fila local por cima,
+ *   e segue tentando. Quando o servidor responde, o placar dele substitui o guardado.
+ *   O guardado nunca vai para o servidor: a fila só sobe depois de uma leitura nova (trava de versão).
  */
 export function useTournament(code: string) {
   const [tournament, setTournament] = useState<TournamentRow | null>(null);
@@ -38,16 +43,25 @@ export function useTournament(code: string) {
   /** O servidor respondeu na última tentativa (independe do canal de tempo real). */
   const [reachable, setReachable] = useState(true);
   const [lastError, setLastError] = useState<string | null>(null);
+  /** Mostrando o último placar guardado no aparelho, não o do servidor. */
+  const [stale, setStale] = useState(false);
+  /** Quando o placar na tela chegou do servidor (ms); com `stale`, é a hora do guardado. */
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
 
   const serverRef = useRef(server);
   const tRef = useRef(tournament);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const liveRef = useRef(live);
+  const staleRef = useRef(false);
+  /** Já houve leitura boa do servidor nesta tela: o que está em memória é mais novo que o guardado. */
+  const freshRef = useRef(false);
   const flushing = useRef(false);
   const loadTimer = useRef<number | null>(null);
   const retry = useRef<{ timer: number | null; wait: number }>({ timer: null, wait: 2000 });
+  const reachableRef = useRef(reachable);
   tRef.current = tournament;
   liveRef.current = live;
+  reachableRef.current = reachable;
 
   const mergeMatch = useCallback((m: Match) => {
     const cur = serverRef.current.get(m.id);
@@ -68,12 +82,32 @@ export function useTournament(code: string) {
       setEntries(r.entries ?? []);
       setState('ok');
       setReachable(true);
+      freshRef.current = true;
+      staleRef.current = false;
+      setStale(false);
+      setUpdatedAt(Date.now());
       return true;
     } catch (e) {
-      if (e instanceof ApiFail && e.code === 'NAO_ENCONTRADO') setState('nao_encontrado');
-      else {
+      if (e instanceof ApiFail && e.code === 'NAO_ENCONTRADO') {
+        dropSnapshot(code);
+        setState('nao_encontrado');
+        return false;
+      }
+      setReachable(false);
+      // sem nada do servidor nesta tela: mostra o último placar guardado, se houver
+      const snap = freshRef.current || staleRef.current ? null : readSnapshot(code);
+      if (snap) {
+        const map = new Map(snap.matches.map((m) => [m.id, m]));
+        serverRef.current = map;
+        setServer(map);
+        setTournament(snap.tournament);
+        setEntries(snap.entries);
+        staleRef.current = true;
+        setStale(true);
+        setUpdatedAt(snap.at);
+        setState('ok');
+      } else {
         setState((s) => (s === 'carregando' ? 'erro' : s));
-        setReachable(false);
       }
       return false;
     }
@@ -101,6 +135,16 @@ export function useTournament(code: string) {
     flushing.current = true;
     let sent = false;
     try {
+      // placar guardado na tela: antes de mandar qualquer ponto, busca o do servidor
+      if (staleRef.current && loadQueue(code).length) {
+        if (!(await load())) {
+          const wait = retry.current.wait;
+          retry.current.wait = Math.min(wait * 2, 30000);
+          if (retry.current.timer) window.clearTimeout(retry.current.timer);
+          retry.current.timer = window.setTimeout(() => { void flush(); }, wait);
+          return;
+        }
+      }
       for (;;) {
         const q = loadQueue(code);
         const t = tRef.current;
@@ -157,7 +201,7 @@ export function useTournament(code: string) {
       flushing.current = false;
       if (sent) notify('match');
     }
-  }, [code, mergeMatch, removeIntent, notify]);
+  }, [code, load, mergeMatch, removeIntent, notify]);
 
   useEffect(() => {
     const sync = () => { void load().then((ok) => { if (ok) void flush(); }); };
@@ -178,7 +222,7 @@ export function useTournament(code: string) {
     channelRef.current = channel;
 
     const poll = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && liveRef.current !== 'ao_vivo') sync();
+      if (document.visibilityState === 'visible' && (liveRef.current !== 'ao_vivo' || staleRef.current || !reachableRef.current)) sync();
     }, POLL_MS);
     const wake = () => { if (document.visibilityState === 'visible') sync(); };
     document.addEventListener('visibilitychange', wake);
@@ -194,19 +238,16 @@ export function useTournament(code: string) {
     };
   }, [code, load, flush, scheduleLoad]);
 
-  /** Placar que aparece na tela: servidor + fila local ainda não enviada. */
+  // guarda cada placar que chegou do servidor (leitura ou resposta de ponto) para abrir sem internet
+  useEffect(() => {
+    if (stale || state !== 'ok' || !tournament) return;
+    writeSnapshot(code, { tournament, matches: [...server.values()], entries });
+  }, [code, stale, state, tournament, server, entries]);
+
+  /** Placar que aparece na tela: servidor (ou o guardado) + fila local ainda não enviada. */
   const matches = useMemo(() => {
     if (!tournament) return [];
-    const map = new Map(server);
-    for (const it of queue) {
-      const m = map.get(it.matchId);
-      if (!m) continue;
-      // a intenção em voo pode já ter chegado numa leitura antes da resposta do RPC
-      if (inflight && inflight.id === it.id && m.version > inflight.base) continue;
-      const sets = applyGame(m.sets, it.side, it.delta, tournament.config.scoring, m.stage === 'mata');
-      if (sets) map.set(m.id, { ...m, sets });
-    }
-    return sortMatches([...map.values()]);
+    return sortMatches([...overlayQueue(server, queue, tournament.config.scoring, inflight).values()]);
   }, [server, queue, inflight, tournament]);
 
   const serverMatches = useMemo(() => sortMatches([...server.values()]), [server]);
@@ -224,7 +265,7 @@ export function useTournament(code: string) {
   }, [load]);
 
   return {
-    tournament, entries, matches, serverMatches, state, live, reachable, pending: queue.length, authLost, lastError,
+    tournament, entries, matches, serverMatches, state, live, reachable, stale, updatedAt, pending: queue.length, authLost, lastError,
     clearError: () => setLastError(null), clearAuthLost: () => setAuthLost(false),
     reload, notify, point,
   };

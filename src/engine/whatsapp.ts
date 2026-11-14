@@ -108,3 +108,21 @@ export function scheduleMessage(ctx: Ctx): string {
   L.push(`🔗 Ao vivo: ${ctx.link}`);
   return L.join('\n');
 }
+
+/**
+ * Mensagem para quem vai apitar: link, código e PIN.
+ * É para mandar no privado; o PIN nunca vai em link nem na mensagem do grupo.
+ */
+export function refereeMessage(ctx: { name: string; link: string; code: string; pin: string }): string {
+  return [
+    `🎾 *${ctx.name.toUpperCase()}* · árbitro`,
+    '',
+    'Você vai lançar o placar. Abre o link, toca em *Sou árbitro* e digita o PIN:',
+    '',
+    `🔗 ${ctx.link}`,
+    `Código: ${ctx.code}`,
+    `🔑 PIN: *${ctx.pin}*`,
+    '',
+    '_Não repassa o PIN no grupo: quem tem ele mexe no placar._',
+  ].join('\n');
+}

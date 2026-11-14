@@ -1,7 +1,7 @@
 import QRCode from 'qrcode';
 import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, scheduleMessage,
+  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, refereeMessage, scheduleMessage,
   scoringLabel, tournamentStatus, type Match, type Player,
 } from '../engine';
 import { MatchCard } from '../components/MatchCard';
@@ -14,6 +14,7 @@ import { Avatar, Button, copyText, CopySheet, cx, Note, Panel, Pill, RosterCtx, 
 import { api, ApiFail, errorText } from '../lib/api';
 import { getSaved, upsertSaved } from '../lib/local';
 import { go, shareLink } from '../lib/router';
+import { updatedLabel } from '../lib/snapshot';
 import { useTournament } from '../lib/useTournament';
 import { useWakeLock } from '../lib/useWakeLock';
 import { characterRoster, charactersFor } from '../lib/avatar';
@@ -59,6 +60,8 @@ export function TournamentPage({ code }: { code: string }) {
   const credential = saved?.token ?? saved?.adminKey ?? null;
   const canScore = !!credential;
   const isAdmin = !!saved?.adminKey;
+  /** Sem servidor: o que depende dele fica travado com o motivo. O placar segue pela fila. */
+  const offline = t.stale || !t.reachable;
   const [me, setMeState] = useState<string | null>(() => {
     try { return localStorage.getItem(`s8:eu:${code}`); } catch { return null; }
   });
@@ -126,8 +129,8 @@ export function TournamentPage({ code }: { code: string }) {
         <div className="min-w-0 flex-1">
           <h1 className="m-0 font-display text-[clamp(24px,7.5vw,32px)] font-extrabold leading-[.92] [overflow-wrap:break-word]">{tour.name}</h1>
           <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 text-[13px] leading-snug opacity-90">
-            <LiveBadge live={t.live} reachable={t.reachable} pending={t.pending} />
-            <span>· {config.formatLater && tour.phase === 'inscricao' ? 'Formato a definir' : FORMAT_LABEL[config.format]}</span>
+            <LiveBadge live={t.live} reachable={t.reachable} pending={t.pending} stale={t.stale} updatedAt={t.updatedAt} />
+            {!offline && <span>· {config.formatLater && tour.phase === 'inscricao' ? 'Formato a definir' : FORMAT_LABEL[config.format]}</span>}
           </p>
         </div>
         <button type="button" onClick={() => setShareOpen(true)} className="flex flex-none flex-col items-center rounded-lg border-[1.5px] border-current px-2 py-1" aria-label={`Compartilhar código ${code}`}>
@@ -138,13 +141,14 @@ export function TournamentPage({ code }: { code: string }) {
     </header>
   );
   const welcomeSheet = (
-    <Sheet open={!!welcome} onClose={() => setWelcome(null)} title="Torneio criado">
+    <Sheet open={!!welcome} onClose={() => setWelcome(null)} title="Torneio criado" closeOnBackdrop={false}>
       <div className="flex flex-col gap-3">
         <p className="m-0 text-[15px]">{tour.phase === 'inscricao' ? 'Agora copie o convite e mande no grupo: cada um se inscreve pelo link. Quando fechar a lista, você sorteia aqui.' : 'Mande o link ou o código para a galera. O PIN é só para quem vai lançar placar.'}</p>
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">Código</small><b className="font-display text-3xl tracking-[.12em]">{code}</b></div>
-          <div className="rounded-lg bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">PIN árbitro</small><b className="font-display text-3xl tracking-[.2em]">{welcome?.pin}</b></div>
+          <div className="rounded-lg bg-bg p-3"><small className="block text-xs font-bold uppercase tracking-[.12em] text-muted">PIN árbitro</small><b className="font-body text-3xl font-bold tabnum tracking-[.2em]">{welcome?.pin}</b></div>
         </div>
+        <p className="m-0 text-[13px] text-muted">{tour.phase === 'inscricao' ? 'O PIN fica guardado neste celular. Depois do sorteio, ele aparece na aba Info.' : 'O PIN fica guardado neste celular, na aba Info. Não precisa decorar.'}</p>
         <Note kind="ok">Este aparelho ficou como <b>organizador</b>: só daqui dá para editar nomes, trocar o PIN e sortear de novo.</Note>
         <Button kind="primary" block onClick={() => { setWelcome(null); if (tour.phase !== 'inscricao') setShareOpen(true); }}>{tour.phase === 'inscricao' ? 'Entendi' : 'Compartilhar'}</Button>
       </div>
@@ -156,7 +160,8 @@ export function TournamentPage({ code }: { code: string }) {
       <>
         {header}
         <main className="gutter mx-auto flex max-w-[760px] flex-col gap-4 pb-[calc(32px+env(safe-area-inset-bottom,0px))] pt-4">
-          <SignupView code={code} tour={tour} entries={t.entries} adminKey={saved?.adminKey ?? null} onChanged={async () => { t.notify(); await t.reload(); }} />
+          {offline && <Note kind="warn">Sem conexão. A lista abaixo é a última que chegou neste celular. Inscrever, editar e sortear voltam quando a internet voltar.</Note>}
+          <SignupView code={code} tour={tour} entries={t.entries} adminKey={saved?.adminKey ?? null} offline={offline} onChanged={async () => { t.notify(); await t.reload(); }} />
         </main>
         <ShareSheet open={shareOpen} code={code} name={tour.name} onClose={() => setShareOpen(false)} onCopy={share} />
         <CopySheet text={copyFallback} onClose={() => setCopyFallback(null)} />
@@ -189,19 +194,16 @@ export function TournamentPage({ code }: { code: string }) {
 
   const meId = me && players.has(me) ? me : null;
 
-  /** Lança o game e oferece desfazer por alguns segundos (dedo grosso na areia). */
+  /** Lança o game e confirma num aviso que não pega toque; o "Desfazer" fica no próprio cartão. */
   function point(id: string, side: 'a' | 'b', delta: 1 | -1) {
     t.point(id, side, delta);
     const m = t.matches.find((x) => x.id === id);
     const who = m ? (side === 'a' ? m.a : m.b).map((p) => players.get(p)?.name ?? '?').join(' e ') : '';
-    toast(delta > 0 ? `+1 game: ${who}` : `−1 game: ${who}`, {
-      key: 'ponto', ms: 4500,
-      action: { label: 'Desfazer', run: () => t.point(id, side, delta > 0 ? -1 : 1) },
-    });
+    toast(delta > 0 ? `+1 game: ${who}` : `−1 game: ${who}`, { key: 'ponto' });
   }
 
-  async function share(text: string) {
-    if (await copyText(text)) toast('Copiado. É só colar no grupo.');
+  async function share(text: string, ok = 'Copiado. É só colar no grupo.') {
+    if (await copyText(text)) toast(ok);
     else setCopyFallback(text);
   }
 
@@ -251,8 +253,8 @@ export function TournamentPage({ code }: { code: string }) {
         )}
         {!canScore && tab === 'jogos' && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface px-4 py-3 shadow-card">
-            <span className="text-[15px]">{finished ? 'Precisa corrigir algum placar? Entre com o PIN.' : 'Você está assistindo. Para lançar placar, entre com o PIN.'}</span>
-            <Button onClick={() => setPinOpen(true)}>Sou árbitro</Button>
+            <span className="text-[15px]">{offline ? 'Você está assistindo. Entrar com o PIN precisa de internet.' : finished ? 'Precisa corrigir algum placar? Entre com o PIN.' : 'Você está assistindo. Para lançar placar, entre com o PIN.'}</span>
+            <Button disabled={offline} onClick={() => setPinOpen(true)}>Sou árbitro</Button>
           </div>
         )}
 
@@ -264,7 +266,7 @@ export function TournamentPage({ code }: { code: string }) {
           <GamesView
             matches={shownMatches} players={players} plist={shownPlayers} config={config} canScore={canScore} me={meId} jumpOnOpen={!meId}
             onPoint={point}
-            step={step} generating={generating} onGenerate={generate} finished={finished} onRanking={() => setTab('ranking')}
+            step={step} generating={generating} onGenerate={generate} finished={finished} onRanking={() => setTab('ranking')} offline={offline}
           />
         )}
 
@@ -330,8 +332,10 @@ export function TournamentPage({ code }: { code: string }) {
 
         {tab === 'info' && (
           <InfoView
-            code={code} tour={tour} isAdmin={isAdmin} canScore={canScore} adminKey={saved?.adminKey}
+            code={code} tour={tour} isAdmin={isAdmin} canScore={canScore} adminKey={saved?.adminKey} pin={isAdmin ? saved?.pin : undefined} offline={offline}
             onShare={() => setShareOpen(true)} onCopySchedule={() => share(scheduleMessage(ctx))}
+            onCopyReferee={(pin) => share(refereeMessage({ name: tour.name, link: ctx.link, code, pin }), 'Copiado. Mande no privado pra quem vai apitar.')}
+            onPinChanged={(pin) => setSaved(upsertSaved({ code, pin }))}
             onPin={() => setPinOpen(true)}
             onLeave={() => { setSaved(upsertSaved({ code, token: undefined })); toast('Você saiu do modo árbitro neste aparelho.'); }}
             onAdmin={(key) => { setSaved(upsertSaved({ code, adminKey: key })); toast('Pronto: este aparelho agora é organizador.'); }}
@@ -383,18 +387,28 @@ function Shell({ code, children }: { code: string; children: React.ReactNode }) 
   );
 }
 
-function LiveBadge({ live, reachable, pending }: { live: string; reachable: boolean; pending: number }) {
-  if (!reachable) return <span className="inline-flex items-center gap-1.5 font-semibold">● Sem conexão{pending ? ` · ${pending} na fila` : ''}</span>;
+function LiveBadge({ live, reachable, pending, stale, updatedAt }: { live: string; reachable: boolean; pending: number; stale: boolean; updatedAt: number | null }) {
+  // Sem servidor, seja abrindo do guardado (stale) ou caindo no meio: o mesmo selo, com a hora do último placar.
+  if (stale || !reachable) {
+    return (
+      <span role="status" className="inline-flex flex-wrap items-center gap-x-1.5 font-semibold">
+        <b className="rounded-full bg-bandink px-2 py-px text-[11px] font-extrabold uppercase tracking-[.1em] text-band">Sem conexão</b>
+        {/* mesma frase do Telão: curta, pra não empurrar o cabeçalho para três linhas no celular */}
+        <span>último placar {updatedAt ? updatedLabel(updatedAt) : 'guardado'}</span>
+        {pending > 0 && <span className="whitespace-nowrap">· {pending} na fila</span>}
+      </span>
+    );
+  }
   if (pending) return <span className="inline-flex items-center gap-1.5 font-semibold">● Enviando {pending}</span>;
   if (live === 'ao_vivo') return <span className="inline-flex items-center gap-1.5 font-semibold"><i className="live-dot" aria-hidden /> Ao vivo</span>;
   if (live === 'offline') return <span className="font-semibold opacity-80">Atualiza a cada 15 s</span>;
   return <span className="font-semibold opacity-80">Conectando…</span>;
 }
 
-function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, onPoint, step, generating, onGenerate, finished, onRanking }: {
+function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, onPoint, step, generating, onGenerate, finished, onRanking, offline }: {
   matches: Match[]; players: Map<string, Player>; plist: Player[]; config: import('../engine').Config; canScore: boolean; me: string | null; jumpOnOpen: boolean;
   onPoint: (id: string, side: 'a' | 'b', delta: 1 | -1) => void; step: { title: string } | null; generating: boolean;
-  onGenerate: () => void; finished: boolean; onRanking: () => void;
+  onGenerate: () => void; finished: boolean; onRanking: () => void; offline: boolean;
 }) {
   const showGender = config.modality === 'mista' || (config.modality === 'livre' && config.ranking.separarGenero);
   const blocks = useMemo(() => {
@@ -475,7 +489,10 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
       )}
 
       {step && (
-        <Button kind="primary" block disabled={generating} onClick={onGenerate}>{generating ? 'Gerando…' : step.title}</Button>
+        <div className="flex flex-col gap-1.5">
+          <Button kind="primary" block disabled={generating || offline} onClick={onGenerate}>{generating ? 'Gerando…' : step.title}</Button>
+          {offline && <p className="m-0 px-1 text-center text-[13px] text-muted">Sem conexão: dá pra gerar quando a internet voltar.</p>}
+        </div>
       )}
 
       <div className="flex flex-col gap-7">
@@ -601,9 +618,13 @@ function Folga({ people }: { people: Player[] }) {
   );
 }
 
-function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySchedule, onPin, onLeave, onAdmin, reload, anyScore }: {
+function InfoView({ code, tour, isAdmin, canScore, adminKey, pin, offline, onShare, onCopySchedule, onCopyReferee, onPinChanged, onPin, onLeave, onAdmin, reload, anyScore }: {
   code: string; tour: NonNullable<ReturnType<typeof useTournament>['tournament']>; isAdmin: boolean; canScore: boolean; adminKey?: string;
-  onShare: () => void; onCopySchedule: () => void; onPin: () => void; onLeave: () => void; onAdmin: (key: string) => void; reload: () => Promise<boolean>; anyScore: boolean;
+  /** PIN guardado neste aparelho; só chega aqui para o organizador. */
+  pin?: string;
+  /** Sem servidor: tudo que grava fica travado, com o motivo. */
+  offline: boolean;
+  onShare: () => void; onCopySchedule: () => void; onCopyReferee: (pin: string) => void; onPinChanged: (pin: string) => void; onPin: () => void; onLeave: () => void; onAdmin: (key: string) => void; reload: () => Promise<boolean>; anyScore: boolean;
 }) {
   const toast = useToast();
   const { config } = tour;
@@ -611,6 +632,7 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
   const [pick, setPick] = useState<string | null>(null);
   const roster = useContext(RosterCtx) ?? { byId: new Map<string, number>(), byName: new Map<string, number>() };
   const [newPin, setNewPin] = useState('');
+  const [pinEdit, setPinEdit] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [keyInput, setKeyInput] = useState('');
   const [keyOpen, setKeyOpen] = useState(false);
@@ -658,9 +680,10 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
         <p className="m-0 mb-3 text-[15px]">
           Neste aparelho você é <b>{isAdmin ? 'organizador' : canScore ? 'árbitro' : 'público'}</b>.
         </p>
-        {!canScore && <Button block onClick={onPin}>Entrar com o PIN de árbitro</Button>}
+        {!canScore && <Button block disabled={offline} onClick={onPin}>Entrar com o PIN de árbitro</Button>}
+        {!canScore && offline && <p className="m-0 mt-1.5 text-[13px] text-muted">Entrar com o PIN precisa de internet.</p>}
         {canScore && !isAdmin && <Button block onClick={onLeave}>Sair do modo árbitro</Button>}
-        {!isAdmin && (
+        {!isAdmin && !offline && (
           !keyOpen ? (
             <Button kind="quiet" className="mt-2" onClick={() => setKeyOpen(true)}>Tenho a chave do organizador</Button>
           ) : (
@@ -685,6 +708,8 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
       {isAdmin && adminKey && (
         <Panel title="Organizador">
           <div className="flex flex-col gap-4">
+            {offline && <Note kind="warn">Sem conexão. Editar, trocar PIN e sortear de novo voltam quando a internet voltar. O placar segue lançando normal.</Note>}
+            <fieldset disabled={offline} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
             <div>
               <b>Editar torneio</b>
               <p className="m-0 text-[13px] text-muted">
@@ -780,17 +805,40 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
               )}
             </div>
 
-            <div>
-              <b>Trocar PIN do árbitro</b>
-              <p className="m-0 text-[13px] text-muted">Quem entrou com o PIN antigo perde o acesso na hora.</p>
-              <div className="mt-2 flex gap-2">
-                <input id="novo-pin" aria-label="Novo PIN" inputMode="numeric" maxLength={8} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Novo PIN" className="min-h-[44px] w-full min-w-0 rounded-lg border-[1.5px] border-line bg-bg px-3 font-body text-2xl font-bold tracking-[.25em] text-ink" />
-                <Button disabled={busy || !/^\d{4,8}$/.test(newPin)} onClick={async () => { if (await run(() => api.adminPin(code, adminKey, newPin), `PIN trocado para ${newPin}.`)) setNewPin(''); }}>Trocar</Button>
-              </div>
-            </div>
+            </fieldset>
 
             <div>
+              <b>PIN do árbitro</b>
+              {pin ? (
+                <>
+                  <p className="m-0 mt-2 rounded-lg bg-bg px-3 py-2 font-body text-3xl font-bold tabnum tracking-[.3em]" aria-label={`PIN ${pin.split('').join(' ')}`}>{pin}</p>
+                  <p className="m-0 mt-1.5 text-[13px] text-muted">Só aparece no celular do organizador. Mande no privado pra quem vai apitar, não no grupo.</p>
+                  <Button className="mt-2" block onClick={() => onCopyReferee(pin)}>Copiar mensagem pro árbitro</Button>
+                </>
+              ) : (
+                <p className="m-0 mt-1 text-[13px] text-muted">PIN não guardado neste celular. Se ninguém lembra, troque por um novo aqui embaixo.</p>
+              )}
+              {offline || !pinEdit ? (
+                // sem conexão fica visível e travado, como os outros; o motivo está no aviso do painel
+                <Button kind="quiet" className="mt-1" disabled={offline} onClick={() => setPinEdit(true)}>Trocar PIN</Button>
+              ) : (
+                <div className="mt-2 flex flex-col gap-2 rounded-lg bg-tintwarn p-3">
+                  <b>Trocar o PIN derruba quem já entrou como árbitro.</b>
+                  <p className="m-0 text-[13px]">Cada árbitro vai precisar digitar o PIN novo para voltar a lançar placar.</p>
+                  <input id="novo-pin" aria-label="Novo PIN" inputMode="numeric" autoComplete="off" maxLength={8} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Novo PIN" className="min-h-[48px] w-full min-w-0 rounded-lg border-[1.5px] border-line bg-bg px-3 font-body text-3xl font-bold tabnum tracking-[.3em] text-ink placeholder:text-base placeholder:font-semibold placeholder:tracking-normal placeholder:text-muted" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button kind="danger" disabled={busy || !/^\d{4,8}$/.test(newPin)} onClick={async () => {
+                      const next = newPin;
+                      if (await run(() => api.adminPin(code, adminKey, next), 'PIN trocado. Mande o novo pros árbitros.')) { onPinChanged(next); setNewPin(''); setPinEdit(false); }
+                    }}>Trocar e derrubar</Button>
+                    <Button disabled={busy} onClick={() => { setNewPin(''); setPinEdit(false); }}>Cancelar</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <fieldset disabled={offline} className="m-0 min-w-0 border-0 p-0">
               <b>Sortear de novo</b>
               <p className="m-0 text-[13px] text-muted">Refaz a chave com os mesmos jogadores e regras. O código continua o mesmo. Pra mudar jogadores ou regras antes, use Editar jogadores e regras.</p>
               {!confirmReset ? (
@@ -808,7 +856,7 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, onShare, onCopySche
                   </div>
                 </div>
               )}
-            </div>
+            </fieldset>
           </div>
         </Panel>
       )}

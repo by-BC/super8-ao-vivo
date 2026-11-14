@@ -172,7 +172,12 @@ export function Note({ kind, children }: { kind: 'warn' | 'ok'; children: ReactN
   return <div className={cx('rounded-lg px-3.5 py-3 text-[15px] leading-snug', kind === 'warn' ? 'bg-tintwarn' : 'bg-tintok')}>{children}</div>;
 }
 
-export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+/**
+ * Folha que sobe de baixo (diálogo a partir de sm).
+ * `closeOnBackdrop={false}`: toque fora não fecha. Para folhas que não podem sumir num esbarrão;
+ * o × e o Esc continuam fechando, porque são gestos de propósito.
+ */
+export function Sheet({ open, onClose, title, children, closeOnBackdrop = true }: { open: boolean; onClose: () => void; title: string; children: ReactNode; closeOnBackdrop?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -203,7 +208,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
   }, [open]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-30 grid place-items-end bg-black/50 sm:place-items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-30 grid place-items-end bg-black/50 sm:place-items-center" onClick={closeOnBackdrop ? onClose : undefined}>
       <div
         ref={ref}
         role="dialog"
@@ -243,11 +248,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-40 flex flex-col items-center gap-2 px-4">
         {items.map((t) => (
-          <div key={t.id} className={cx('flex max-w-[min(520px,100%)] items-center gap-3 rounded-lg bg-ink py-3 pl-4 font-semibold text-bg shadow-card', t.action ? 'pointer-events-auto pr-2' : 'pr-4')}>
+          <div key={t.id} className={cx('flex max-w-[min(520px,100%)] items-center gap-3 rounded-lg bg-ink py-3 pl-4 font-semibold text-bg shadow-card', t.action ? 'pr-2' : 'pr-4')}>
             <span className="min-w-0">{t.text}</span>
             {t.action && (
               <button type="button" onClick={() => { t.action!.run(); drop(t.id); }}
-                className="min-h-[40px] flex-none rounded-lg bg-accent px-3 font-extrabold text-onaccent">{t.action.label}</button>
+                className="pointer-events-auto min-h-[40px] flex-none rounded-lg bg-accent px-3 font-extrabold text-onaccent">{t.action.label}</button>
             )}
           </div>
         ))}

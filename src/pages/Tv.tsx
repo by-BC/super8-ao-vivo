@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { evaluate, formatScore, rankingSections, tournamentStatus, type Player } from '../engine';
 import { cx } from '../components/ui';
 import { shareLink } from '../lib/router';
+import { updatedLabel } from '../lib/snapshot';
 import { useTournament } from '../lib/useTournament';
 import { useWakeLock } from '../lib/useWakeLock';
 import { Carregando, Simbolo } from '../components/Brand';
@@ -14,8 +15,32 @@ export function TvPage({ code }: { code: string }) {
   const players = useMemo(() => new Map<string, Player>((tour?.data.players ?? []).map((p) => [p.id, p])), [tour]);
 
   if (!tour) {
-    return <main className="grid min-h-screen place-items-center bg-band text-bandink">{t.state === 'nao_encontrado' ? <p className="font-display text-4xl font-extrabold">Código não encontrado</p> : <Carregando label="Carregando…" className="text-bandink [&_span]:text-bandink" />}</main>;
+    return (
+      <main className="grid min-h-screen place-items-center bg-band p-6 text-center text-bandink">
+        {t.state === 'nao_encontrado' ? <p className="m-0 font-display text-4xl font-extrabold">Código não encontrado</p>
+          : t.state === 'erro' ? (
+            <div role="status" className="flex flex-col items-center gap-4">
+              <Simbolo onBand size={72} />
+              <p className="m-0 font-display text-[clamp(32px,4.5vw,64px)] font-extrabold leading-none">Sem conexão com o servidor</p>
+              <p className="m-0 text-[clamp(20px,2.2vw,30px)] font-semibold opacity-80">Tentando de novo…</p>
+            </div>
+          )
+          : <Carregando label="Carregando…" className="text-bandink [&_span]:text-bandink" />}
+      </main>
+    );
   }
+
+  /** Visível do outro lado da quadra: o placar na tela pode estar atrasado. */
+  const offline = (t.stale || !t.reachable) && (
+    <div className="basis-full">
+      <p role="status" className="m-0 inline-flex flex-wrap items-baseline gap-x-3 rounded-lg bg-bandink px-4 py-2 text-band">
+        <b className="font-display text-[clamp(26px,3vw,44px)] font-extrabold leading-none">Sem conexão</b>
+        <span className="text-[clamp(16px,1.6vw,24px)] font-semibold">
+          {t.updatedAt ? `último placar ${updatedLabel(t.updatedAt)}` : 'o placar pode estar atrasado'} · tentando de novo
+        </span>
+      </p>
+    </div>
+  );
 
   if (tour.phase === 'inscricao') {
     const open = tour.signup?.open ?? false;
@@ -29,6 +54,7 @@ export function TvPage({ code }: { code: string }) {
             <br />
             <small className="opacity-70">{shareLink(code).replace(/^https?:\/\//, '')}</small>
           </span>
+          {offline}
         </header>
         <h2 className="m-0 mb-4 font-display text-5xl font-extrabold">Inscrições {open ? 'abertas' : 'fechadas'} · {t.entries.length}</h2>
         <ol className="m-0 list-none columns-2 gap-8 p-0 text-[clamp(20px,2.4vw,34px)] font-bold lg:columns-4">
@@ -57,6 +83,7 @@ export function TvPage({ code }: { code: string }) {
           <br />
           <small className="opacity-70">{shareLink(code).replace(/^https?:\/\//, '')}</small>
         </span>
+        {offline}
       </header>
       <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
         <section>

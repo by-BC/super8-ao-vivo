@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { evaluate, type Match, type Player, type Scoring } from '../engine';
+import { applyGame, evaluate, type Match, type Player, type Scoring } from '../engine';
 import { Avatar, cx, GenderDot, RosterCtx } from './ui';
 
 interface Props {
@@ -18,6 +18,10 @@ interface Props {
   onPoint: (side: 'a' | 'b', delta: 1 | -1) => void;
 }
 
+/** Quanto tempo o "Desfazer" fica no cartão depois do último toque. */
+const UNDO_MS = 5000;
+interface Step { side: 'a' | 'b'; delta: 1 | -1 }
+
 export function MatchCard({ match: m, number, players, scoring, canScore, showGender, locked = false, lockedNote, me, onPoint }: Props) {
   const knockout = m.stage === 'mata';
   const bye = knockout && m.b.length === 0;
@@ -26,6 +30,20 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
   const [pop, setPop] = useState(false);
   const [editing, setEditing] = useState(false);
   const scoreable = canScore && (!locked || editing);
+  // Desfazer mora no cartão, não num toast por cima dos botões: o segundo toque no "+"
+  // nunca cai nele. Cada toque fica numa pilha curta; cada "Desfazer" volta o mais recente.
+  const [undo, setUndo] = useState<Step[]>([]);
+  const undoTimer = useRef<number | undefined>(undefined);
+  const armUndo = (steps: Step[]) => {
+    window.clearTimeout(undoTimer.current);
+    setUndo(steps);
+    if (steps.length) undoTimer.current = window.setTimeout(() => setUndo([]), UNDO_MS);
+  };
+  useEffect(() => () => window.clearTimeout(undoTimer.current), []);
+  // saiu do modo de lançar (tocou em "Pronto" ou perdeu o PIN): some o desfazer junto
+  useEffect(() => {
+    if (!scoreable) { window.clearTimeout(undoTimer.current); setUndo([]); }
+  }, [scoreable]);
 
   useEffect(() => {
     if (r.done && !wasDone.current) {
@@ -36,6 +54,20 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
     }
     wasDone.current = r.done;
   }, [r.done]);
+
+  const score1 = (s: 'a' | 'b', delta: 1 | -1) => {
+    // só guarda para desfazer o que de fato muda o placar (um "−" no zero não vira "+1" depois)
+    const applies = !!applyGame(m.sets, s, delta, scoring, knockout);
+    onPoint(s, delta);
+    if (applies) armUndo([...undo, { side: s, delta }].slice(-5));
+  };
+  const last = scoreable ? undo[undo.length - 1] : undefined;
+  const pairName = (s: 'a' | 'b') => (s === 'a' ? m.a : m.b).map((id) => players.get(id)?.name ?? '?').join(' e ');
+  const undoLast = () => {
+    if (!last) return;
+    onPoint(last.side, last.delta > 0 ? -1 : 1);
+    armUndo(undo.slice(0, -1));
+  };
 
   const head = [m.label ?? `Jogo ${number}`, m.grp ? `Grupo ${m.grp}` : `Quadra ${m.court}`].join(' · ');
 
@@ -83,12 +115,12 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
             </span>
           )}
           {scoreable && (
-            <button type="button" aria-label={`Tirar um game de ${label}`} disabled={score <= 0 && !(multi && m.sets.length > 1)} onClick={() => onPoint(s, -1)}
+            <button type="button" aria-label={`Tirar um game de ${label}`} disabled={score <= 0 && !(multi && m.sets.length > 1)} onClick={() => score1(s, -1)}
               className="h-9 w-9 rounded-full border-[1.5px] border-line text-xl leading-none disabled:opacity-25 max-[380px]:h-8 max-[380px]:w-8">−</button>
           )}
           <output aria-label={`${label}: ${score}`} className={cx('min-w-[1.1em] text-center font-display text-[48px] font-extrabold leading-none tabnum max-[380px]:text-[40px]', lost && 'text-muted')}>{score}</output>
           {scoreable && (
-            <button type="button" aria-label={`Game para ${label}`} disabled={r.done} onClick={() => onPoint(s, 1)}
+            <button type="button" aria-label={`Game para ${label}`} disabled={r.done} onClick={() => score1(s, 1)}
               className="h-[52px] w-[52px] rounded-full bg-score text-3xl font-semibold leading-none text-onscore active:translate-y-px disabled:opacity-25 max-[380px]:h-12 max-[380px]:w-12">+</button>
           )}
         </div>
@@ -98,9 +130,24 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
 
   return (
     <article id={`jogo-${m.id}`} className={cx('court flex scroll-mt-24 flex-col gap-1.5 rounded-lg px-4 py-4 shadow-card', !!me && (m.a.includes(me) || m.b.includes(me)) && 'ring-[3px] ring-accent')} aria-label={head}>
-      <header className="relative flex items-center gap-2 px-1 text-xs font-extrabold uppercase tracking-[.12em] text-muted">
-        <span className="min-w-0 truncate">{head}</span>
-        <span className={cx('ml-auto whitespace-nowrap rounded-full px-2 py-0.5 tracking-[.08em]', status[1])}>{status[0]}</span>
+      <header className={cx('relative flex items-center gap-2 px-1 text-xs font-extrabold uppercase tracking-[.12em] text-muted', canScore && 'min-h-7')}>
+        {last ? (
+          // fica no lugar do "Jogo N · Quadra X", do lado oposto aos botões de game; a altura
+          // do cabeçalho já está reservada (min-h-7), então nada embaixo se mexe. O alvo de
+          // toque cresce para 48 px por um ::before que só invade a área dos nomes.
+          <button type="button" onClick={undoLast}
+            aria-label={`Desfazer ${last.delta > 0 ? '+1' : '−1'} game de ${pairName(last.side)}`}
+            className="relative inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-accent px-3 font-extrabold tracking-[.08em] text-onaccent before:absolute before:inset-x-0 before:-inset-y-[10px] before:content-[''] active:translate-y-px">
+            <svg aria-hidden viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-none">
+              <path d="M5.5 3 2.5 6l3 3" />
+              <path d="M2.5 6h7a4 4 0 0 1 0 8H7" />
+            </svg>
+            <span>Desfazer<span className="tabnum max-[380px]:hidden"> {last.delta > 0 ? '+1' : '−1'}</span></span>
+          </button>
+        ) : (
+          <span className="min-w-0 truncate">{head}</span>
+        )}
+        <span className={cx('ml-auto whitespace-nowrap rounded-full px-2 py-0.5 tracking-[.08em]', last && 'min-w-0 truncate', status[1])}>{status[0]}</span>
         {canScore && (locked || editing) && (
           <button type="button" onClick={() => setEditing((e) => !e)} aria-pressed={editing}
             className={cx('whitespace-nowrap rounded-full px-2 py-0.5 font-extrabold tracking-[.08em]', editing ? 'bg-accent text-onaccent' : 'shadow-[inset_0_0_0_1.5px_var(--line)] text-ink')}>

@@ -8,6 +8,8 @@ export interface Saved {
   role: Role;
   adminKey?: string;
   token?: string;
+  /** PIN do árbitro, só no aparelho do organizador (que já guarda a chave). Torneios antigos não têm. */
+  pin?: string;
   savedAt: string;
 }
 
@@ -59,7 +61,10 @@ export function dropToken(code: string): void {
 
 export function forget(code: string): void {
   write(LIST, read<Saved[]>(LIST, []).filter((s) => s.code !== code));
-  try { localStorage.removeItem(`s8:fila:${code}`); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(`s8:fila:${code}`);
+    localStorage.removeItem(`s8:ultimo:${code}`); // último placar guardado (snapshot.ts)
+  } catch { /* ignore */ }
 }
 
 export interface Intent {
