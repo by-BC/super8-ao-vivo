@@ -11,6 +11,11 @@ export interface ImportResult {
   duplicates: string[];
   /** linhas que não pareciam nome (título, recado, lista de espera) */
   ignored: string[];
+  /**
+   * A lista veio em duplas: toda linha com nome tem exatamente dois ("Ana e Bia", "Ana / Bia").
+   * Só vale quando são pelo menos 2 linhas e nenhum nome se repete; senão é null e os nomes entram soltos.
+   */
+  pairs: [string, string][] | null;
 }
 
 const INVISIBLE = /[​-‍⁠﻿­]/g;
@@ -78,13 +83,26 @@ export function parsePlayerList(text: string, force?: Gender | null): ImportResu
   const ignored: string[] = [];
   const seen = new Set<string>();
   let current: Gender | 'skip' | null = null;
+  /** nomes de cada linha que trouxe nome; `clean` = a linha não teve repetido nem pedaço ignorado */
+  const lines: { names: string[]; clean: boolean }[] = [];
+  let line: { names: string[]; clean: boolean } | null = null;
 
   const add = (p: ImportedPlayer | null, fallback: Gender | null, original: string) => {
-    if (!p) { if (original.trim()) ignored.push(clean(original) || original.trim()); return; }
+    if (!p) {
+      if (original.trim()) { ignored.push(clean(original) || original.trim()); if (line) line.clean = false; }
+      return;
+    }
     const key = p.name.toLocaleLowerCase('pt-BR');
-    if (seen.has(key)) { duplicates.push(p.name); return; }
+    if (seen.has(key)) { duplicates.push(p.name); if (line) line.clean = false; return; }
     seen.add(key);
     players.push({ name: p.name, gender: force ?? p.gender ?? fallback });
+    line?.names.push(p.name);
+  };
+  const addLine = (pieces: string[], fallback: (n: number) => Gender | null) => {
+    line = { names: [], clean: true };
+    pieces.forEach((piece) => add(parsePiece(piece), fallback(pieces.length), piece));
+    if (line.names.length || !line.clean) lines.push(line);
+    line = null;
   };
 
   for (const rawLine of text.split(/\r?\n/)) {
@@ -100,7 +118,8 @@ export function parsePlayerList(text: string, force?: Gender | null): ImportResu
       const h = HEADER.exec(body);
       if (h) {
         current = genderWord(h[1]);
-        if (h[2]?.trim()) for (const piece of splitNames(h[2])) add(parsePiece(piece), current, piece);
+        const g = current;
+        if (h[2]?.trim()) addLine(splitNames(h[2]), () => g);
         continue;
       }
       if (SKIP_SECTION.test(body)) { current = 'skip'; ignored.push(body); continue; }
@@ -108,18 +127,18 @@ export function parsePlayerList(text: string, force?: Gender | null): ImportResu
       const colon = /^([^:]{1,40}):\s*(.+)$/.exec(body);
       if (colon && TITLE.test(colon[1]) && current !== 'skip') {
         ignored.push(colon[1]);
-        for (const piece of splitNames(colon[2])) add(parsePiece(piece), current, piece);
+        const g = current;
+        addLine(splitNames(colon[2]), () => g);
         continue;
       }
       if (TITLE.test(body)) { ignored.push(body); continue; }
     }
     if (current === 'skip') { ignored.push(body); continue; }
 
-    const pieces = splitNames(body);
-    for (const piece of pieces) {
-      const fallback = (pieces.length === 1 ? lineGender : null) ?? current;
-      add(parsePiece(piece), fallback, piece);
-    }
+    const g = current;
+    addLine(splitNames(body), (n) => (n === 1 ? lineGender : null) ?? g);
   }
-  return { players, duplicates, ignored };
+  const paired = lines.length >= 2 && lines.every((l) => l.clean && l.names.length === 2);
+  const pairs = paired ? lines.map((l) => [l.names[0], l.names[1]] as [string, string]) : null;
+  return { players, duplicates, ignored, pairs };
 }

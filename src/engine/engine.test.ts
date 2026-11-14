@@ -146,6 +146,25 @@ describe('importar lista do WhatsApp', () => {
     expect(names('Ana\nBia', 'M').every((p) => p.gender === 'M')).toBe(true);
     expect(names('1- Caio\n2- Diego', 'H').map((p) => `${p.name}:${p.gender}`)).toEqual(['Caio:H', 'Diego:H']);
   });
+  it('lista de duplas: toda linha com dois nomes vira dupla', () => {
+    const r = parsePlayerList('Duplas do sábado\n1. Ana e Bia\n2. Carla / Duda\n3- Edu, Fábio\nLista de espera\nZeca e Tião');
+    expect(r.pairs).toEqual([['Ana', 'Bia'], ['Carla', 'Duda'], ['Edu', 'Fábio']]);
+    expect(r.players).toHaveLength(6);
+  });
+  it('duplas mistas com gênero no nome', () => {
+    const r = parsePlayerList('Ana (F) e Caio (H)\nBia mulher / Diego homem');
+    expect(r.pairs).toEqual([['Ana', 'Caio'], ['Bia', 'Diego']]);
+    expect(r.players.map((p) => `${p.name}:${p.gender}`)).toEqual(['Ana:M', 'Caio:H', 'Bia:M', 'Diego:H']);
+  });
+  it('não inventa dupla: basta uma linha fora do padrão', () => {
+    expect(parsePlayerList('Ana e Bia\nCarla\nDuda').pairs).toBeNull();
+    expect(parsePlayerList('Ana e Bia\nCarla, Duda e Edu').pairs).toBeNull();
+    expect(parsePlayerList('Ana e Bia').pairs).toBeNull();
+    expect(parsePlayerList('Ana\nBia\nCarla\nDuda').pairs).toBeNull();
+    expect(parsePlayerList('Mulheres: Ana, Bia\nHomens: Caio, Diego').pairs).toEqual([['Ana', 'Bia'], ['Caio', 'Diego']]);
+    // nome repetido desfaz a leitura em duplas
+    expect(parsePlayerList('Ana e Bia\nAna e Carla').pairs).toBeNull();
+  });
 });
 
 describe('rodízio individual', () => {

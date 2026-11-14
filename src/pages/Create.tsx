@@ -38,17 +38,38 @@ const randomPin = () => String(1000 + (crypto.getRandomValues(new Uint32Array(1)
 const modalityOf = (t: Tipo): Modality => (t === 'mista' ? 'mista' : t === 'livre' ? 'livre' : 'mesmo_genero');
 const onlyOf = (t: Tipo): Gender | null => (t === 'so_f' ? 'M' : t === 'so_m' ? 'H' : null);
 const tipoOf = (m: Modality): Tipo => (m === 'mista' ? 'mista' : m === 'livre' ? 'livre' : 'separado');
+const nameKey = (s: string) => s.trim().toLocaleLowerCase('pt-BR');
+
+/** Dupla que respeita o tipo: misto pede um de cada gênero; os outros, o mesmo gênero (ou o gênero da chave). */
+function pairFits(t: Tipo, a: Gender | null | undefined, b: Gender | null | undefined): boolean {
+  if (t === 'livre') return true;
+  if (!a || !b) return true;
+  if (t === 'mista') return a !== b;
+  const only = onlyOf(t);
+  return a === b && (!only || a === only);
+}
+
+/** Mantém só as duplas montadas que ainda valem para o tipo. */
+function keepPairs(t: Tipo, manual: [string, string][], players: Player[]): [string, string][] {
+  const g = new Map(players.map((p) => [p.id, p.gender]));
+  return manual.filter(([x, y]) => g.has(x) && g.has(y) && pairFits(t, g.get(x), g.get(y)));
+}
 
 /**
- * O tipo que a lista colada sugere. Nunca escolhe "feminino e masculino separados":
- * esse só entra se o organizador pedir. Quem está sem gênero no meio de uma lista
- * com gênero puxa para misto, pra o app pedir M ou H em vez de deixar gente de fora.
+ * O tipo que a lista colada sugere. Só escolhe "feminino e masculino separados" quando
+ * as duplas montadas provam isso (toda dupla é do mesmo gênero e tem os dois gêneros);
+ * fora isso, esse só entra se o organizador pedir. Quem está sem gênero no meio de uma
+ * lista com gênero puxa para misto, pra o app pedir M ou H em vez de deixar gente de fora.
  */
-function inferTipo(players: { gender: Gender | null }[]): Tipo {
+function inferTipo(players: { id: string; gender: Gender | null }[], pairs: [string, string][] = []): Tipo {
   const w = players.some((p) => p.gender === 'M');
   const h = players.some((p) => p.gender === 'H');
   const none = players.some((p) => !p.gender);
   if (!w && !h) return 'livre';
+  if (w && h && pairs.length) {
+    const g = new Map(players.map((p) => [p.id, p.gender]));
+    if (pairs.every(([x, y]) => g.get(x) && g.get(x) === g.get(y))) return 'separado';
+  }
   if (w && h) return 'mista';
   if (none) return 'mista';
   return w ? 'so_f' : 'so_m';
@@ -172,6 +193,7 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
   });
   const [step, setStep] = useState(0);
   const [tipoOpen, setTipoOpen] = useState(false);
+  const [pairsOpen, setPairsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   /** Trava síncrona contra criar duas vezes (toque + volta da internet no mesmo instante). */
   const busyRef = useRef(false);
@@ -191,13 +213,15 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
   useEffect(() => { window.scrollTo(0, 0); setConfirmWipe(false); }, [step]);
 
   // enquanto o organizador não escolhe o tipo na mão, ele sai da lista colada
-  const inferred = inferTipo(d.players);
+  const inferred = inferTipo(d.players, d.manual);
   useEffect(() => {
     if (edit || d.tipoPicked || d.entry !== 'lista' || !d.players.length || inferred === d.tipo) return;
-    set({ tipo: inferred, manual: [] });
-    setC({ modality: modalityOf(inferred) });
+    setD((x) => ({ ...x, tipo: inferred, manual: keepPairs(inferred, x.manual, x.players), config: { ...x.config, modality: modalityOf(inferred) } }));
   }, [inferred, d.tipoPicked, d.entry, d.tipo]);
-  const pickTipo = (t: Tipo) => { set({ tipo: t, tipoPicked: true, manual: [] }); setC({ modality: modalityOf(t) }); setTipoOpen(false); };
+  const pickTipo = (t: Tipo) => {
+    setD((x) => ({ ...x, tipo: t, tipoPicked: true, manual: keepPairs(t, x.manual, x.players), config: { ...x.config, modality: modalityOf(t) } }));
+    setTipoOpen(false);
+  };
   const autoTipo = () => { set({ tipoPicked: false }); setTipoOpen(false); };
 
   const only = onlyOf(d.tipo);
@@ -322,7 +346,8 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
   const wipeAsk = confirmWipe && destructive && step === CONFIRM && !busy;
   const tallBar = failShown || retrying || wipeAsk;
   const pending = `${check.issues.length} ajuste${check.issues.length > 1 ? 's' : ''} pendente${check.issues.length > 1 ? 's' : ''}`;
-  const size = check.ok ? `${summary.rounds} rodadas · ${summary.matches} jogos` : pending;
+  const sizeText = `${summary.rounds} ${summary.rounds === 1 ? 'rodada' : 'rodadas'} · ${summary.matches} ${summary.matches === 1 ? 'jogo' : 'jogos'}`;
+  const size = check.ok ? sizeText : pending;
   const barInfo = [
     viaLink ? 'Inscrição pelo link' : players.length ? `${players.length} jogadores · ${size}` : 'Cole a lista pra começar',
     viaLink ? 'Rodadas no sorteio' : size,
@@ -330,6 +355,21 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
     '',
   ][step];
   const tipoInfo = TIPOS.find((t) => t.value === d.tipo)!;
+
+  const activeIds = new Set(players.map((p) => p.id));
+  const formed = d.manual.filter(([x, y]) => activeIds.has(x) && activeIds.has(y)).length;
+  const pairingTitle = c.pairing === 'manual' ? 'montadas por você' : c.pairing === 'equilibrado' ? 'equilibradas por nível' : 'no sorteio';
+  const pairingHint = c.pairing === 'manual'
+    ? `${formed} de ${Math.floor(players.length / 2)} montadas.${formed * 2 < players.length ? ' Toque em Ajustar pra completar.' : ''}`
+    : PAIRINGS.find((p) => p.value === c.pairing)!.hint;
+  const pairingEditor = (
+    <div>
+      <Choices name="Formação das duplas" value={c.pairing} options={viaLink ? PAIRINGS.filter((o) => o.value !== 'manual') : PAIRINGS} cols={1} compact
+        onChange={(v) => { setC({ pairing: v }); if (v === 'equilibrado') { if (viaLink) set({ signup: { ...d.signup, askLevel: true } }); else set({ useLevel: true }); } }} />
+      {c.pairing === 'equilibrado' && <p className="m-0 mt-3 text-sm text-muted">{viaLink ? 'O nível de cada um vem da inscrição. Você pode corrigir antes de sortear.' : 'Toque no nome de cada jogador, no passo Jogadores, para marcar o nível.'}</p>}
+      {c.pairing === 'manual' && !viaLink && <PairBuilder players={players} tipo={d.tipo} pairs={d.manual} onChange={(manual) => set({ manual })} />}
+    </div>
+  );
 
   return (
     <>
@@ -389,11 +429,29 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
               </Panel>
               <Button kind="quiet" className="self-center" onClick={() => set({ entry: 'lista' })}>Prefere colar a lista do grupo?</Button>
             </>) : (<>
-            <AddNames tipo={d.tipo} picked={d.tipoPicked} onAdd={(list) => {
-              const have = new Set(d.players.map((p) => p.name.trim().toLocaleLowerCase('pt-BR')));
-              const fresh = list.filter((p) => !have.has(p.name.toLocaleLowerCase('pt-BR')));
-              set({ players: [...d.players, ...fresh.map((p) => ({ id: pid(), name: p.name, gender: p.gender }))] });
-              toast(fresh.length === list.length ? `${fresh.length} nomes adicionados.` : `${fresh.length} nomes adicionados, ${list.length - fresh.length} já estavam na lista.`);
+            <AddNames tipo={d.tipo} picked={d.tipoPicked} onAdd={(list, pairs) => {
+              const ids = new Map(d.players.map((p) => [nameKey(p.name), p.id]));
+              const added: Player[] = [];
+              for (const p of list) {
+                if (ids.has(nameKey(p.name))) continue;
+                const id = pid();
+                ids.set(nameKey(p.name), id);
+                added.push({ id, name: p.name, gender: p.gender });
+              }
+              const all = [...d.players, ...added];
+              if (!pairs) {
+                set({ players: all });
+                toast(added.length === list.length ? `${added.length} nomes adicionados.` : `${added.length} nomes adicionados, ${list.length - added.length} já estavam na lista.`);
+                return;
+              }
+              // lista em duplas: cada linha vira uma dupla fixa, montada como veio
+              const taken = new Set(d.manual.flat());
+              const fresh = pairs
+                .map(([a, b]) => [ids.get(nameKey(a))!, ids.get(nameKey(b))!] as [string, string])
+                .filter(([a, b]) => !taken.has(a) && !taken.has(b));
+              set({ players: all, manual: [...d.manual, ...fresh] });
+              setC({ format: teamsFormat ? c.format : 'duplas', pairing: 'manual' });
+              toast(`${fresh.length} duplas adicionadas. Formato: duplas fixas, do jeito que você colou.`);
             }} />
             {(d.players.length > 0 || d.tipoPicked) && (
               <div className="flex min-h-[56px] items-center gap-3 rounded-lg bg-surface py-2 pl-4 pr-2 shadow-card">
@@ -404,6 +462,21 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
                 <Button kind="quiet" className="flex-none" aria-haspopup="dialog" onClick={() => setTipoOpen(true)}>Mudar</Button>
               </div>
             )}
+            {teamsFormat && d.players.length > 0 && (
+              <div className="flex min-h-[56px] items-center gap-3 rounded-lg bg-surface py-2 pl-4 pr-2 shadow-card">
+                <p className="m-0 min-w-0 flex-1 leading-tight">
+                  <b>Duplas: {pairingTitle}</b>
+                  <small className="block text-[13px] text-muted">{pairingHint}</small>
+                </p>
+                <Button kind="quiet" className="flex-none" aria-haspopup="dialog" onClick={() => setPairsOpen(true)}>{c.pairing === 'manual' ? 'Ajustar' : 'Montar'}</Button>
+              </div>
+            )}
+            <Sheet open={pairsOpen} onClose={() => setPairsOpen(false)} title="Duplas">
+              <div className="flex flex-col gap-3">
+                {pairingEditor}
+                <Button kind="primary" block onClick={() => setPairsOpen(false)}>Pronto</Button>
+              </div>
+            </Sheet>
             <PlayersPanel
               d={d} tipo={d.tipo}
               onUpdate={(id, patch) => set({ players: d.players.map((p) => (p.id === id ? { ...p, ...patch } : p)) })}
@@ -468,19 +541,14 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
                 </Field>
                 {check.ok && !viaLink && (
                   <Note kind="ok">
-                    <b>{summary.rounds} rodadas · {summary.matches} jogos.</b>{summary.extra && <> {summary.extra}.</>} Cada {isIndividual(c.format) ? 'pessoa' : 'dupla'} joga{' '}
+                    <b>{sizeText}.</b>{summary.extra && <> {summary.extra}.</>} Cada {isIndividual(c.format) ? 'pessoa' : 'dupla'} joga{' '}
                     {summary.minGames === summary.maxGames ? summary.minGames : `de ${summary.minGames} a ${summary.maxGames}`} partidas{c.format === 'rodizio' && c.rodizioGroups === 2 && c.extraGames && summary.minGames !== summary.maxGames ? ' (igual dentro de cada grupo)' : ''}.
                   </Note>
                 )}
               </div>
             </Panel>
             {teamsFormat && (
-              <Panel title="Duplas">
-                <Choices name="Formação das duplas" value={c.pairing} options={viaLink ? PAIRINGS.filter((o) => o.value !== 'manual') : PAIRINGS} cols={1} compact
-                  onChange={(v) => { setC({ pairing: v }); if (v === 'equilibrado') { if (viaLink) set({ signup: { ...d.signup, askLevel: true } }); else set({ useLevel: true }); } }} />
-                {c.pairing === 'equilibrado' && <p className="m-0 mt-3 text-sm text-muted">{viaLink ? 'O nível de cada um vem da inscrição. Você pode corrigir antes de sortear.' : 'Toque no nome de cada jogador, no passo Jogadores, para marcar o nível.'}</p>}
-                {c.pairing === 'manual' && <ManualPairs players={players} modality={c.modality} pairs={d.manual} onChange={(manual) => set({ manual })} />}
-              </Panel>
+              <Panel title="Duplas">{pairingEditor}</Panel>
             )}
             {c.format === 'rodizio' && (viaLink ? d.signup.askLevel : d.useLevel) && <Note kind="ok">Com nível, o rodízio monta cada jogo com duplas de força parecida.</Note>}
             {!viaLink && check.issues.filter((i) => i.area !== 'regras').map((i) => <Note key={i.text} kind="warn">{i.text}</Note>)}
@@ -530,8 +598,9 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
                     ? [['Inscrição', `Pelo link · ${signupSummary({ ...signupSettings, gender: only })}`]]
                     : [['Jogadores', `${players.length}${d.tipo === 'livre' ? '' : ` (${players.filter((p) => p.gender === 'M').length} M · ${players.filter((p) => p.gender === 'H').length} H)`}`]]),
                   ['Formato', later ? 'Decide no sorteio, com sugestões pela lista' : FORMATS.find((f) => f.value === c.format)!.title],
+                  ...(teamsFormat && !later ? [['Duplas', c.pairing === 'manual' ? `Montadas por você (${formed} de ${Math.floor(players.length / 2)})` : c.pairing === 'equilibrado' ? 'Equilibradas por nível' : 'No sorteio']] : []),
                   ...(viaLink ? [] : [
-                    ['Tamanho', `${summary.rounds} rodadas · ${summary.matches} jogos`],
+                    ['Tamanho', sizeText],
                     ['Cada um joga', summary.minGames === summary.maxGames ? `${summary.minGames} partidas` : `${summary.minGames} a ${summary.maxGames} partidas`],
                   ]),
                   ...(later ? [] : [['Partida', c.scoring.type === 'total' ? scoringLabel(c.scoring) : `${scoringLabel(c.scoring)} · ≈${gamesPerMatch(c.scoring)} games`]]),
@@ -640,7 +709,7 @@ export function Check({ checked, onChange, title, hint }: { checked: boolean; on
 
 type Batch = 'auto' | Gender;
 
-function AddNames({ tipo, picked, onAdd }: { tipo: Tipo; picked: boolean; onAdd: (l: { name: string; gender: Gender | null }[]) => void }) {
+function AddNames({ tipo, picked, onAdd }: { tipo: Tipo; picked: boolean; onAdd: (l: { name: string; gender: Gender | null }[], pairs: [string, string][] | null) => void }) {
   const [text, setText] = useState('');
   // só segue o tipo quando ele foi escolhido na mão; o tipo deduzido não muda como a próxima lista é lida
   const [batch, setBatch] = useState<Batch>(picked && tipo === 'so_f' ? 'M' : picked && tipo === 'so_m' ? 'H' : 'auto');
@@ -667,13 +736,14 @@ function AddNames({ tipo, picked, onAdd }: { tipo: Tipo; picked: boolean; onAdd:
       </div>
       <p className="m-0 mt-3 text-sm text-muted tabnum">
         {parsed.players.length
-          ? <><b className="text-ink">{parsed.players.length} nomes</b>{h || m ? ` · ${m} M · ${h} H` : ''}{none && (h || m) ? ` · ${none} sem gênero (marque depois)` : ''}</>
-          : 'Funciona com vírgula, um por linha, lista numerada, “Mulheres:” e “Homens:”, com ou sem emoji.'}
+          ? <>{parsed.pairs && <><b className="text-ink">{parsed.pairs.length} duplas</b> · </>}<b className={parsed.pairs ? '' : 'text-ink'}>{parsed.players.length} nomes</b>{h || m ? ` · ${m} M · ${h} H` : ''}{none && (h || m) ? ` · ${none} sem gênero (marque depois)` : ''}</>
+          : <>Funciona com vírgula, um por linha, lista numerada, “Mulheres:” e “Homens:”, com ou sem emoji. <span className="block">Já tem as duplas? Cole uma por linha, tipo <b className="text-ink">Ana e Bia</b>, que o app monta duplas fixas.</span></>}
+        {parsed.pairs && <span className="block">Cada linha vira uma dupla fixa.</span>}
         {parsed.ignored.length > 0 && <span className="block">Ignorei: {parsed.ignored.slice(0, 3).join(' · ')}{parsed.ignored.length > 3 ? '…' : ''}</span>}
         {parsed.duplicates.length > 0 && <span className="block">Repetidos: {parsed.duplicates.join(', ')}</span>}
       </p>
-      <Button kind="primary" block className="mt-3" disabled={!parsed.players.length} onClick={() => { onAdd(parsed.players); setText(''); }}>
-        {parsed.players.length ? `Adicionar ${parsed.players.length} nome${parsed.players.length > 1 ? 's' : ''}` : 'Adicionar'}
+      <Button kind="primary" block className="mt-3" disabled={!parsed.players.length} onClick={() => { onAdd(parsed.players, parsed.pairs); setText(''); }}>
+        {parsed.pairs ? `Adicionar ${parsed.pairs.length} duplas` : parsed.players.length ? `Adicionar ${parsed.players.length} nome${parsed.players.length > 1 ? 's' : ''}` : 'Adicionar'}
       </Button>
     </Panel>
   );
@@ -839,39 +909,60 @@ export function TiebreakEditor({ value, onChange }: { value: Tiebreak[]; onChang
   );
 }
 
-function ManualPairs({ players, modality, pairs, onChange }: { players: Player[]; modality: Modality; pairs: [string, string][]; onChange: (p: [string, string][]) => void }) {
-  const used = new Set(pairs.flat().filter(Boolean));
-  const options = (current: string, other: string) => {
-    const g = players.find((p) => p.id === other)?.gender;
-    return players.filter((p) => {
-      if (p.id === current) return true;
-      if (used.has(p.id) || p.id === other) return false;
-      if (modality === 'mista' && g && p.gender === g) return false;
-      if (modality === 'mesmo_genero' && g && p.gender !== g) return false;
-      return true;
-    });
-  };
+/** Montagem das duplas no toque: toca num nome, depois no parceiro. Quem não combina com o tipo fica apagado. */
+function PairBuilder({ players, tipo, pairs, onChange }: { players: Player[]; tipo: Tipo; pairs: [string, string][]; onChange: (p: [string, string][]) => void }) {
+  const [pick, setPick] = useState<string | null>(null);
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const formed = pairs.filter(([x, y]) => byId.has(x) && byId.has(y));
+  const used = new Set(formed.flat());
   const free = players.filter((p) => !used.has(p.id));
-  const setAt = (i: number, side: 0 | 1, id: string) => onChange(pairs.map((p, j) => (j === i ? (side === 0 ? [id, p[1]] : [p[0], id]) : p)));
+  const picked = pick ? byId.get(pick) : undefined;
+  const showGender = tipo === 'mista' || tipo === 'separado';
+  const tap = (id: string) => {
+    if (!pick || pick === id) { setPick(pick === id ? null : id); return; }
+    onChange([...pairs, [pick, id]]);
+    setPick(null);
+  };
   return (
     <div className="mt-4 flex flex-col gap-3">
-      {pairs.map((p, i) => (
-        <div key={i} className="flex flex-col gap-1.5 rounded-lg bg-bg p-2.5">
-          <div className="flex items-center justify-between">
-            <b className="text-sm">Dupla {i + 1}</b>
-            <button type="button" aria-label={`Remover dupla ${i + 1}`} className="-my-2 -mr-1 h-12 w-12 text-xl text-muted" onClick={() => onChange(pairs.filter((_, j) => j !== i))}>×</button>
-          </div>
-          {([0, 1] as const).map((side) => (
-            <select key={side} aria-label={`Dupla ${i + 1}, jogador ${side + 1}`} value={p[side]} onChange={(e) => setAt(i, side, e.target.value)}
-              className="min-h-[48px] w-full rounded-lg border-[1.5px] border-line bg-surface px-2 text-base font-semibold text-ink">
-              <option value="">Escolha…</option>
-              {options(p[side], p[side === 0 ? 1 : 0]).map((o) => <option key={o.id} value={o.id}>{o.name || '?'}{o.gender ? ` (${o.gender})` : ''}</option>)}
-            </select>
+      {formed.length > 0 && (
+        <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
+          {formed.map(([x, y], i) => (
+            <li key={`${x}+${y}`} className="flex min-h-[48px] items-center gap-2 rounded-lg bg-bg pl-3">
+              <span className="w-5 flex-none text-sm font-bold text-muted tabnum">{i + 1}</span>
+              <span className="min-w-0 flex-1 font-semibold leading-tight [overflow-wrap:break-word]">
+                {byId.get(x)!.name} <span className="font-normal text-muted">e</span> {byId.get(y)!.name}
+              </span>
+              <button type="button" aria-label={`Desfazer a dupla ${byId.get(x)!.name} e ${byId.get(y)!.name}`}
+                className="h-12 w-12 flex-none text-xl text-muted" onClick={() => onChange(pairs.filter(([a, b]) => !(a === x && b === y)))}>×</button>
+            </li>
           ))}
+        </ol>
+      )}
+      {free.length > 0 ? (
+        <div>
+          <p className="m-0 mb-2 text-[13px] text-muted" aria-live="polite">
+            {picked ? <>Agora toque no parceiro de <b className="text-ink">{picked.name}</b>.</> : `Toque em dois nomes pra formar a dupla. Sem dupla: ${free.length}.`}
+          </p>
+          <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+            {free.map((p) => {
+              const on = pick === p.id;
+              const blocked = !!picked && !on && !pairFits(tipo, picked.gender, p.gender);
+              return (
+                <li key={p.id}>
+                  <button type="button" aria-pressed={on} disabled={blocked} onClick={() => tap(p.id)}
+                    className={cx('flex min-h-[48px] items-center gap-1.5 rounded-full border-[1.5px] px-4 font-semibold disabled:opacity-35',
+                      on ? 'border-select bg-select text-onselect' : 'border-line bg-bg text-ink')}>
+                    {showGender && <GenderDot g={p.gender} />}
+                    {p.name || '?'}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </div>
-      ))}
-      <Button kind="ghost" disabled={free.length < 2} onClick={() => onChange([...pairs, ['', '']])}>+ Dupla</Button>
-      {free.length > 0 && <span className="text-sm text-muted">Sem dupla: {free.map((p) => p.name).join(', ')}</span>}
+      ) : formed.length > 0 && <p className="m-0 text-[13px] text-muted">Todo mundo tem dupla.</p>}
+      {formed.length > 1 && <Button kind="quiet" className="self-start" onClick={() => { onChange([]); setPick(null); }}>Desfazer todas</Button>}
     </div>
   );
 }
