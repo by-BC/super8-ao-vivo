@@ -1,6 +1,13 @@
 import { evaluate } from './scoring';
 import { standings, teamEntities, teamSides, type Row } from './standings';
-import type { Config, Match, NewMatch, Player, Team } from './types';
+import { isAmistoso, type Config, type Match, type NewMatch, type Player, type Team } from './types';
+
+/**
+ * Jogos que contam na tabela de um grupo: os da fase de grupos e os jogos extras que o organizador criou
+ * entre duplas do mesmo grupo (fase 'rodada', que nos grupos só existe pra eles). Amistoso fica de fora.
+ */
+export const groupStageMatches = (matches: Match[], division: string): Match[] =>
+  matches.filter((m) => (m.stage === 'grupo' || m.stage === 'rodada') && m.division === division && !isAmistoso(m));
 
 export function nextPow2(n: number): number {
   let p = 1;
@@ -31,7 +38,7 @@ export function groupTables(division: string, teams: Team[], players: Player[], 
   const groups = [...new Set(teams.filter((t) => t.division === division).map((t) => t.group ?? ''))].sort();
   for (const g of groups) {
     const ts = teams.filter((t) => t.division === division && (t.group ?? '') === g);
-    const ms = matches.filter((m) => m.stage === 'grupo' && m.division === division && (m.grp ?? '') === g);
+    const ms = groupStageMatches(matches, division).filter((m) => (m.grp ?? '') === g);
     out.set(g, standings(teamEntities(ts, players), ms, config, teamSides));
   }
   return out;
@@ -57,7 +64,7 @@ function teamMatch(division: string, round: number, slot: number, label: string,
 
 /** Primeira fase do mata-mata de uma divisão, quando todos os jogos de grupo acabaram. */
 export function knockoutStart(division: string, teams: Team[], players: Player[], matches: Match[], config: Config): NewMatch[] | null {
-  const groupMatches = matches.filter((m) => m.stage === 'grupo' && m.division === division);
+  const groupMatches = groupStageMatches(matches, division);
   if (!groupMatches.length || groupMatches.some((m) => !evaluate(m.sets, config.scoring).done)) return null;
   if (matches.some((m) => m.stage === 'mata' && m.division === division)) return null;
 

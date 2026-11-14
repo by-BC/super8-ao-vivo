@@ -1,5 +1,5 @@
 import { evaluate } from './scoring';
-import type { Config, Gender, Match, Player, Team, Tiebreak } from './types';
+import { isAmistoso, type Config, type Gender, type Match, type Player, type Team, type Tiebreak } from './types';
 
 export interface Entity {
   key: string;
@@ -61,6 +61,7 @@ export function standings(entities: Entity[], matches: Match[], config: Pick<Con
 
   for (const m of matches) {
     if (m.b.length === 0) continue; // folga no mata-mata não conta
+    if (isAmistoso(m)) continue; // amistoso não conta pra ninguém
     const r = evaluate(m.sets, config.scoring, m.stage === 'mata');
     if (!r.done) continue;
     finished.push({ m, ga: r.gamesA, gb: r.gamesB });

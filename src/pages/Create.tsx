@@ -288,7 +288,8 @@ export function CreatePage({ edit }: { edit?: EditCtx } = {}) {
     const name = d.name.trim();
     try {
       await api.adminEdit(e.code, e.adminKey, {
-        name, config, data: { players: plan.players, teams: plan.teams }, keep: plan.keep, matches: plan.matches,
+        // encerrado à mão continua encerrado, a não ser que a tabela seja sorteada de novo
+        name, config, data: { players: plan.players, teams: plan.teams, ...(plan.mode !== 'tudo' && e.tour.data.closed ? { closed: e.tour.data.closed } : {}) }, keep: plan.keep, matches: plan.matches,
         wipe: plan.mode === 'tudo', expected: e.tour.version,
       });
     } catch (x) {

@@ -3,7 +3,7 @@ import { evaluate } from './scoring';
 import { matchesPerRound, pickPlaying } from './schedule';
 import { individualSides, playerEntities, standings } from './standings';
 import { shuffle, type Rng } from './rng';
-import type { Config, Match, NewMatch, Player } from './types';
+import { isAmistoso, type Config, type Match, type NewMatch, type Player } from './types';
 
 /**
  * Monta uma rodada do mexicano. Na 1ª rodada a ordem é sorteada (ou por nível);
@@ -17,7 +17,8 @@ export function mexicanoRound(roundNo: number, players: Player[], config: Config
 
   for (const { div, m } of matchesPerRound(players, config)) {
     if (m <= 0) continue;
-    const divMatches = played.filter((x) => x.division === div.id && x.stage === 'rodada');
+    // amistoso não entra na conta: nem no ranking que monta a rodada, nem em quem já jogou mais
+    const divMatches = played.filter((x) => x.division === div.id && x.stage === 'rodada' && !isAmistoso(x));
     const games = new Map<string, number>();
     for (const x of divMatches) for (const id of [...x.a, ...x.b]) games.set(id, (games.get(id) ?? 0) + 1);
 
@@ -58,7 +59,8 @@ export function mexicanoRound(roundNo: number, players: Player[], config: Config
 export function nextMexicano(players: Player[], config: Config, matches: Match[], rng: Rng): NewMatch[] | null {
   const current = Math.max(0, ...matches.filter((m) => m.stage === 'rodada').map((m) => m.round));
   if (current >= config.rounds) return null;
-  const pending = matches.some((m) => m.round === current && !evaluate(m.sets, config.scoring).done);
+  // amistoso pendente não segura a próxima rodada; jogo extra que vale pro ranking segura (ele mexe na ordem)
+  const pending = matches.some((m) => m.round === current && !isAmistoso(m) && !evaluate(m.sets, config.scoring).done);
   if (pending) return null;
   return mexicanoRound(current + 1, players, config, matches, rng);
 }

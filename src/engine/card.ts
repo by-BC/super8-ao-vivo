@@ -31,7 +31,7 @@ export interface PlayerCard {
   pts: number;
 }
 
-export function playerCard(players: Player[], teams: Team[], config: Config, matches: Match[], id: string): PlayerCard | null {
+export function playerCard(players: Player[], teams: Team[], config: Config, matches: Match[], id: string, closed = false): PlayerCard | null {
   const p = players.find((x) => x.id === id);
   if (!p) return null;
   const sections = rankingSections(players, teams, config, matches);
@@ -57,7 +57,7 @@ export function playerCard(players: Player[], teams: Team[], config: Config, mat
       champ = mine === ch;
       vice = !champ && (mine === f.teamA || mine === f.teamB);
     }
-  } else if (tournamentStatus(players, config, matches) === 'encerrado') {
+  } else if (tournamentStatus(players, config, matches, closed) === 'encerrado') {
     champ = row.pos === 1;
     vice = row.pos === 2;
   }

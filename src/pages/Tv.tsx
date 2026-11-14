@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { evaluate, formatScore, rankingSections, tournamentStatus, type Player } from '../engine';
+import { evaluate, formatScore, isAmistoso, rankingSections, tournamentStatus, type Player } from '../engine';
 import { cx } from '../components/ui';
 import { shareLink } from '../lib/router';
 import { updatedLabel } from '../lib/snapshot';
@@ -69,9 +69,11 @@ export function TvPage({ code }: { code: string }) {
   const isDone = (m: (typeof t.matches)[number]) => evaluate(m.sets, config.scoring, m.stage === 'mata', m.stage === 'mata' && m.b.length === 0).done;
   const pending = t.matches.filter((m) => !isDone(m));
   const first = pending[0];
-  const current = first ? t.matches.filter((m) => m.stage === first.stage && m.round === first.round && m.b.length > 0) : [];
+  const closed = !!tour.data.closed;
+  // encerrado à mão: o que ficou pendente não é jogo rolando
+  const current = first && !closed ? t.matches.filter((m) => m.stage === first.stage && m.round === first.round && m.b.length > 0) : [];
   const sections = rankingSections(tour.data.players, tour.data.teams, config, t.matches).filter((s) => s.kind !== 'genero');
-  const finished = tournamentStatus(tour.data.players, config, t.matches) === 'encerrado';
+  const finished = tournamentStatus(tour.data.players, config, t.matches, closed) === 'encerrado';
 
   return (
     <main className="min-h-screen bg-band p-[max(24px,env(safe-area-inset-left,0px))] text-bandink">
@@ -95,7 +97,7 @@ export function TvPage({ code }: { code: string }) {
               const r = evaluate(m.sets, config.scoring, m.stage === 'mata');
               return (
                 <div key={m.id} className="rounded-lg bg-white/10 p-4">
-                  <div className="mb-2 text-sm font-bold uppercase tracking-[.12em] opacity-70">Quadra {m.court}{m.grp ? ` · Grupo ${m.grp}` : ''}</div>
+                  <div className="mb-2 text-sm font-bold uppercase tracking-[.12em] opacity-70">Quadra {m.court}{m.grp ? ` · Grupo ${m.grp}` : ''}{isAmistoso(m) ? ' · Amistoso' : ''}</div>
                   {(['a', 'b'] as const).map((s) => (
                     <div key={s} className={cx('flex items-center justify-between gap-3 py-1', r.done && r.winner && r.winner !== s && 'opacity-50')}>
                       <span className="text-2xl font-bold">{nm(s === 'a' ? m.a : m.b)}</span>

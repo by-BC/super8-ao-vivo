@@ -1,10 +1,11 @@
 import QRCode from 'qrcode';
 import { Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  buildInitial, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isIndividual, keptPairs, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, refereeMessage, scheduleMessage,
-  scoringLabel, tournamentStatus, validateSetup, type Match, type Player,
+  buildInitial, deletionPlan, divisionsOf, divisionsWithFinal, evaluate, finalWinners, formatScore, isAmistoso, isIndividual, isManual, isRealMatch, keptPairs, nextStep, playerCard, podiums, randomSeed, rankingMessage, rankingSections, refereeMessage, scheduleMessage,
+  scoringLabel, tournamentStatus, unfinishedMatches, validateSetup, type DeletePlan, type Match, type NewMatch, type Player,
 } from '../engine';
 import { MatchCard } from '../components/MatchCard';
+import { ManualMatchSheet } from '../components/ManualMatchSheet';
 import { PodiumSheet } from '../components/PodiumSheet';
 import { CardSheet } from '../components/CardSheet';
 import { SignupView } from './Signup';
@@ -41,6 +42,19 @@ export function TournamentPage({ code }: { code: string }) {
   const [welcome, setWelcome] = useState<{ code: string; pin: string } | null>(null);
   const [saved, setSaved] = useState(() => getSaved(code));
   const [generating, setGenerating] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  /** Modo de excluir jogos do organizador (o placar some dos cartões enquanto ele está ligado). */
+  const [removing, setRemoving] = useState(false);
+  const [removeBusy, setRemoveBusy] = useState<string | null>(null);
+  /** Último jogo excluído sem placar, que ainda dá pra trazer de volta (some em 10 s ou ao sair do modo). */
+  const [undo, setUndo] = useState<{ text: string; run: () => void } | null>(null);
+  const undoTimer = useRef<number | undefined>(undefined);
+  const armUndo = (u: { text: string; run: () => void } | null) => {
+    window.clearTimeout(undoTimer.current);
+    setUndo(u);
+    if (u) undoTimer.current = window.setTimeout(() => setUndo(null), 10000);
+  };
+  useEffect(() => () => window.clearTimeout(undoTimer.current), []);
   const [divF, setDivFState] = useState<string>(() => {
     try { return localStorage.getItem(`s8:div:${code}`) ?? 'todos'; } catch { return 'todos'; }
   });
@@ -171,14 +185,18 @@ export function TournamentPage({ code }: { code: string }) {
   }
 
   const { players: plist, teams } = tour.data;
-  const status = tournamentStatus(plist, config, t.matches);
+  /** Encerrado à mão pelo organizador: vale por cima da conta de jogos. */
+  const closed = !!tour.data.closed;
+  const status = tournamentStatus(plist, config, t.matches, closed);
   const finished = status === 'encerrado';
-  const real = t.matches.filter((m) => !(m.stage === 'mata' && m.b.length === 0));
+  // amistoso não entra na conta do torneio (contador, barra de progresso, mensagens)
+  const real = t.matches.filter(isRealMatch);
   const done = real.filter((m) => evaluate(m.sets, config.scoring, m.stage === 'mata').done).length;
+  const unfinished = unfinishedMatches(t.matches, config).length;
   const active = plist.filter((p) => !p.left);
-  const step = canScore ? nextStep(active, teams, config, t.serverMatches, 1) : null;
+  const step = canScore && !closed ? nextStep(active, teams, config, t.serverMatches, 1) : null;
   const sections = rankingSections(plist, teams, config, t.matches);
-  const ctx = { name: tour.name, link: shareLink(code), code, players: plist, teams, config, matches: t.matches };
+  const ctx = { name: tour.name, link: shareLink(code), code, players: plist, teams, config, matches: t.matches, closed };
   const divs = divisionsOf(plist, config.modality);
   const division = divs.length > 1 && divs.some((d) => d.id === divF) ? divF : 'todos';
   const byDivision = division === 'todos' ? t.matches : t.matches.filter((m) => m.division === division);
@@ -187,7 +205,7 @@ export function TournamentPage({ code }: { code: string }) {
   // a final junta os grupos, então aparece em qualquer filtro de grupo
   const shownMatches = group === 'todos' ? byDivision : byDivision.filter((m) => m.grp === group || !m.grp);
   const shownPlayers = division === 'todos' ? plist : divs.find((d) => d.id === division)!.players;
-  const pods = podiums(plist, teams, config, t.matches).filter((p) => division === 'todos' || p.division === division);
+  const pods = podiums(plist, teams, config, t.matches, closed).filter((p) => division === 'todos' || p.division === division);
   const artInfo = { charOf: (n: string) => roster.byName.get(n), name: tour.name, date: new Date(tour.createdAt).toLocaleDateString('pt-BR'), site: `${location.host}${location.pathname.replace(/\/$/, '')}` || 'super8 ao vivo', code };
   const openCard = (id: string | null) => { setCardId(id); setCardOpen(true); };
   const shownSections = sections.filter((s) => (division === 'todos' || s.division === division) && (group === 'todos' || s.kind !== 'grupo' || s.id.endsWith(`-${group}`)));
@@ -226,6 +244,93 @@ export function TournamentPage({ code }: { code: string }) {
     }
   }
 
+  /** Jogo criado pelo organizador: entra pelo s8_add_matches (só insere, não mexe no resto da tabela). */
+  async function createMatch(m: NewMatch): Promise<boolean> {
+    const key = saved?.adminKey;
+    if (!key) return false;
+    try {
+      await api.addMatches(code, key, [m]);
+      t.notify();
+      toast(isAmistoso(m) ? 'Amistoso criado.' : 'Jogo criado.');
+      return true;
+    } catch (e) {
+      const c = e instanceof ApiFail ? e.code : 'SERVIDOR';
+      toast(c === 'JA_GERADO' ? 'Entrou outro jogo nessa vaga agora. Atualizei a lista; tente de novo.' : errorText[c]);
+      return false;
+    } finally {
+      await t.reload();
+    }
+  }
+
+  /**
+   * Exclui pelo s8_admin_edit: mantém tudo o que está no servidor agora, menos o que sai. A lista é buscada
+   * na hora, pra não apagar uma rodada que alguém acabou de gerar. `wipe` só quando o organizador confirmou
+   * perder placar: se alguém lançou placar no meio, o banco recusa (CONFLITO) e nada sai.
+   */
+  async function removeMatches(ids: string[], wipe: boolean): Promise<Match[] | null> {
+    const key = saved?.adminKey;
+    if (!key) return null;
+    try {
+      const fresh = await api.get(code);
+      const gone = fresh.matches.filter((m) => ids.includes(m.id));
+      if (!gone.length) { toast('Esse jogo já tinha saído.'); return null; }
+      await api.adminEdit(code, key, {
+        name: fresh.tournament.name, config: fresh.tournament.config, data: fresh.tournament.data,
+        keep: fresh.matches.filter((m) => !ids.includes(m.id)).map((m) => m.id), matches: [], wipe, expected: fresh.tournament.version,
+      });
+      t.notify();
+      return gone;
+    } catch (e) {
+      const c = e instanceof ApiFail ? e.code : 'SERVIDOR';
+      toast(c === 'CONFLITO' ? 'Alguém mexeu nesse jogo agora. Confira o placar e exclua de novo.' : errorText[c]);
+      return null;
+    } finally {
+      await t.reload();
+    }
+  }
+
+  /** Volta o que saiu sem placar: o mesmo jogo, na mesma rodada e quadra. */
+  async function restoreMatches(gone: Match[]) {
+    const key = saved?.adminKey;
+    if (!key) return;
+    const back: NewMatch[] = gone.map(({ id: _id, version: _v, ...m }) => ({ ...m, sets: [] }));
+    try {
+      if (back.some((m) => m.stage === 'grupo')) {
+        // fase de grupos só entra pelo s8_admin_edit (o s8_add_matches aceita rodada e mata-mata)
+        const fresh = await api.get(code);
+        await api.adminEdit(code, key, {
+          name: fresh.tournament.name, config: fresh.tournament.config, data: fresh.tournament.data,
+          keep: fresh.matches.map((m) => m.id), matches: back, wipe: false, expected: fresh.tournament.version,
+        });
+      } else {
+        await api.addMatches(code, key, back);
+      }
+      t.notify();
+      toast(back.length > 1 ? 'Jogos de volta.' : 'Jogo de volta.');
+    } catch (e) {
+      toast(errorText[e instanceof ApiFail ? e.code : 'SERVIDOR']);
+    } finally {
+      await t.reload();
+    }
+  }
+
+  async function removeOne(m: Match) {
+    const plan = deletionPlan(t.serverMatches, m.id);
+    if (!plan.ok || removeBusy) return;
+    setRemoveBusy(m.id);
+    try {
+      const gone = await removeMatches(plan.ids, plan.scored > 0);
+      if (!gone) return;
+      const what = gone.length > 1 ? 'Fase excluída' : 'Jogo excluído';
+      // O Desfazer fica no aviso preso no topo, não num toast por cima dos cartões: quando o toast some,
+      // o toque que ia nele cairia no "Excluir" de outro jogo.
+      if (gone.every((x) => x.sets.length === 0)) armUndo({ text: what, run: () => void restoreMatches(gone) });
+      else { armUndo(null); toast(`${what}. O ranking foi recalculado.`); }
+    } finally {
+      setRemoveBusy(null);
+    }
+  }
+
   return (
     <RosterCtx.Provider value={roster}>
       {header}
@@ -259,7 +364,7 @@ export function TournamentPage({ code }: { code: string }) {
         )}
 
         {tab === 'jogos' && (
-          <MeCard me={meId} matches={t.matches} players={players} config={config} onPick={() => setMeOpen(true)} />
+          <MeCard me={meId} matches={t.matches} players={players} config={config} closed={closed} onPick={() => setMeOpen(true)} />
         )}
 
         {tab === 'jogos' && (
@@ -267,6 +372,12 @@ export function TournamentPage({ code }: { code: string }) {
             matches={shownMatches} players={players} plist={shownPlayers} config={config} canScore={canScore} me={meId} jumpOnOpen={!meId}
             onPoint={point}
             step={step} generating={generating} onGenerate={generate} finished={finished} onRanking={() => setTab('ranking')} offline={offline}
+            closed={closed} leftOut={closed ? unfinished : 0}
+            organizer={isAdmin ? {
+              removing, removeBusy, undo: undo ? { text: undo.text, run: () => { armUndo(null); undo.run(); } } : null,
+              onCreate: () => setCreateOpen(true), onToggleRemove: () => { armUndo(null); setRemoving((v) => !v); },
+              onRemove: (m) => void removeOne(m), plan: (id) => deletionPlan(t.serverMatches, id),
+            } : null}
           />
         )}
 
@@ -340,6 +451,10 @@ export function TournamentPage({ code }: { code: string }) {
             onLeave={() => { setSaved(upsertSaved({ code, token: undefined })); toast('Você saiu do modo árbitro neste aparelho.'); }}
             onAdmin={(key) => { setSaved(upsertSaved({ code, adminKey: key })); toast('Pronto: este aparelho agora é organizador.'); }}
             reload={async () => { const ok = await t.reload(); t.notify(); return ok; }} anyScore={t.matches.some((m) => m.sets.length > 0)}
+            closing={{
+              closed, closedAt: tour.data.closed ?? null, naturallyDone: !closed && finished, unfinished,
+              stagesLeft: config.format === 'mexicano' || config.format === 'grupos' || divisionsWithFinal(plist, config, t.matches).length > 0,
+            }}
           />
         )}
       </main>
@@ -367,7 +482,11 @@ export function TournamentPage({ code }: { code: string }) {
       <PodiumSheet open={podiumOpen} onClose={() => setPodiumOpen(false)} podiums={pods} info={artInfo} />
       <CardSheet open={cardOpen} onClose={() => setCardOpen(false)} info={artInfo} initialId={cardId}
         groups={divs.map((d) => ({ label: divs.length > 1 ? d.label : 'Jogadores', players: d.players }))}
-        makeCard={(id) => playerCard(plist, teams, config, t.matches, id)} />
+        makeCard={(id) => playerCard(plist, teams, config, t.matches, id, closed)} />
+      {isAdmin && (
+        <ManualMatchSheet open={createOpen} onClose={() => setCreateOpen(false)} players={plist} teams={teams} config={config} matches={t.serverMatches}
+          offline={offline} onCreate={createMatch} />
+      )}
       {welcomeSheet}
     </RosterCtx.Provider>
   );
@@ -405,10 +524,25 @@ function LiveBadge({ live, reachable, pending, stale, updatedAt }: { live: strin
   return <span className="font-semibold opacity-80">Conectando…</span>;
 }
 
-function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, onPoint, step, generating, onGenerate, finished, onRanking, offline }: {
+interface OrganizerTools {
+  removing: boolean;
+  removeBusy: string | null;
+  /** Desfazer da última exclusão sem placar. */
+  undo: { text: string; run: () => void } | null;
+  onCreate: () => void;
+  onToggleRemove: () => void;
+  onRemove: (m: Match) => void;
+  plan: (id: string) => DeletePlan;
+}
+
+function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, onPoint, step, generating, onGenerate, finished, onRanking, offline, closed, leftOut, organizer }: {
   matches: Match[]; players: Map<string, Player>; plist: Player[]; config: import('../engine').Config; canScore: boolean; me: string | null; jumpOnOpen: boolean;
   onPoint: (id: string, side: 'a' | 'b', delta: 1 | -1) => void; step: { title: string } | null; generating: boolean;
   onGenerate: () => void; finished: boolean; onRanking: () => void; offline: boolean;
+  /** Encerrado à mão pelo organizador, e quantos jogos que valiam ficaram de fora. */
+  closed: boolean; leftOut: number;
+  /** Só no celular do organizador: criar jogo e o modo de excluir. */
+  organizer: OrganizerTools | null;
 }) {
   const showGender = config.modality === 'mista' || (config.modality === 'livre' && config.ranking.separarGenero);
   const blocks = useMemo(() => {
@@ -421,8 +555,10 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
   }, [matches]);
 
   const isDone = (m: Match) => evaluate(m.sets, config.scoring, m.stage === 'mata', m.stage === 'mata' && m.b.length === 0).done;
-  const current = blocks.findIndex((b) => b.ms.some((m) => !isDone(m)));
-  const numbers = new Map(matches.map((m, i) => [m.id, i + 1]));
+  // encerrado à mão: não tem mais rodada "agora", o que ficou pendente só aparece como não jogado
+  const current = closed ? -1 : blocks.findIndex((b) => b.ms.some((m) => !isDone(m)));
+  // jogo criado à mão tem nome próprio e não entra na numeração: os "Jogo N" sorteados não mudam de número
+  const numbers = new Map(matches.filter((m) => !isManual(m)).map((m, i) => [m.id, i + 1]));
   const divs = divisionsOf(plist, config.modality);
   const individual = isIndividual(config.format);
   const groupOf = useMemo(() => {
@@ -456,6 +592,7 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
 
   return (
     <>
+      {organizer?.removing && <RemovingBanner onDone={organizer.onToggleRemove} undo={organizer.undo} />}
       <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="navigation" aria-label="Rodadas">
         {blocks.map((b, i) => {
           const allDone = b.ms.every(isDone);
@@ -482,9 +619,14 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
       )}
 
       {finished && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-accent px-4 py-3 text-onaccent">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg bg-accent px-4 py-3 text-onaccent">
           <b className="font-display text-2xl font-extrabold">Torneio encerrado</b>
           <button type="button" onClick={onRanking} className="rounded-lg bg-surface px-3 py-2 font-bold text-ink">Ver resultado</button>
+          {closed && (
+            <p className="m-0 w-full text-[15px] font-semibold">
+              Encerrado pelo organizador.{leftOut > 0 ? ` ${leftOut} ${leftOut === 1 ? 'jogo ficou' : 'jogos ficaram'} de fora do ranking.` : ''}
+            </p>
+          )}
         </div>
       )}
 
@@ -560,14 +702,59 @@ function GamesView({ matches, players, plist, config, canScore, me, jumpOnOpen, 
                 {b.ms.map((m) => (
                   <MatchCard key={m.id} match={m} number={numbers.get(m.id) ?? 0} players={players} scoring={config.scoring} canScore={canScore} locked={finished} showGender={showGender} me={me}
                     lockedNote={hasNextStages && m.stage !== 'mata' ? 'Atenção: mudar esse placar atualiza o ranking, mas não refaz as rodadas ou o mata-mata que já foram gerados.' : undefined}
+                    closed={closed}
+                    remove={organizer?.removing ? { plan: organizer.plan(m.id), busy: offline || !!organizer.removeBusy, onConfirm: () => organizer.onRemove(m) } : undefined}
                     onPoint={(side, delta) => onPoint(m.id, side, delta)} />
                 ))}
               </div>
+              {organizer && i === current && <OrganizerBar tools={organizer} closed={closed} offline={offline} />}
             </section>
           );
         })}
       </div>
+      {organizer && current < 0 && <OrganizerBar tools={organizer} closed={closed} offline={offline} />}
     </>
+  );
+}
+
+/**
+ * Ferramentas do organizador na aba Jogos: fica no fim da rodada que está rolando (onde se vê quem está de folga),
+ * ou no fim da lista. A galera e o árbitro não veem.
+ */
+function OrganizerBar({ tools, closed, offline }: { tools: OrganizerTools; closed: boolean; offline: boolean }) {
+  return (
+    <div className="flex flex-col gap-1.5 pt-1">
+      <div className="grid grid-cols-2 gap-2">
+        {!closed && <Button kind="ghost" disabled={offline} onClick={tools.onCreate}>+ Criar jogo</Button>}
+        <Button aria-pressed={tools.removing} disabled={offline && !tools.removing} onClick={tools.onToggleRemove} className={cx(closed && 'col-span-2')}>
+          {tools.removing ? 'Parar de excluir' : 'Excluir jogos'}
+        </Button>
+      </div>
+      <p className="m-0 px-1 text-[13px] text-muted">
+        {offline
+          ? 'Sem conexão: criar e excluir jogo voltam quando a internet voltar.'
+          : closed
+            ? 'Torneio encerrado: pra criar jogo, reabra na aba Info.'
+            : 'Só no seu celular: jogo extra pra quem está de folga, ou tirar um jogo da lista.'}
+      </p>
+    </div>
+  );
+}
+
+/** Aviso preso no topo enquanto o organizador está excluindo: o placar some dos cartões até ele tocar em Pronto. */
+function RemovingBanner({ onDone, undo }: { onDone: () => void; undo: OrganizerTools['undo'] }) {
+  return (
+    <div role="status" className="sticky top-[max(8px,env(safe-area-inset-top,0px))] z-10 flex items-center gap-2 rounded-lg bg-surface py-2 pl-4 pr-2 shadow-card ring-[1.5px] ring-danger">
+      {undo ? (
+        <>
+          <p className="m-0 min-w-0 flex-1 text-[15px] font-bold leading-snug">{undo.text}.</p>
+          <Button kind="primary" className="flex-none" onClick={undo.run}>Desfazer</Button>
+        </>
+      ) : (
+        <p className="m-0 min-w-0 flex-1 text-[15px] leading-snug"><b className="text-danger">Excluindo jogos.</b> Os botões de placar voltam no Pronto.</p>
+      )}
+      <Button kind="line" className="flex-none" onClick={onDone}>Pronto</Button>
+    </div>
   );
 }
 
@@ -596,7 +783,7 @@ function ResultLine({ m, players, config, me }: { m: Match; players: Map<string,
     <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[14px] leading-tight">
       <span className={cx(cls('a'), 'text-right')}>{nm(m.a)}</span>
       <span className="rounded-md bg-bg px-2 py-0.5 font-display text-[15px] font-extrabold tabnum">{formatScore(m.sets, config.scoring).replace(' x ', '–')}</span>
-      <span className={cls('b')}>{nm(m.b)}</span>
+      <span className={cls('b')}>{nm(m.b)}{isAmistoso(m) && <span className="ml-1.5 whitespace-nowrap text-[11px] font-extrabold uppercase tracking-[.08em] text-muted">amistoso</span>}</span>
     </span>
   );
 }
@@ -618,13 +805,15 @@ function Folga({ people }: { people: Player[] }) {
   );
 }
 
-function InfoView({ code, tour, isAdmin, canScore, adminKey, pin, offline, onShare, onCopySchedule, onCopyReferee, onPinChanged, onPin, onLeave, onAdmin, reload, anyScore }: {
+function InfoView({ code, tour, isAdmin, canScore, adminKey, pin, offline, onShare, onCopySchedule, onCopyReferee, onPinChanged, onPin, onLeave, onAdmin, reload, anyScore, closing }: {
   code: string; tour: NonNullable<ReturnType<typeof useTournament>['tournament']>; isAdmin: boolean; canScore: boolean; adminKey?: string;
   /** PIN guardado neste aparelho; só chega aqui para o organizador. */
   pin?: string;
   /** Sem servidor: tudo que grava fica travado, com o motivo. */
   offline: boolean;
   onShare: () => void; onCopySchedule: () => void; onCopyReferee: (pin: string) => void; onPinChanged: (pin: string) => void; onPin: () => void; onLeave: () => void; onAdmin: (key: string) => void; reload: () => Promise<boolean>; anyScore: boolean;
+  /** Encerrar à mão: se já está encerrado assim, quando, se a conta já fechou sozinha e quantos jogos que valem não terminaram. */
+  closing: { closed: boolean; closedAt: string | null; naturallyDone: boolean; unfinished: number; stagesLeft: boolean };
 }) {
   const toast = useToast();
   const { config } = tour;
@@ -665,9 +854,16 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, pin, offline, onSha
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
     try { await fn(); toast(ok); await reload(); return true; }
-    catch (e) { toast(errorText[e instanceof ApiFail ? e.code : 'SERVIDOR']); return false; }
+    catch (e) {
+      const c = e instanceof ApiFail ? e.code : 'SERVIDOR';
+      // a trava de versão é do torneio inteiro: outra mudança chegou antes, então atualiza e pede de novo
+      if (c === 'CONFLITO') { toast('O torneio mudou em outro aparelho. Atualizei a tela; tente de novo.'); await reload(); }
+      else toast(errorText[c]);
+      return false;
+    }
     finally { setBusy(false); }
   };
+  const [confirmClose, setConfirmClose] = useState(false);
 
   return (
     <>
@@ -717,7 +913,7 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, pin, offline, onSha
       {isAdmin && adminKey && (
         <Panel title="Organizador">
           <div className="flex flex-col gap-4">
-            {offline && <Note kind="warn">Sem conexão. Editar, trocar PIN e sortear de novo voltam quando a internet voltar. O placar segue lançando normal.</Note>}
+            {offline && <Note kind="warn">Sem conexão. Editar, trocar PIN, encerrar e sortear de novo voltam quando a internet voltar. O placar segue lançando normal.</Note>}
             <fieldset disabled={offline} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
             <div>
               <b>Editar torneio</b>
@@ -848,6 +1044,46 @@ function InfoView({ code, tour, isAdmin, canScore, adminKey, pin, offline, onSha
             </div>
 
             <fieldset disabled={offline} className="m-0 min-w-0 border-0 p-0">
+              <b>{closing.closed ? 'Torneio encerrado' : 'Encerrar torneio'}</b>
+              {closing.closed ? (
+                <>
+                  <p className="m-0 text-[13px] text-muted">
+                    Você encerrou{closing.closedAt ? ` às ${new Date(closing.closedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}.
+                    {' '}{closing.unfinished > 0 ? `${closing.unfinished} ${closing.unfinished === 1 ? 'jogo ficou' : 'jogos ficaram'} de fora do ranking.` : 'Todo jogo que valia terminou.'} Reabrir volta o placar pros árbitros e os jogos pendentes voltam a contar.
+                  </p>
+                  <Button className="mt-2" block disabled={busy} onClick={async () => {
+                    const { closed: _c, ...data } = tour.data;
+                    await run(() => api.adminUpdate(code, adminKey, tour.name, data, tour.version), 'Torneio reaberto.');
+                  }}>Reabrir torneio</Button>
+                </>
+              ) : closing.naturallyDone ? (
+                <p className="m-0 text-[13px] text-muted">Todos os jogos terminaram: o torneio já está encerrado.</p>
+              ) : (
+                <>
+                  <p className="m-0 text-[13px] text-muted">Pra fechar o play antes do fim. Só os jogos que terminaram contam pro ranking e pro pódio. Dá pra reabrir depois.</p>
+                  {!confirmClose ? (
+                    <Button className="mt-2" block onClick={() => setConfirmClose(true)}>Encerrar torneio agora</Button>
+                  ) : (
+                    <div role="alert" className="mt-2 flex flex-col gap-2 rounded-lg bg-tintwarn p-3">
+                      <b>{closing.unfinished > 0
+                        ? `${closing.unfinished} ${closing.unfinished === 1 ? 'jogo ainda não terminou e fica' : 'jogos ainda não terminaram e ficam'} de fora do ranking.`
+                        : 'Nenhum jogo pendente fica de fora.'}</b>
+                      <p className="m-0 text-[13px]">
+                        {closing.stagesLeft ? 'As rodadas e fases que faltam não são geradas. ' : ''}O placar trava (o árbitro ainda corrige pelo Corrigir) e o pódio sai com o que foi jogado.
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button kind="danger" disabled={busy} onClick={async () => {
+                          if (await run(() => api.adminUpdate(code, adminKey, tour.name, { ...tour.data, closed: new Date().toISOString() }, tour.version), 'Torneio encerrado.')) setConfirmClose(false);
+                        }}>Encerrar agora</Button>
+                        <Button onClick={() => setConfirmClose(false)}>Cancelar</Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </fieldset>
+
+            <fieldset disabled={offline} className="m-0 min-w-0 border-0 p-0">
               <b>Sortear de novo</b>
               <p className="m-0 text-[13px] text-muted">Refaz a chave com os mesmos jogadores e regras{manualPairs ? ', e as duplas montadas por você ficam' : ''}. O código continua o mesmo. Pra mudar jogadores ou regras antes, use Editar jogadores e regras.</p>
               {!confirmReset ? (
@@ -896,8 +1132,8 @@ function ResetPairsNote({ format, pairing, kept }: {
 }
 
 /** "Sou eu": o próximo jogo de quem está com o celular na mão, no topo da aba Jogos. */
-function MeCard({ me, matches, players, config, onPick }: {
-  me: string | null; matches: Match[]; players: Map<string, Player>; config: import('../engine').Config; onPick: () => void;
+function MeCard({ me, matches, players, config, closed, onPick }: {
+  me: string | null; matches: Match[]; players: Map<string, Player>; config: import('../engine').Config; closed: boolean; onPick: () => void;
 }) {
   if (!me) {
     return (
@@ -911,7 +1147,8 @@ function MeCard({ me, matches, players, config, onPick }: {
   const isDone = (m: Match) => evaluate(m.sets, config.scoring, m.stage === 'mata', m.stage === 'mata' && m.b.length === 0).done;
   const order = (m: Match) => (m.stage === 'mata' ? 1e6 : 0) + m.round * 1000 + m.slot;
   const mine = matches.filter((m) => m.a.includes(me) || m.b.includes(me)).sort((x, y) => order(x) - order(y));
-  const next = mine.find((m) => !isDone(m) && m.b.length > 0);
+  // encerrado à mão: o que ficou pendente não é mais "seu próximo jogo"
+  const next = closed ? undefined : mine.find((m) => !isDone(m) && m.b.length > 0);
   const played = mine.filter(isDone).length;
   const firstPending = [...matches].sort((x, y) => order(x) - order(y)).find((m) => !isDone(m));
   const now = next && firstPending && (next.stage === firstPending.stage && next.round === firstPending.round);

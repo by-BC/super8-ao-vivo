@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { applyGame, evaluate, type Match, type Player, type Scoring } from '../engine';
+import { applyGame, evaluate, isAmistoso, type DeletePlan, type Match, type Player, type Scoring } from '../engine';
 import { Avatar, cx, GenderDot, RosterCtx } from './ui';
 
 interface Props {
@@ -15,6 +15,13 @@ interface Props {
   lockedNote?: string;
   /** Jogador "sou eu" deste celular: o nome dele fica destacado. */
   me?: string | null;
+  /** Encerrado à mão pelo organizador: jogo que não terminou aparece como "Não jogado". */
+  closed?: boolean;
+  /**
+   * Modo de excluir do organizador: o placar some do cartão (nada de + e − por perto) e entra o botão de excluir.
+   * Com placar, pede o segundo toque dizendo o que se perde.
+   */
+  remove?: { plan: DeletePlan; busy: boolean; onConfirm: () => void };
   onPoint: (side: 'a' | 'b', delta: 1 | -1) => void;
 }
 
@@ -22,14 +29,15 @@ interface Props {
 const UNDO_MS = 5000;
 interface Step { side: 'a' | 'b'; delta: 1 | -1 }
 
-export function MatchCard({ match: m, number, players, scoring, canScore, showGender, locked = false, lockedNote, me, onPoint }: Props) {
+export function MatchCard({ match: m, number, players, scoring, canScore, showGender, locked = false, lockedNote, me, closed = false, remove, onPoint }: Props) {
   const knockout = m.stage === 'mata';
   const bye = knockout && m.b.length === 0;
   const r = evaluate(m.sets, scoring, knockout, bye);
   const wasDone = useRef(r.done);
   const [pop, setPop] = useState(false);
   const [editing, setEditing] = useState(false);
-  const scoreable = canScore && (!locked || editing);
+  const scoreable = canScore && (!locked || editing) && !remove;
+  const friendly = isAmistoso(m);
   // Desfazer mora no cartão, não num toast por cima dos botões: o segundo toque no "+"
   // nunca cai nele. Cada toque fica numa pilha curta; cada "Desfazer" volta o mais recente.
   const [undo, setUndo] = useState<Step[]>([]);
@@ -79,12 +87,16 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
           {m.a.map((id) => <Name key={id} p={players.get(id)} showGender={showGender} />)}
           <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-[.12em] text-onaccent">Avança direto</span>
         </div>
+        {remove && <RemoveRow plan={remove.plan} busy={remove.busy} onConfirm={remove.onConfirm} score={null} />}
       </article>
     );
   }
 
   const status = r.done
     ? ['Fim', 'bg-ink text-bg']
+    : closed && !friendly
+      // encerrado antes do fim: o jogo fica na lista, mas fora do ranking
+      ? [r.started ? 'Não terminou' : 'Não jogado', 'text-muted shadow-[inset_0_0_0_1.5px_var(--line)]']
     : r.progress === 'desempate'
       ? ['Game de desempate', 'bg-highlight text-ink']
       : r.started
@@ -148,7 +160,7 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
           <span className="min-w-0 truncate">{head}</span>
         )}
         <span className={cx('ml-auto whitespace-nowrap rounded-full px-2 py-0.5 tracking-[.08em]', last && 'min-w-0 truncate', status[1])}>{status[0]}</span>
-        {canScore && (locked || editing) && (
+        {canScore && (locked || editing) && !remove && (
           <button type="button" onClick={() => setEditing((e) => !e)} aria-pressed={editing}
             className={cx('whitespace-nowrap rounded-full px-2 py-0.5 font-extrabold tracking-[.08em]', editing ? 'bg-accent text-onaccent' : 'shadow-[inset_0_0_0_1.5px_var(--line)] text-ink')}>
             {editing ? 'Pronto' : 'Corrigir'}
@@ -158,7 +170,11 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
       {editing && lockedNote && (
         <p className="relative m-0 rounded bg-hair px-2 py-1 text-[13px] font-semibold text-ink">{lockedNote}</p>
       )}
-      {m.counts?.length ? (
+      {friendly ? (
+        <p className="relative m-0 self-start rounded-full bg-selecttint px-2.5 py-0.5 text-[12px] font-bold text-ink">
+          <span className="font-extrabold uppercase tracking-[.08em]">Amistoso</span> · não conta no ranking
+        </p>
+      ) : m.counts?.length ? (
         <p className="relative m-0 self-start rounded-full bg-selecttint px-2.5 py-0.5 text-[12px] font-bold text-ink">
           Extra · vale só para {m.counts.map((id) => players.get(id)?.name ?? '?').join(' e ')}
         </p>
@@ -166,7 +182,43 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
       {side('a')}
       <div className="net" aria-hidden><span /></div>
       {side('b')}
+      {remove && <RemoveRow plan={remove.plan} busy={remove.busy} onConfirm={remove.onConfirm} score={m.sets.length ? `${m.sets[lastIdx][0]} x ${m.sets[lastIdx][1]}` : null} />}
     </article>
+  );
+}
+
+/**
+ * Rodapé do cartão no modo de excluir. Sem placar, um toque exclui (e o aviso traz o Desfazer).
+ * Com placar, o primeiro toque só abre a confirmação em vermelho dizendo o que se perde.
+ */
+function RemoveRow({ plan, busy, onConfirm, score }: { plan: DeletePlan; busy: boolean; onConfirm: () => void; score: string | null }) {
+  const [confirm, setConfirm] = useState(false);
+  if (!plan.ok) return <p className="relative m-0 mt-1 rounded-lg bg-hair px-3 py-2 text-[13px] font-semibold text-ink">{plan.reason}</p>;
+  const scope = plan.scope ? <>Sai a <b>{plan.scope}</b>: o botão de gerar monta a fase de novo. </> : null;
+  if (!confirm) {
+    return (
+      <div className="relative mt-1 flex flex-col gap-1.5">
+        {scope && <p className="m-0 text-[13px] text-muted">{scope}</p>}
+        <button type="button" disabled={busy} onClick={() => (plan.scored ? setConfirm(true) : onConfirm())}
+          className="min-h-[48px] rounded-lg border-[1.5px] border-danger font-bold text-danger disabled:opacity-40">
+          {busy ? 'Excluindo…' : plan.ids.length > 1 ? 'Excluir a fase' : 'Excluir jogo'}
+        </button>
+      </div>
+    );
+  }
+  const what = plan.ids.length > 1
+    ? `${plan.scored} ${plan.scored === 1 ? 'jogo dessa fase tem placar' : 'jogos dessa fase têm placar'}`
+    : `O placar${score ? ` ${score}` : ''}`;
+  return (
+    <div role="alert" className="relative mt-1 flex flex-col gap-2 rounded-lg bg-tintwarn p-3">
+      <p className="m-0 text-[15px]"><b>{what} some e o ranking muda.</b> Não dá pra desfazer.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" disabled={busy} onClick={onConfirm} className="min-h-[48px] rounded-lg bg-danger px-2 font-bold leading-tight text-ondanger disabled:opacity-40">
+          {busy ? 'Excluindo…' : 'Excluir jogo e placar'}
+        </button>
+        <button type="button" disabled={busy} onClick={() => setConfirm(false)} className="min-h-[48px] rounded-lg border-[1.5px] border-ink font-bold">Cancelar</button>
+      </div>
+    </div>
   );
 }
 

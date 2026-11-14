@@ -2,7 +2,7 @@ import { knockoutChampion } from './knockout';
 import { divisionsOf, divisionsWithFinal, finalWinners, rankingSections, tournamentStatus } from './setup';
 import { evaluate, formatScore } from './scoring';
 import type { Row } from './standings';
-import type { Config, Match, Player, Team } from './types';
+import { isAmistoso, type Config, type Match, type Player, type Team } from './types';
 
 const KEYCAP = ['', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
 const posIcon = (pos: number) => (pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : KEYCAP[pos] ?? `${pos}º`);
@@ -15,6 +15,8 @@ interface Ctx {
   teams: Team[];
   config: Config;
   matches: Match[];
+  /** Encerrado à mão pelo organizador: o que não terminou fica de fora. */
+  closed?: boolean;
 }
 
 function namer(players: Player[]) {
@@ -31,11 +33,14 @@ function ptsText(r: Row, config: Config): string {
 export function rankingMessage(ctx: Ctx): string {
   const { config, matches } = ctx;
   const nm = namer(ctx.players);
-  const real = matches.filter((m) => !(m.stage === 'mata' && m.b.length === 0));
+  const real = matches.filter((m) => !(m.stage === 'mata' && m.b.length === 0) && !isAmistoso(m));
   const done = real.filter((m) => evaluate(m.sets, config.scoring, m.stage === 'mata').done).length;
-  const fin = tournamentStatus(ctx.players, config, matches) === 'encerrado';
+  const fin = tournamentStatus(ctx.players, config, matches, ctx.closed) === 'encerrado';
   const L: string[] = [`🎾 *${ctx.name.toUpperCase()}* 🎾`];
-  L.push(fin ? `🏁 _Resultado final · ${real.length} jogos_` : `📊 _Ranking parcial · ${done} de ${real.length} jogos_`, '');
+  const out = real.length - done;
+  L.push(fin
+    ? `🏁 _Resultado final · ${done} ${done === 1 ? 'jogo' : 'jogos'}${out ? ` · ${out} não ${out === 1 ? 'jogado' : 'jogados'}` : ''}_`
+    : `📊 _Ranking parcial · ${done} de ${real.length} jogos_`, '');
 
   if (config.format === 'grupos') {
     for (const div of divisionsOf(ctx.players, config.modality)) {
@@ -101,7 +106,9 @@ export function scheduleMessage(ctx: Ctx): string {
     for (const m of ms) {
       if (m.b.length === 0) { L.push(`   ${nm(m.a)} avança direto`); continue; }
       const sc = m.sets.length ? ` ${formatScore(m.sets, ctx.config.scoring)} ` : ' x ';
-      L.push(`   Q${m.court}${m.grp ? ` · G${m.grp}` : ''}: ${nm(m.a)}${sc}${nm(m.b)}`);
+      const notPlayed = ctx.closed && !isAmistoso(m) && !evaluate(m.sets, ctx.config.scoring, m.stage === 'mata').done;
+      const tag = isAmistoso(m) ? ' _(amistoso)_' : notPlayed ? ' _(não jogado)_' : '';
+      L.push(`   Q${m.court}${m.grp ? ` · G${m.grp}` : ''}: ${nm(m.a)}${sc}${nm(m.b)}${tag}`);
     }
     L.push('');
   }

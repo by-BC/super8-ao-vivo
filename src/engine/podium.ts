@@ -39,9 +39,9 @@ function finalScore(m: Match, config: Config, winner: 'a' | 'b'): string {
 /**
  * Pódio de cada divisão que já tem campeão.
  * Rodízio em grupos: campeões e vices da final. Grupos + mata-mata: campeões e vices da chave.
- * Demais formatos: os 3 primeiros do ranking, quando o torneio acaba.
+ * Demais formatos: os 3 primeiros do ranking, quando o torneio acaba (ou quando o organizador encerra: `closed`).
  */
-export function podiums(players: Player[], teams: Team[], config: Config, matches: Match[]): Podium[] {
+export function podiums(players: Player[], teams: Team[], config: Config, matches: Match[], closed = false): Podium[] {
   const byId = new Map(players.map((p) => [p.id, p]));
   const nm = (ids: string[]) => ids.map((id) => byId.get(id)?.name ?? '?');
   const divs = divisionsOf(players, config.modality);
@@ -77,7 +77,7 @@ export function podiums(players: Player[], teams: Team[], config: Config, matche
     return out;
   }
 
-  if (tournamentStatus(players, config, matches) !== 'encerrado') return out;
+  if (tournamentStatus(players, config, matches, closed) !== 'encerrado') return out;
   for (const s of rankingSections(players, teams, config, matches)) {
     if (s.kind !== 'geral' || !s.rows.some((r) => r.j > 0)) continue;
     const top = s.rows.slice(0, 3);

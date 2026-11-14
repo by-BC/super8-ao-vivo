@@ -1,10 +1,10 @@
-import { knockoutChampion, knockoutNext, knockoutStart, nextPow2 } from './knockout';
+import { groupStageMatches, knockoutChampion, knockoutNext, knockoutStart, nextPow2 } from './knockout';
 import { mexicanoRound, nextMexicano } from './mexicano';
 import { mulberry32, shuffle, type Rng } from './rng';
 import { assignGroups, capacity, divisionsOf, formTeams, matchesPerRound, plannedExtras, rodizioMatches, rodizioUnits, splitGroups, teamRoundRobin, type Unit } from './schedule';
 import { evaluate } from './scoring';
 import { individualSides, playerEntities, standings, teamEntities, teamSides, type Row } from './standings';
-import { isIndividual, MAX_PLAYERS, type Config, type Match, type NewMatch, type Player, type Team } from './types';
+import { isAmistoso, isIndividual, MAX_PLAYERS, type Config, type Match, type NewMatch, type Player, type Team } from './types';
 
 export type SetupArea = 'jogadores' | 'formato' | 'regras';
 
@@ -370,7 +370,7 @@ export function groupFinals(players: Player[], config: Config, matches: Match[])
     const gs = rodizioGroupsOf(div, ms);
     if (!gs || !finalPossible(gs, mixed)) continue;
     if (matches.some((m) => m.division === div.id && m.stage === 'mata')) continue;
-    if (ms.some((m) => !evaluate(m.sets, config.scoring).done)) continue;
+    if (ms.some((m) => !isAmistoso(m) && !evaluate(m.sets, config.scoring).done)) continue;
     const [ta, tb] = gs.map((g) => groupFinalists(standings(playerEntities(g.players), g.matches, config, individualSides), g.players, mixed));
     if (!ta || !tb) continue;
     // Final na primeira quadra que a divisão já usava (feminino e masculino não caem na mesma quadra).
@@ -434,7 +434,12 @@ export function nextStep(players: Player[], teams: Team[], config: Config, match
 
 export type Status = 'andamento' | 'encerrado';
 
-export function tournamentStatus(players: Player[], config: Config, matches: Match[]): Status {
+/**
+ * Andamento do torneio. `closed`: o organizador encerrou à mão (TournamentData.closed) e isso vale por cima
+ * da conta: encerrado mesmo com jogo pendente. Os pendentes não contam porque o ranking só soma jogo terminado.
+ */
+export function tournamentStatus(players: Player[], config: Config, matches: Match[], closed = false): Status {
+  if (closed) return 'encerrado';
   const allDone = matches.length > 0 && matches.every((m) => evaluate(m.sets, config.scoring, m.stage === 'mata', m.stage === 'mata' && m.b.length === 0).done);
   if (!allDone) return 'andamento';
   if (config.format === 'mexicano') {
@@ -502,7 +507,7 @@ export function rankingSections(players: Player[], teams: Team[], config: Config
       const groups = [...new Set(teams.filter((t) => t.division === div.id).map((t) => t.group ?? ''))].sort();
       for (const g of groups) {
         const ts = teams.filter((t) => t.division === div.id && (t.group ?? '') === g);
-        const ms = matches.filter((m) => m.stage === 'grupo' && m.division === div.id && (m.grp ?? '') === g);
+        const ms = groupStageMatches(matches, div.id).filter((m) => (m.grp ?? '') === g);
         out.push({
           id: `${div.id}-${g}`, title: `${prefix ? prefix + ' · ' : ''}Grupo ${g}`, kind: 'grupo', division: div.id,
           rows: standings(teamEntities(ts, players), ms, config, teamSides), qualify: config.qualify,

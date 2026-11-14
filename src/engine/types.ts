@@ -83,6 +83,11 @@ export interface Team {
 export interface TournamentData {
   players: Player[];
   teams: Team[];
+  /**
+   * Encerrado à mão pelo organizador (ISO da hora). Vale por cima da conta de jogos: o torneio fica
+   * encerrado mesmo com jogo pendente, e só os jogos que terminaram contam. Sem o campo, a conta decide.
+   */
+  closed?: string | null;
 }
 
 export type Stage = 'rodada' | 'grupo' | 'mata';
@@ -105,6 +110,15 @@ export interface NewMatch {
   /** Jogo extra que só conta para estes jogadores (os outros completam a quadra). */
   counts?: string[] | null;
 }
+
+/**
+ * Jogo amistoso: aparece na lista e pode ter placar, mas não conta pra nada (ranking, pódio, cartinha,
+ * mensagens). Reaproveita o campo `counts` do jogo extra ("só conta para estes jogadores") com um marcador
+ * que não é id de jogador: ninguém está na lista, então ninguém pontua. O banco aceita (`counts` com 1 item)
+ * sem migração nova.
+ */
+export const AMISTOSO = '-amistoso';
+export const isAmistoso = (m: Pick<NewMatch, 'counts'>): boolean => !!m.counts?.includes(AMISTOSO);
 
 export interface Match extends NewMatch {
   id: string;
