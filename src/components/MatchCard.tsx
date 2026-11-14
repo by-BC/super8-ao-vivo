@@ -94,8 +94,8 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
 
   const status = r.done
     ? ['Fim', 'bg-ink text-bg']
-    : closed && !friendly
-      // encerrado antes do fim: o jogo fica na lista, mas fora do ranking
+    : closed
+      // encerrado antes do fim: o jogo fica na lista, mas fora do ranking (amistoso também não está mais "a jogar")
       ? [r.started ? 'Não terminou' : 'Não jogado', 'text-muted shadow-[inset_0_0_0_1.5px_var(--line)]']
     : r.progress === 'desempate'
       ? ['Game de desempate', 'bg-highlight text-ink']
@@ -142,7 +142,8 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
 
   return (
     <article id={`jogo-${m.id}`} className={cx('court flex scroll-mt-24 flex-col gap-1.5 rounded-lg px-4 py-4 shadow-card', !!me && (m.a.includes(me) || m.b.includes(me)) && 'ring-[3px] ring-accent')} aria-label={head}>
-      <header className={cx('relative flex items-center gap-2 px-1 text-xs font-extrabold uppercase tracking-[.12em] text-muted', canScore && 'min-h-7')}>
+      {/* encerrado à mão: o selo ("Não terminou") e o Corrigir descem de linha em vez de cortar o "Quadra N" */}
+      <header className={cx('relative flex items-center gap-2 px-1 text-xs font-extrabold uppercase tracking-[.12em] text-muted', canScore && 'min-h-7', closed && !last && 'flex-wrap gap-y-1')}>
         {last ? (
           // fica no lugar do "Jogo N · Quadra X", do lado oposto aos botões de game; a altura
           // do cabeçalho já está reservada (min-h-7), então nada embaixo se mexe. O alvo de
@@ -157,7 +158,7 @@ export function MatchCard({ match: m, number, players, scoring, canScore, showGe
             <span>Desfazer<span className="tabnum max-[380px]:hidden"> {last.delta > 0 ? '+1' : '−1'}</span></span>
           </button>
         ) : (
-          <span className="min-w-0 truncate">{head}</span>
+          <span className={closed ? 'whitespace-nowrap' : 'min-w-0 truncate'}>{head}</span>
         )}
         <span className={cx('ml-auto whitespace-nowrap rounded-full px-2 py-0.5 tracking-[.08em]', last && 'min-w-0 truncate', status[1])}>{status[0]}</span>
         {canScore && (locked || editing) && !remove && (

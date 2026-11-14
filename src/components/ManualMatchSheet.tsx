@@ -64,11 +64,11 @@ export function ManualMatchSheet({ open, onClose, players, teams, config, matche
         {ids.length === 0 && <span className="text-[15px] text-muted">Dupla {s.toUpperCase()}</span>}
         {ids.map((id) => (
           <button key={id} type="button" onClick={() => tap([id])} aria-label={`Tirar ${byId.get(id)?.name ?? '?'} da dupla ${s.toUpperCase()}`}
-            className="flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface pl-3 pr-2 font-semibold shadow-card">
+            className="relative flex min-h-[40px] items-center gap-1.5 rounded-full bg-surface pl-3 pr-2 font-semibold shadow-card after:absolute after:-inset-y-1 after:inset-x-0 after:content-['']">
             {byId.get(id)?.name ?? '?'} <span aria-hidden className="text-lg leading-none text-muted">×</span>
           </button>
         ))}
-        {ids.length === 1 && <span className="text-[13px] text-muted">+1</span>}
+        {ids.length === 1 && <span className="px-1 text-[13px] text-muted">falta 1</span>}
       </div>
     );
   };
@@ -84,8 +84,11 @@ export function ManualMatchSheet({ open, onClose, players, teams, config, matche
 
         <div className="flex flex-col gap-2">
           {!individual && (
-            <Segmented label="Escolher por" value={mode} onChange={(v) => setMode(v)}
-              options={[{ value: 'duplas', label: 'Duplas do torneio' }, { value: 'jogadores', label: 'Dupla avulsa' }]} />
+            // as duas opções ocupam a largura toda (cada uma cresce a partir do próprio texto, sem quebrar linha a 360 px)
+            <div className="[&_button]:grow">
+              <Segmented label="Escolher por" value={mode} onChange={(v) => setMode(v)}
+                options={[{ value: 'duplas', label: 'Duplas do torneio' }, { value: 'jogadores', label: 'Dupla avulsa' }]} />
+            </div>
           )}
           <p className="m-0 text-[13px] text-muted" aria-live="polite">{prompt}</p>
           <ul className="m-0 flex list-none flex-wrap gap-2 p-0">

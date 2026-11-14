@@ -280,7 +280,8 @@ Firmes e amigáveis: grandes o bastante para mão suada, com cantos macios que c
 
 ### Chips / Pills
 - **Style:** cápsula inteira com label em caixa alta, peso 800 e tracking de 0.08 a 0.12em. O fundo padrão é fio de areia.
-- **Status da partida:** "A jogar" leva só um contorno de 1,5 px. "Em jogo" é turquesa com texto azul profundo. "Game de desempate" é manteiga. "Fim" é azul profundo com texto areia. "Venceu" é coral de botão.
+- **Status da partida:** "A jogar" leva só um contorno de 1,5 px. "Em jogo" é turquesa com texto azul profundo. "Game de desempate" é manteiga. "Fim" é azul profundo com texto areia. "Venceu" é coral de botão. Com o torneio encerrado à mão, o que não acabou vira "Não jogado" ou "Não terminou": o mesmo contorno do "A jogar", com o texto em cinza maré.
+- **Aviso de jogo que não conta:** pílula em `turquesa-veu` logo abaixo do cabeçalho do cartão, a mesma do "Extra · vale só para…". O amistoso diz "Amistoso · não conta no ranking". Nunca coral (não é ação) nem dourado (não é conquista).
 
 ### Cards / Containers
 - **Corner Style:** cantos macios (16px).
@@ -315,6 +316,13 @@ O "Desfazer" mora no cabeçalho do cartão de partida, não num aviso flutuante:
 - **Onde:** no lugar do "Jogo N · Quadra X", do lado oposto aos botões de game. O cabeçalho já reserva 28 px de altura para quem lança placar, então nada embaixo se mexe quando ele aparece ou some.
 - **Forma:** pílula de 28 px em coral de botão com texto branco (no Noite, coral puro com tinta azul-marinho), label em caixa alta, seta de voltar desenhada e "+1" ou "−1" ao lado. Em telas de até 380 px fica só "Desfazer". O alvo de toque cresce para 48 px por uma extensão invisível que só avança sobre a área dos nomes da dupla A.
 - **Nome acessível:** diz o que volta e de quem ("Desfazer +1 game de Fê e Edu").
+
+### Modo de exclusão
+Excluir jogos é um modo do organizador, não um botão em cada cartão: assim o "Excluir" nunca fica ao lado do + e do − de placar.
+- **Entrada:** "Excluir jogos" fica no fim da rodada que está rolando, junto do "+ Criar jogo" (fantasma), só no celular de quem organiza.
+- **Enquanto dura:** os botões de placar somem dos cartões e entra, no rodapé de cada um, "Excluir jogo" em contorno de perigo. Um aviso creme com anel de perigo de 1,5 px fica preso no topo dizendo que o placar volta no "Pronto".
+- **Sem placar:** sai num toque, e o "Desfazer" (coral de botão) ocupa o aviso preso por 10 s, nunca um toast por cima dos cartões.
+- **Com placar:** o primeiro toque abre a confirmação em véu de aviso, com o botão de perigo à esquerda e "Cancelar" à direita, dizendo o placar que se perde. É o mesmo desenho do "Sortear de novo", do "Trocar PIN" e do "Encerrar torneio agora".
 
 ### Toast
 É uma pílula azul profundo com texto areia, logo acima da navegação, só para confirmar ("+1 game: Fê e Edu", "Copiado. É só colar no grupo."). Não pega toque: o dedo atravessa o aviso e chega no que está embaixo. Aparecem no máximo três ao mesmo tempo, e cada um some depois de 3,2 s.

@@ -364,7 +364,7 @@ export function TournamentPage({ code }: { code: string }) {
         )}
 
         {tab === 'jogos' && (
-          <MeCard me={meId} matches={t.matches} players={players} config={config} closed={closed} onPick={() => setMeOpen(true)} />
+          <MeCard me={meId} matches={t.matches} players={players} config={config} closed={closed} finished={finished} onPick={() => setMeOpen(true)} />
         )}
 
         {tab === 'jogos' && (
@@ -778,7 +778,8 @@ function ResultLine({ m, players, config, me }: { m: Match; players: Map<string,
   const r = evaluate(m.sets, config.scoring, knockout, knockout && m.b.length === 0);
   const nm = (ids: string[]) => ids.map((id) => players.get(id)?.name ?? '?').join(' e ');
   if (!m.b.length) return <span className="text-[14px]"><b>{nm(m.a)}</b> <span className="text-muted">avança direto</span></span>;
-  const cls = (s: 'a' | 'b') => cx('min-w-0 [overflow-wrap:anywhere]', r.winner === s ? 'font-bold text-ink' : r.draw ? 'font-semibold' : 'text-muted', me && (s === 'a' ? m.a : m.b).includes(me) && 'underline decoration-accent decoration-2 underline-offset-2');
+  // quebra entre palavras (com hífen em pt-BR); só corta uma palavra quando ela sozinha não cabe
+  const cls = (s: 'a' | 'b') => cx('min-w-0 hyphens-auto [overflow-wrap:break-word]', r.winner === s ? 'font-bold text-ink' : r.draw ? 'font-semibold' : 'text-muted', me && (s === 'a' ? m.a : m.b).includes(me) && 'underline decoration-accent decoration-2 underline-offset-2');
   return (
     <span className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[14px] leading-tight">
       <span className={cx(cls('a'), 'text-right')}>{nm(m.a)}</span>
@@ -1132,13 +1133,18 @@ function ResetPairsNote({ format, pairing, kept }: {
 }
 
 /** "Sou eu": o próximo jogo de quem está com o celular na mão, no topo da aba Jogos. */
-function MeCard({ me, matches, players, config, closed, onPick }: {
-  me: string | null; matches: Match[]; players: Map<string, Player>; config: import('../engine').Config; closed: boolean; onPick: () => void;
+function MeCard({ me, matches, players, config, closed, finished, onPick }: {
+  me: string | null; matches: Match[]; players: Map<string, Player>; config: import('../engine').Config; closed: boolean; finished: boolean; onPick: () => void;
 }) {
   if (!me) {
     return (
       <button type="button" onClick={onPick} className="flex min-h-[56px] items-center gap-3 rounded-lg bg-surface px-4 py-3 text-left shadow-card">
-        <span className="flex-1 text-[15px]"><b>Você está jogando?</b> <span className="text-muted">Toque e escolha seu nome pra ver seu próximo jogo.</span></span>
+        <span className="flex-1 text-[15px]">
+          {/* acabou o play (sozinho ou encerrado à mão): não existe mais "próximo jogo" */}
+          {finished
+            ? <><b>Você jogou?</b> <span className="text-muted">Toque e escolha seu nome pra ver seus jogos.</span></>
+            : <><b>Você está jogando?</b> <span className="text-muted">Toque e escolha seu nome pra ver seu próximo jogo.</span></>}
+        </span>
         <span className="flex-none rounded-full bg-accent px-3 py-1.5 text-sm font-extrabold text-onaccent">Sou eu</span>
       </button>
     );

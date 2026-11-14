@@ -92,6 +92,7 @@ export function TvPage({ code }: { code: string }) {
           <h2 className="m-0 mb-3 font-display text-4xl font-extrabold">
             {finished ? 'Torneio encerrado' : first ? (first.stage === 'mata' ? first.label?.replace(/ \d+$/, '') : `Rodada ${first.round}`) : 'Aguardando'}
           </h2>
+          {closed && <p className="m-0 mb-3 text-2xl font-semibold opacity-80">Encerrado pelo organizador: só os jogos que terminaram contam.</p>}
           <div className="grid gap-3 md:grid-cols-2">
             {current.map((m) => {
               const r = evaluate(m.sets, config.scoring, m.stage === 'mata');
