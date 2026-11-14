@@ -1,0 +1,692 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-14T17:52:04.878Z",
+  "title": "Design System: Super 8 ao vivo",
+  "extensions": {
+    "colorMeta": {
+      "areia": {
+        "role": "neutral",
+        "displayName": "Areia Clara",
+        "canonical": "oklch(93.3% 0.030 78.8)",
+        "tonalRamp": [
+          "#0f0a05",
+          "#29231a",
+          "#463e32",
+          "#665c4c",
+          "#897f6e",
+          "#ada394",
+          "#d1c9bd",
+          "#f4eee4"
+        ]
+      },
+      "creme": {
+        "role": "neutral",
+        "displayName": "Creme Solar",
+        "canonical": "oklch(97.7% 0.019 75.3)",
+        "tonalRamp": [
+          "#0d0b07",
+          "#27231e",
+          "#443f37",
+          "#635c53",
+          "#867f75",
+          "#aaa39b",
+          "#cfcac2",
+          "#f2eee8"
+        ]
+      },
+      "azul-profundo": {
+        "role": "neutral",
+        "displayName": "Azul Profundo",
+        "canonical": "oklch(32.8% 0.067 258.0)",
+        "tonalRamp": [
+          "#040b19",
+          "#172438",
+          "#2e405b",
+          "#485f80",
+          "#6982a6",
+          "#90a6c6",
+          "#bacce7",
+          "#e1f0ff"
+        ]
+      },
+      "coral-saque": {
+        "role": "primary",
+        "displayName": "Coral Saque",
+        "canonical": "oklch(69.2% 0.135 33.5)",
+        "tonalRamp": [
+          "#200000",
+          "#440e04",
+          "#6c2517",
+          "#963e2c",
+          "#c0614c",
+          "#df8b79",
+          "#fdb7a7",
+          "#ffdfd2"
+        ]
+      },
+      "coral-botao": {
+        "role": "primary",
+        "displayName": "Coral de Botão",
+        "canonical": "oklch(57.8% 0.142 32.3)",
+        "tonalRamp": [
+          "#210000",
+          "#460b03",
+          "#6e2315",
+          "#993b2a",
+          "#c35e4b",
+          "#e18a78",
+          "#ffb5a6",
+          "#ffded1"
+        ]
+      },
+      "coral-tinta": {
+        "role": "primary",
+        "displayName": "Tinta Coral",
+        "canonical": "oklch(52.7% 0.129 33.5)",
+        "tonalRamp": [
+          "#1f0000",
+          "#431006",
+          "#6a2719",
+          "#94402e",
+          "#bd634f",
+          "#dc8d7b",
+          "#fbb8a8",
+          "#ffe0d3"
+        ]
+      },
+      "verde-coqueiro": {
+        "role": "secondary",
+        "displayName": "Verde Coqueiro",
+        "canonical": "oklch(43.3% 0.064 180.4)",
+        "tonalRamp": [
+          "#000f0c",
+          "#082a25",
+          "#1d4841",
+          "#34695f",
+          "#568c82",
+          "#82afa6",
+          "#afd4cc",
+          "#d9f6ef"
+        ]
+      },
+      "coqueiro-elevado": {
+        "role": "secondary",
+        "displayName": "Coqueiro Elevado",
+        "canonical": "oklch(49.8% 0.072 179.9)",
+        "tonalRamp": [
+          "#00100c",
+          "#022b25",
+          "#174941",
+          "#2d6a5f",
+          "#508e82",
+          "#7eb1a6",
+          "#abd5cb",
+          "#d6f7ef"
+        ]
+      },
+      "turquesa-mare": {
+        "role": "secondary",
+        "displayName": "Turquesa Maré",
+        "canonical": "oklch(72.7% 0.100 190.2)",
+        "tonalRamp": [
+          "#001110",
+          "#002d2b",
+          "#004c49",
+          "#006d69",
+          "#26928d",
+          "#66b5b0",
+          "#9ad8d4",
+          "#cafaf6"
+        ]
+      },
+      "dourado-sol": {
+        "role": "tertiary",
+        "displayName": "Dourado Sol",
+        "canonical": "oklch(84.1% 0.134 85.6)",
+        "tonalRamp": [
+          "#170700",
+          "#361f00",
+          "#583900",
+          "#7c5600",
+          "#a27900",
+          "#c2a052",
+          "#e3c78a",
+          "#ffecbd"
+        ]
+      },
+      "manteiga": {
+        "role": "tertiary",
+        "displayName": "Manteiga",
+        "canonical": "oklch(91.8% 0.081 89.5)",
+        "tonalRamp": [
+          "#120a00",
+          "#2e2202",
+          "#4d3e14",
+          "#6e5b28",
+          "#927e49",
+          "#b4a377",
+          "#d8caa5",
+          "#f9eed1"
+        ]
+      },
+      "pessego": {
+        "role": "tertiary",
+        "displayName": "Pêssego",
+        "canonical": "oklch(83.5% 0.077 37.7)",
+        "tonalRamp": [
+          "#180502",
+          "#381b12",
+          "#5b3428",
+          "#804f40",
+          "#a67161",
+          "#c7988a",
+          "#e8c0b4",
+          "#ffe6dd"
+        ]
+      },
+      "por-do-sol": {
+        "role": "tertiary",
+        "displayName": "Pôr do Sol",
+        "canonical": "oklch(93.2% 0.039 59.9)",
+        "tonalRamp": [
+          "#110904",
+          "#2d2118",
+          "#4c3c30",
+          "#6d594a",
+          "#917b6b",
+          "#b4a192",
+          "#d7c7bb",
+          "#f9ece2"
+        ]
+      },
+      "turquesa-veu": {
+        "role": "secondary",
+        "displayName": "Véu Turquesa",
+        "canonical": "oklch(93.2% 0.028 188.3)",
+        "tonalRamp": [
+          "#050d0c",
+          "#1a2726",
+          "#334442",
+          "#4e6260",
+          "#6f8583",
+          "#96a9a7",
+          "#bfcecd",
+          "#e5f2f0"
+        ]
+      },
+      "coral-veu": {
+        "role": "primary",
+        "displayName": "Véu Coral",
+        "canonical": "oklch(91.8% 0.033 36.5)",
+        "tonalRamp": [
+          "#110907",
+          "#2d211d",
+          "#4c3b36",
+          "#6d5852",
+          "#927a73",
+          "#b49f99",
+          "#d8c6c1",
+          "#f9ebe7"
+        ]
+      },
+      "ok-veu": {
+        "role": "neutral",
+        "displayName": "Véu de Confirmação",
+        "canonical": "oklch(95.2% 0.017 187.9)",
+        "tonalRamp": [
+          "#070c0c",
+          "#1e2625",
+          "#384241",
+          "#54615f",
+          "#768382",
+          "#9ca7a6",
+          "#c3cdcc",
+          "#e9f0ef"
+        ]
+      },
+      "cinza-mare": {
+        "role": "neutral",
+        "displayName": "Cinza Maré",
+        "canonical": "oklch(50.8% 0.032 260.3)",
+        "tonalRamp": [
+          "#080b12",
+          "#1e242e",
+          "#38404d",
+          "#545e6e",
+          "#768192",
+          "#9ca5b5",
+          "#c3cbd8",
+          "#e9eff9"
+        ]
+      },
+      "fio-areia": {
+        "role": "neutral",
+        "displayName": "Fio de Areia",
+        "canonical": "oklch(88.6% 0.041 79.5)",
+        "tonalRamp": [
+          "#100a03",
+          "#2b2316",
+          "#493e2d",
+          "#695c46",
+          "#8d7e67",
+          "#afa38f",
+          "#d4c9b8",
+          "#f6ede0"
+        ]
+      },
+      "linha-madeira": {
+        "role": "neutral",
+        "displayName": "Linha de Madeira",
+        "canonical": "oklch(59.1% 0.050 76.4)",
+        "tonalRamp": [
+          "#110a02",
+          "#2d2212",
+          "#4c3d28",
+          "#6d5a40",
+          "#917d61",
+          "#b3a28a",
+          "#d7c8b4",
+          "#f8eddd"
+        ]
+      },
+      "perigo": {
+        "role": "neutral",
+        "displayName": "Perigo",
+        "canonical": "oklch(50.0% 0.182 29.5)",
+        "tonalRamp": [
+          "#260000",
+          "#4e0000",
+          "#790f08",
+          "#a7271c",
+          "#d24e3f",
+          "#f17f6f",
+          "#ffae9f",
+          "#ffd9cc"
+        ]
+      },
+      "branco": {
+        "role": "neutral",
+        "displayName": "Branco",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#808080",
+          "#a4a4a4",
+          "#cacaca",
+          "#eeeeee"
+        ]
+      },
+      "noite-fundo": {
+        "role": "neutral",
+        "displayName": "Noite · Fundo",
+        "canonical": "oklch(23.0% 0.037 251.2)",
+        "tonalRamp": [
+          "#060c13",
+          "#1c252f",
+          "#35414f",
+          "#505f71",
+          "#718295",
+          "#98a6b7",
+          "#c0ccda",
+          "#e6f0fb"
+        ]
+      },
+      "noite-cartao": {
+        "role": "neutral",
+        "displayName": "Noite · Cartão",
+        "canonical": "oklch(28.2% 0.045 249.7)",
+        "tonalRamp": [
+          "#050c14",
+          "#192531",
+          "#324152",
+          "#4c6074",
+          "#6d8399",
+          "#94a7bb",
+          "#bdccdd",
+          "#e4f0fd"
+        ]
+      },
+      "noite-faixa": {
+        "role": "neutral",
+        "displayName": "Noite · Faixa",
+        "canonical": "oklch(19.6% 0.029 251.5)",
+        "tonalRamp": [
+          "#070c11",
+          "#1e252d",
+          "#37414c",
+          "#535f6d",
+          "#758290",
+          "#9aa6b3",
+          "#c2ccd6",
+          "#e8eff8"
+        ]
+      },
+      "noite-destaque": {
+        "role": "tertiary",
+        "displayName": "Noite · Destaque",
+        "canonical": "oklch(36.4% 0.045 179.9)",
+        "tonalRamp": [
+          "#020e0b",
+          "#142924",
+          "#2b4640",
+          "#44655e",
+          "#658981",
+          "#8eaca5",
+          "#b8d1cb",
+          "#e0f4ef"
+        ]
+      },
+      "noite-muted": {
+        "role": "neutral",
+        "displayName": "Noite · Texto secundário",
+        "canonical": "oklch(80.4% 0.020 255.6)",
+        "tonalRamp": [
+          "#090b0f",
+          "#20242a",
+          "#3b4048",
+          "#575e68",
+          "#79818b",
+          "#9ea5ae",
+          "#c5cbd3",
+          "#eaeff5"
+        ]
+      },
+      "noite-fio": {
+        "role": "neutral",
+        "displayName": "Noite · Fio",
+        "canonical": "oklch(33.7% 0.047 250.5)",
+        "tonalRamp": [
+          "#050c15",
+          "#192532",
+          "#314153",
+          "#4b6075",
+          "#6d839a",
+          "#94a7bc",
+          "#bdccde",
+          "#e3f0fe"
+        ]
+      },
+      "noite-linha": {
+        "role": "neutral",
+        "displayName": "Noite · Linha",
+        "canonical": "oklch(59.7% 0.040 253.6)",
+        "tonalRamp": [
+          "#060c13",
+          "#1c2530",
+          "#344150",
+          "#505f72",
+          "#718297",
+          "#97a6b8",
+          "#c0ccdb",
+          "#e6f0fc"
+        ]
+      },
+      "noite-coral-tinta": {
+        "role": "primary",
+        "displayName": "Noite · Tinta Coral",
+        "canonical": "oklch(78.0% 0.099 32.5)",
+        "tonalRamp": [
+          "#1b0301",
+          "#3d170f",
+          "#622f25",
+          "#89493c",
+          "#b16b5c",
+          "#d19386",
+          "#f1bcb1",
+          "#ffe3da"
+        ]
+      },
+      "noite-perigo": {
+        "role": "neutral",
+        "displayName": "Noite · Perigo",
+        "canonical": "oklch(76.5% 0.139 28.7)",
+        "tonalRamp": [
+          "#210000",
+          "#450c08",
+          "#6e231c",
+          "#983b32",
+          "#c25e52",
+          "#e1897d",
+          "#ffb5aa",
+          "#ffded5"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Placar",
+        "purpose": "O número do placar e números grandes do pódio e do Telão."
+      },
+      "headline": {
+        "displayName": "Título de painel",
+        "purpose": "Títulos de painel e de folha."
+      },
+      "title": {
+        "displayName": "Nome",
+        "purpose": "Nomes de jogadores e texto do botão primário."
+      },
+      "body": {
+        "displayName": "Corpo",
+        "purpose": "Texto corrido e avisos."
+      },
+      "body-sm": {
+        "displayName": "Dica",
+        "purpose": "Dicas embaixo de rótulos e opções, em cinza maré."
+      },
+      "label": {
+        "displayName": "Rótulo",
+        "purpose": "Cabeçalho do cartão de partida, status e selos em caixa alta."
+      }
+    },
+    "shadows": [
+      {
+        "name": "cartao-na-areia",
+        "value": "0 1px 2px rgba(30,53,87,0.06), 0 10px 24px -14px rgba(30,53,87,0.35)",
+        "purpose": "Cartões, painéis e toasts (tema Sol)."
+      },
+      {
+        "name": "cartao-na-areia-noite",
+        "value": "0 1px 0 #00000066, 0 10px 22px -14px #000000d9",
+        "purpose": "A mesma sombra no tema Noite."
+      },
+      {
+        "name": "barra-inferior",
+        "value": "0 -8px 24px -16px rgba(0,0,0,0.5)",
+        "purpose": "Separa a navegação fixa do conteúdo que rola por baixo."
+      },
+      {
+        "name": "foco",
+        "value": "0 0 0 2px var(--creme), 0 0 0 4px var(--profundo)",
+        "purpose": "Anel de foco duplo de todo elemento focável."
+      }
+    ],
+    "motion": [
+      {
+        "name": "quicar",
+        "value": "1.1s cubic-bezier(.3,0,.4,1) infinite",
+        "purpose": "A bola quicando no carregando."
+      },
+      {
+        "name": "pop",
+        "value": "0.55s ease-out",
+        "purpose": "A dupla vencedora pulsa uma vez quando a partida termina."
+      },
+      {
+        "name": "pulse",
+        "value": "1.6s ease-in-out infinite",
+        "purpose": "O ponto de \"ao vivo\"."
+      },
+      {
+        "name": "toque",
+        "value": "translateY(1px)",
+        "purpose": "Botão primário e + game afundam ao tocar."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "xs-placar",
+        "value": "380px"
+      },
+      {
+        "name": "nome-grande",
+        "value": "400px"
+      },
+      {
+        "name": "opcoes-2col",
+        "value": "420px"
+      },
+      {
+        "name": "sm",
+        "value": "640px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão primário",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação principal da tela: criar torneio, salvar, entrar.",
+      "html": "<button class=\"ds-btn-primary\">Criar torneio</button>",
+      "css": ".ds-btn-primary{min-height:48px;padding:10px 16px;border-radius:16px;font-family:\"DM Sans\",system-ui,sans-serif;font-size:16px;font-weight:700;cursor:pointer;transition:transform .1s;font-size:17px;border:none;background:var(--accent, #bf5440);color:var(--on-accent, #ffffff);}.ds-btn-primary:hover{filter:brightness(1.05);}.ds-btn-primary:active{transform:translateY(1px);}.ds-btn-primary:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
+    },
+    {
+      "name": "Botão de linha",
+      "kind": "button",
+      "refersTo": "button-line",
+      "description": "Ação secundária padrão, com contorno sólido na cor da tinta.",
+      "html": "<button class=\"ds-btn-line\">Compartilhar código</button>",
+      "css": ".ds-btn-line{min-height:48px;padding:10px 16px;border-radius:16px;font-family:\"DM Sans\",system-ui,sans-serif;font-size:16px;font-weight:700;cursor:pointer;transition:transform .1s;background:transparent;border:1.5px solid var(--ink, #1e3557);color:var(--ink, #1e3557);}.ds-btn-line:hover{background:var(--surface, #fff6ea);}.ds-btn-line:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
+    },
+    {
+      "name": "Botão fantasma",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Adicionar ou \"mais um\", com borda tracejada em linha de madeira.",
+      "html": "<button class=\"ds-btn-ghost\">+ Adicionar jogador</button>",
+      "css": ".ds-btn-ghost{min-height:48px;padding:10px 16px;border-radius:16px;font-family:\"DM Sans\",system-ui,sans-serif;font-size:16px;font-weight:700;cursor:pointer;transition:transform .1s;background:transparent;border:1.5px dashed var(--line, #8f7a5c);color:var(--ink, #1e3557);}.ds-btn-ghost:hover{border-style:solid;}.ds-btn-ghost:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
+    },
+    {
+      "name": "Botão + game",
+      "kind": "button",
+      "refersTo": "button-game",
+      "description": "O toque do árbitro: um game para a dupla, em coqueiro sólido de 52 px.",
+      "html": "<button class=\"ds-btn-game\" aria-label=\"Game para Fê e Edu\">+</button>",
+      "css": ".ds-btn-game{width:52px;height:52px;border-radius:9999px;border:none;background:var(--score, #1f5c52);color:var(--on-score, #ffffff);font-size:30px;font-weight:600;line-height:1;cursor:pointer;}.ds-btn-game:active{transform:translateY(1px);}.ds-btn-game:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
+    },
+    {
+      "name": "Cartão de partida",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "O coração do app: duas duplas, a rede tracejada e o placar em Outfit.",
+      "html": "<article class=\"ds-match\"><header class=\"ds-match-head\"><span>Jogo 3 · Quadra 1</span><span class=\"ds-match-status\">Em jogo</span></header><div class=\"ds-match-side ds-a\"><b>Fê e Edu</b><output class=\"ds-match-score\">5</output></div><div class=\"ds-match-net\"></div><div class=\"ds-match-side ds-b\"><b>Ana e Léo</b><output class=\"ds-match-score\">3</output></div></article>",
+      "css": ".ds-match{display:flex;flex-direction:column;gap:6px;padding:16px;border-radius:16px;background:var(--surface, #fff6ea);color:var(--ink, #1e3557);box-shadow:var(--shadow, 0 1px 2px rgba(30,53,87,.06), 0 10px 24px -14px rgba(30,53,87,.35));font-family:\"DM Sans\",system-ui,sans-serif;max-width:360px;}.ds-match-head{display:flex;align-items:center;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted, #5b6678);}.ds-match-status{margin-left:auto;padding:2px 8px;border-radius:9999px;letter-spacing:.08em;background:var(--select, #4dbbb5);color:var(--on-select, #1e3557);}.ds-match-side{position:relative;display:flex;align-items:center;justify-content:space-between;padding:8px 6px 8px 14px;font-size:17px;}.ds-match-side::before{content:\"\";position:absolute;left:0;top:8px;bottom:8px;width:5px;border-radius:9999px;}.ds-a::before{background:var(--turquesa, #4dbbb5);}.ds-b::before{background:var(--coral, #e37a63);}.ds-match-net{margin:2px 8px;border-top:1.5px dashed var(--hair, #e8d7bc);}.ds-match-score{font-family:Outfit,system-ui,sans-serif;font-size:48px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}"
+    },
+    {
+      "name": "Pill de status",
+      "kind": "chip",
+      "refersTo": "pill",
+      "description": "Status e selos em caixa alta: Fim, Venceu, Empate, Avança direto.",
+      "html": "<span class=\"ds-pill\">Fim</span> <span class=\"ds-pill ds-pill-win\">Venceu</span>",
+      "css": ".ds-pill{display:inline-block;white-space:nowrap;padding:2px 10px;border-radius:9999px;font-family:\"DM Sans\",system-ui,sans-serif;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;background:var(--ink, #1e3557);color:var(--bg, #f4e7d3);}.ds-pill-win{background:var(--accent, #bf5440);color:var(--on-accent, #ffffff);}"
+    },
+    {
+      "name": "Opção em cartão",
+      "kind": "input",
+      "refersTo": "choice-selected",
+      "description": "Rádio em cartão para formato, tipo e partida; a escolhida ganha creme e borda dupla.",
+      "html": "<div class=\"ds-choices\" role=\"radiogroup\"><button class=\"ds-choice\" role=\"radio\" aria-checked=\"true\"><i></i><span><b>Rodízio</b><small>Parceiro novo a cada rodada</small></span></button><button class=\"ds-choice\" role=\"radio\" aria-checked=\"false\"><i></i><span><b>Duplas fixas</b><small>Todos contra todos</small></span></button></div>",
+      "css": ".ds-choices{display:grid;gap:8px;max-width:360px;font-family:\"DM Sans\",system-ui,sans-serif;}.ds-choice{display:flex;align-items:center;gap:12px;min-height:52px;padding:12px;border-radius:16px;text-align:left;cursor:pointer;border:1.5px solid var(--line, #8f7a5c);background:var(--bg, #f4e7d3);color:var(--ink, #1e3557);}.ds-choice i{width:20px;height:20px;flex:none;border-radius:9999px;border:2px solid var(--line, #8f7a5c);}.ds-choice span{display:flex;flex-direction:column;gap:2px;}.ds-choice b{font-size:16px;}.ds-choice small{font-size:13px;color:var(--muted, #5b6678);}.ds-choice[aria-checked=\"true\"]{background:var(--surface, #fff6ea);border-color:var(--ink, #1e3557);box-shadow:inset 0 0 0 1px var(--ink, #1e3557);}.ds-choice[aria-checked=\"true\"] i{border-color:var(--ink, #1e3557);background:radial-gradient(circle,var(--ink, #1e3557) 0 5px,transparent 5.5px);}.ds-choice:hover{border-color:var(--ink, #1e3557);}.ds-choice:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
+    },
+    {
+      "name": "Barra de abas",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Navegação inferior com Jogos, Ranking e Info, e a barra de progresso dos jogos por cima.",
+      "html": "<nav class=\"ds-tabs\"><div class=\"ds-tabs-progress\"><i></i></div><div class=\"ds-tabs-row\"><button class=\"ds-tab\" aria-selected=\"true\">Jogos <span>6/12</span></button><button class=\"ds-tab\">Ranking</button><button class=\"ds-tab\">Info</button></div></nav>",
+      "css": ".ds-tabs{background:var(--surface, #fff6ea);border-top:1px solid var(--hair, #e8d7bc);padding:0 16px 8px;max-width:420px;font-family:\"DM Sans\",system-ui,sans-serif;}.ds-tabs-progress{height:3px;margin:0 -16px;background:var(--hair, #e8d7bc);}.ds-tabs-progress i{display:block;height:100%;width:50%;background:var(--accent, #bf5440);}.ds-tabs-row{display:flex;gap:4px;padding-top:8px;}.ds-tab{flex:1;min-height:56px;border:none;border-radius:16px;background:transparent;color:var(--muted, #5b6678);font-size:13px;font-weight:700;cursor:pointer;}.ds-tab span{margin-left:4px;padding:0 6px;border-radius:9999px;font-size:10px;background:var(--accent, #bf5440);color:var(--on-accent, #ffffff);}.ds-tab[aria-selected=\"true\"]{background:var(--accent-tint, #f9ddd5);color:var(--accent-ink, #a84a36);}.ds-tab:hover{color:var(--ink, #1e3557);}.ds-tab:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
+    },
+    {
+      "name": "Toast com Desfazer",
+      "kind": "custom",
+      "refersTo": "toast",
+      "description": "Confirma cada game lançado e oferece desfazer por alguns segundos.",
+      "html": "<div class=\"ds-toast\"><span>+1 game: Fê e Edu</span><button>Desfazer</button></div>",
+      "css": ".ds-toast{display:inline-flex;align-items:center;gap:12px;padding:12px 8px 12px 16px;border-radius:16px;background:var(--ink, #1e3557);color:var(--bg, #f4e7d3);font-family:\"DM Sans\",system-ui,sans-serif;font-weight:600;box-shadow:var(--shadow, 0 1px 2px rgba(30,53,87,.06), 0 10px 24px -14px rgba(30,53,87,.35));}.ds-toast button{min-height:40px;padding:0 12px;border:none;border-radius:16px;background:var(--accent, #bf5440);color:var(--on-accent, #ffffff);font-weight:800;cursor:pointer;}.ds-toast button:focus-visible{outline:2px solid transparent;box-shadow:0 0 0 2px var(--surface, #fff6ea),0 0 0 4px var(--ink, #1e3557);}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Fim de tarde na quadra",
+    "overview": "O Super 8 tem a luz do fim de tarde num play de beach tennis. O fundo é areia quente, os cartões são creme e o destaque esquenta para pêssego, como o sol baixando. O texto é sempre um azul profundo, nunca preto. Por cima disso a quadra continua funcionando: placar grande, alvos de toque generosos e informação que se lê sob sol forte. A atmosfera mora nas bordas e o jogo fica no centro.\n\nO clima vem de poucas peças bem escolhidas. São os 21 personagens no lugar de foto, a folha de coqueiro e a onda de areia como enfeite, a rede tracejada entre as duplas e a bola que quica enquanto carrega. A densidade é a de um app de celular feito para uma mão só: uma coluna, cartões empilhados e navegação embaixo, ao alcance do polegar. À noite o mesmo clube vira o tema Noite, azul-marinho com creme, seguindo o modo escuro do aparelho.\n\nO sistema é um \"clube de sol\": social e ensolarado, mas nunca bagunçado. A cor tem trabalho a fazer. Coral é ação, verde coqueiro é placar e faixa, turquesa é seleção e dourado é conquista.",
+    "keyCharacteristics": [
+      "Areia e creme como base quente, com azul profundo no lugar do preto.",
+      "Cada cor de destaque tem um papel fixo: ação, placar, seleção ou conquista.",
+      "Componentes firmes e amigáveis: alvos de 48 a 56 px, cantos macios de 16 px e bordas sólidas de 1,5 px.",
+      "Uma única sombra estrutural, a do cartão pousado na areia.",
+      "Personagens e enfeites de praia dão o clima, sempre longe do placar.",
+      "Tema Noite automático, com os mesmos papéis de cor."
+    ],
+    "rules": [
+      {
+        "name": "The One Job Rule",
+        "body": "Cada destaque tem um papel só: coral é ação, coqueiro é placar e faixa, turquesa é seleção e jogo em andamento, dourado é conquista. Uma cor nova de destaque precisa de um papel novo, não de gosto.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Black Rule",
+        "body": "O texto nunca é preto. No Sol a tinta é azul profundo, e no Noite é creme. O preto só aparece como véu do fundo das folhas (50%).",
+        "section": "colors"
+      },
+      {
+        "name": "The Gold Is Earned Rule",
+        "body": "O dourado só aparece onde alguém ganhou alguma coisa: 1º lugar, campeão, coroa. Se não houve conquista, não há dourado.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Score Rule",
+        "body": "Todo número que muda ao vivo (placar, contagem de jogos, ranking) usa algarismos tabulares (`.tabnum`). O placar não pode dançar quando vira de 9 para 10.",
+        "section": "typography"
+      },
+      {
+        "name": "The Outfit Is for Reading Far Rule",
+        "body": "Outfit fica para o que se lê a distância: placar, títulos e números grandes. Texto de interface e nomes são DM Sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Thumb Zone Rule",
+        "body": "O que se toca durante o jogo (placar, abas, desfazer) fica na metade de baixo da tela ou dentro do cartão da partida. Nada essencial depende de esticar o polegar até o topo.",
+        "section": "layout"
+      },
+      {
+        "name": "The Card on Sand Rule",
+        "body": "Existe uma sombra para cartões e nenhuma outra para conteúdo. Hover não levanta o cartão. Para mostrar estado, muda a cor ou a borda.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Focus Ring Rule",
+        "body": "O foco de teclado é um anel duplo: 2 px na cor do fundo e mais 2 px na cor da tinta (`--focus-ring`). Ele aparece em todo elemento focável e nunca é removido.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do usar azul profundo (`#1e3557`) como cor de todo texto principal no tema Sol, e creme no tema Noite.",
+      "Do manter os alvos de toque com pelo menos 48 px. O \"+ game\" tem 52 px e as abas têm 56 px.",
+      "Do usar `coral-botao` (`#bf5440`), e não o coral puro, sempre que houver texto branco sobre coral.",
+      "Do usar Outfit 800 com algarismos tabulares em todo número de placar.",
+      "Do dar a cada tela nova os dois temas, Sol e Noite, por meio das variáveis de `src/index.css`. Nunca escreva hex direto num componente.",
+      "Do usar bordas de 1,5 px, para que continuem visíveis sob sol forte.",
+      "Do respeitar `prefers-reduced-motion`. As animações de quique, pop e pulso já são desligadas globalmente."
+    ],
+    "donts": [
+      "Don't colocar folha de coqueiro, onda de areia, confete ou qualquer enfeite perto do placar ou dos botões de game.",
+      "Don't usar dourado fora de conquista (1º lugar, campeão, coroa).",
+      "Don't trocar os papéis das cores: coral não marca seleção e turquesa não é botão de ação.",
+      "Don't criar uma segunda sombra de cartão nem levantar o cartão no hover.",
+      "Don't usar preto puro como texto nem como fundo de superfície.",
+      "Don't usar borda de 1 px nem bordas cinza-frias. Os fios são de areia, e as linhas, de madeira."
+    ]
+  }
+}
